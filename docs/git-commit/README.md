@@ -48,7 +48,30 @@ skills/git-commit/
 
 ---
 
-## 5. CLI Usage & Commands
+## 5. Installation & Consumption via `skills-cli`
+
+You can install this skill into any target repository using the standard `skills-cli`:
+
+### A. Install specific skill
+```bash
+npx skills add cezartdev/skills --skill git-commit
+```
+*(Or via full URL: `npx skills add https://github.com/cezartdev/skills --skill git-commit`)*
+
+### B. List available skills in repository
+```bash
+npx skills add cezartdev/skills --list
+```
+
+### ⚠️ Common Syntax Pitfall & Troubleshooting
+> [!WARNING]
+> **Always use `--skill <name>` flag**: Do not pass the skill name as a positional argument (e.g. `npx skills add cezartdev/skills git-commit`). 
+> 
+> The CLI treats positional arguments as a **git branch or tag name** (e.g. `(git-commit)`), causing a `No valid skills found. Skills require a SKILL.md with name and description` error when that branch does not exist.
+
+---
+
+## 6. CLI Usage & Commands
 
 The skill provides the `commit_helper.py` script with three primary commands:
 
@@ -136,7 +159,7 @@ python3 skills/git-commit/scripts/commit_helper.py commit \
 
 ---
 
-## 6. Validation Rule Reference
+## 7. Validation Rule Reference
 
 | Step | Function | Allowed / Requirement |
 |---|---|---|
@@ -152,7 +175,7 @@ python3 skills/git-commit/scripts/commit_helper.py commit \
 
 ---
 
-## 7. AI Agent Execution Flow
+## 8. AI Agent Execution Flow
 
 When an AI agent is requested to create a commit:
 1. Agent runs `git status -s` and stages intentional files (`git add <files>`).

@@ -83,6 +83,7 @@ skills/<skill-name>/
   - Purpose, feature list, and prerequisites.
   - Usage instructions for agents and human developers.
   - Complete CLI command reference and example workflows.
+  - `skills-cli` installation commands (specifying `npx skills add cezartdev/skills --skill <skill-name>` and noting the mandatory `--skill` flag to prevent git branch confusion).
 - **Dependencies**: If a skill uses Python scripts with external libraries, manage them via `uv` within the skill directory or workspace environment. If using Node.js scripts, use `pnpm`.
 - **Interoperability**: Structure `SKILL.md` so it is fully compatible with standard AI agent skill interfaces (e.g., `skills.sh`, Antigravity, Claude Desktop, Cursor, etc.).
 
