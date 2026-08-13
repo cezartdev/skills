@@ -1,0 +1,17 @@
+{
+  "name": "cezartdev-skills",
+  "version": "0.0.1",
+  "description": "cezartdev's agent skills",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "cezartdev",
+  "license": "MIT",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.17.0",
+      "onFail": "download"
+    }
+  }
+}
