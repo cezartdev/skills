@@ -78,7 +78,7 @@ skills/<skill-name>/
 
 ### Skill Guidelines
 - **Self-Contained & Minimalist**: Every skill must have a valid `SKILL.md` with frontmatter (`name`, `description`). Avoid creating empty folders (`resources/`, `references/`, `scripts/`) unless they are actively utilized.
-- **Documentation (`docs/<skill-name>/`)**: Every skill created MUST have a corresponding documentation file in `docs/<skill-name>/README.md` containing:
+- **Documentation Standards**: Every skill created MUST have a corresponding documentation file in `docs/<skill-name>/README.md` containing:
   - Skill metadata (Author: `cezartdev`, Version, Status).
   - Purpose, feature list, and prerequisites.
   - Usage instructions for agents and human developers.
