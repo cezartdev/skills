@@ -78,6 +78,11 @@ skills/<skill-name>/
 
 ### Skill Guidelines
 - **Self-Contained & Minimalist**: Every skill must have a valid `SKILL.md` with frontmatter (`name`, `description`). Avoid creating empty folders (`resources/`, `references/`, `scripts/`) unless they are actively utilized.
+- **Documentation (`docs/<skill-name>/`)**: Every skill created MUST have a corresponding documentation file in `docs/<skill-name>/README.md` containing:
+  - Skill metadata (Author: `cezartdev`, Version, Status).
+  - Purpose, feature list, and prerequisites.
+  - Usage instructions for agents and human developers.
+  - Complete CLI command reference and example workflows.
 - **Dependencies**: If a skill uses Python scripts with external libraries, manage them via `uv` within the skill directory or workspace environment. If using Node.js scripts, use `pnpm`.
 - **Interoperability**: Structure `SKILL.md` so it is fully compatible with standard AI agent skill interfaces (e.g., `skills.sh`, Antigravity, Claude Desktop, Cursor, etc.).
 
