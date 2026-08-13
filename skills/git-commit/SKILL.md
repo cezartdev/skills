@@ -64,12 +64,17 @@ graph TD
     E --> F[Step 6: Confirm with git log]
 ```
 
-### Step 1: Inspect Changes
+### Step 1: Inspect Changes & Check for Clean Tree
 Run git commands to understand what changed:
 ```bash
 git status -s
 git diff
 ```
+
+> [!IMPORTANT]
+> **No-Changes Protocol**: If `git status -s` produces no output (working tree is clean), there are no changes to commit. 
+> The agent MUST NOT attempt to run `git commit` or validate empty strings. Instead, terminate the task early and report:
+> `"No changes detected in working tree. No commit was executed."`
 
 ### Step 2: Stage Target Files
 Stage only intentional changes (avoid staging unrelated temporary files):

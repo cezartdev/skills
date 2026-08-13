@@ -316,6 +316,21 @@ def cmd_commit(
     raw_message: Optional[str] = None
 ) -> int:
     """Constructs the message, runs full pre-flight validation, and executes git commit."""
+    # Step 0: Check working tree status
+    try:
+        status_out = subprocess.check_output(["git", "status", "--porcelain"], text=True).strip()
+        if not status_out:
+            print("[NO CHANGES] Working tree is completely clean. No changes detected to commit. No action taken.")
+            return 0
+            
+        diff_cached = subprocess.check_output(["git", "diff", "--cached", "--name-only"], text=True).strip()
+        if not diff_cached:
+            print("[NO STAGED CHANGES] Changes exist in working tree, but none are staged. Please stage files using 'git add <files>' first.")
+            return 1
+    except subprocess.CalledProcessError as e:
+        print(f"Error checking git status: {e}", file=sys.stderr)
+        return 1
+
     if raw_message:
         full_message = raw_message
     else:
@@ -334,17 +349,7 @@ def cmd_commit(
         print("ERROR: Commit aborted due to pre-flight validation failure.", file=sys.stderr)
         return 1
 
-    # Step 2: Check if there are staged changes
-    try:
-        diff_cached = subprocess.check_output(["git", "diff", "--cached", "--name-only"], text=True).strip()
-        if not diff_cached:
-            print("ERROR: No staged changes found. Use 'git add <files>' before committing.", file=sys.stderr)
-            return 1
-    except subprocess.CalledProcessError as e:
-        print(f"Error checking git diff: {e}", file=sys.stderr)
-        return 1
-
-    # Step 3: Safe commit execution
+    # Step 2: Safe commit execution
     try:
         print("\nExecuting git commit...")
         subprocess.check_call(["git", "commit", "-m", full_message])

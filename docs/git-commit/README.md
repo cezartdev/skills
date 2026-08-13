@@ -25,7 +25,7 @@ It is designed for AI agents and human developers to eliminate non-standard comm
   - Maximum body bullet length: $\le 120$ characters.
 - **English Imperative Verbs**: Requires the description to begin with a recognized lowercase English imperative verb (`add`, `update`, `fix`, `implement`, `refactor`, `remove`, `configure`, `create`, `ensure`, etc.). Non-English words (e.g. `añadir`) or past tenses (`added`) are rejected.
 - **No Trailing Periods**: Enforces clean subject lines without trailing `.`.
-- **Pre-Flight Validation Gate**: Analyzes the commit message string across 9 modular validation steps *before* executing `git commit`.
+- **No-Changes Early Exit**: Detects clean working trees or unstaged diffs immediately, preventing empty commits and returning clear feedback (`[NO CHANGES]`).
 - **Safe Execution Runner**: Ensures zero invalid commits can be created.
 
 ---
@@ -178,8 +178,9 @@ python3 skills/git-commit/scripts/commit_helper.py commit \
 ## 8. AI Agent Execution Flow
 
 When an AI agent is requested to create a commit:
-1. Agent runs `git status -s` and stages intentional files (`git add <files>`).
-2. Agent runs `python3 skills/git-commit/scripts/commit_helper.py draft` to review staged files and pick type/scope.
-3. Agent prepares candidate header and bullets.
-4. Agent runs `python3 skills/git-commit/scripts/commit_helper.py commit -t <type> -s <scope> -m "<description>" [-b "<bullet>"]`.
-5. If any validation fails, the agent reads the report, adjusts the message accordingly, and re-submits until successful.
+1. Agent runs `git status -s`. **If working tree is clean, agent terminates immediately and reports that no commit was needed.**
+2. If changes exist, agent stages intentional files (`git add <files>`).
+3. Agent runs `python3 skills/git-commit/scripts/commit_helper.py draft` to review staged files and pick type/scope.
+4. Agent prepares candidate header and bullets.
+5. Agent runs `python3 skills/git-commit/scripts/commit_helper.py commit -t <type> -s <scope> -m "<description>" [-b "<bullet>"]`.
+6. If any validation fails, the agent reads the report, adjusts the message accordingly, and re-submits until successful.
