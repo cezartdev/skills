@@ -191,6 +191,14 @@ Once the feature PR merges into `main`, GitHub Actions (`.github/workflows/relea
 > pnpm run release
 > ```
 
+> [!IMPORTANT]
+> **Required GitHub Repository Setting for Changeset Pull Requests**:
+> By default, GitHub blocks Actions bots from opening pull requests. To allow `changesets/action` to create the release PR:
+> 1. Go to repository **Settings** $\rightarrow$ **Actions** $\rightarrow$ **General**.
+> 2. Under **Workflow permissions**, select **Read and write permissions**.
+> 3. Check the box: **Allow GitHub Actions to create and approve pull requests**.
+> 4. Click **Save**.
+
 ---
 
 ## 5. Planned Skills Roadmap
