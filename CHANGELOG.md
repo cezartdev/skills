@@ -1,5 +1,19 @@
 # cezartdev-skills
 
+## 1.3.2
+
+### Patch Changes
+
+- [`0ab14cd`](https://github.com/cezartdev/skills/commit/0ab14cd31932d3a5ee245f37d81c2613f24920f9) Thanks [@cezartdev](https://github.com/cezartdev)! - Add context-aware suggested next command prompts across all workflow runner subcommands.
+
+- [`ab3b39f`](https://github.com/cezartdev/skills/commit/ab3b39fad79c64cbc531f8a4b9deedad3b43c813) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement ecosystem-aware test runner fallbacks, native subagent dispatch protocol, and standardized token-efficient table outputs in English.
+
+- [`a3bee32`](https://github.com/cezartdev/skills/commit/a3bee32a0ede8467002cd8428a06be0acd2e6d62) Thanks [@cezartdev](https://github.com/cezartdev)! - Standardize git skill execution to uv run with cross-platform native launchers.
+
+- [`969beca`](https://github.com/cezartdev/skills/commit/969becaf1e1d8a29f95b15f0bdf6d7051d19ca66) Thanks [@cezartdev](https://github.com/cezartdev)! - Refine curator PR metadata handling for empty rollups and ignore .workflow runtime directories.
+
+- [`bbc88b4`](https://github.com/cezartdev/skills/commit/bbc88b4483f39ae4d17db63566ec4ac3c5b82812) Thanks [@cezartdev](https://github.com/cezartdev)! - Standardize /workflow list output to a deterministic, concise command reference table.
+
 ## 1.3.1
 
 ### Patch Changes
