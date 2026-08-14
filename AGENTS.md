@@ -179,8 +179,17 @@ pnpm check-version
 Once the feature PR merges into `main`, GitHub Actions (`.github/workflows/release.yml`):
 1. Collects all pending changesets.
 2. Creates/updates a single `"chore(release): version skills and update changelog"` PR.
-3. Automatically runs `pnpm version` (`changeset version && node scripts/sync-versions.mjs`).
+3. Automatically runs `pnpm run version` (`changeset version && node scripts/sync-versions.mjs`).
 4. Upon merging the Release PR, creates the Git Tag and GitHub Release.
+
+> [!WARNING]
+> **Critical PNPM Command Pitfall (`pnpm run version` vs `pnpm version`)**:
+> `pnpm version` is a built-in CLI command that expects a SemVer argument (e.g. `pnpm version patch`). If invoked without arguments, it fails with `[ERR_PNPM_INVALID_VERSION_BUMP]`.
+> In all GitHub Actions workflows and local executions, ALWAYS invoke the lifecycle script explicitly as:
+> ```bash
+> pnpm run version
+> pnpm run release
+> ```
 
 ---
 
