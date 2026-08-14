@@ -1,5 +1,13 @@
 # cezartdev-skills
 
+## 1.3.1
+
+### Patch Changes
+
+- [`68d966f`](https://github.com/cezartdev/skills/commit/68d966fd71d9f85f6be39cbfa1ade677014d5a0a) Thanks [@cezartdev](https://github.com/cezartdev)! - Pre-configure auto-fixer, refactor-worker, and doc-sync base daemons in workflow.config.json and scaffolder.
+
+- [`5eaa454`](https://github.com/cezartdev/skills/commit/5eaa454483c43c4056167b550bf4980a1d31a2c9) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement interactive Grilling Session protocol in specify prompt, enforce English across all assets, and mandate uv run for AI agents.
+
 ## 1.3.0
 
 ### Minor Changes
