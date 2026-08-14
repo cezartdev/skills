@@ -91,13 +91,91 @@ skills/<skill-name>/
 
 ## 4. Versioning, Changesets & Release Standards
 
-The repository uses **Changesets** (`@changesets/cli` and `@changesets/changelog-github`) for automated semantic versioning, `CHANGELOG.md` generation, and GitHub release tagging.
+The repository uses **Changesets** (`@changesets/cli` and `@changesets/changelog-github`) alongside GitHub Actions for automated semantic versioning, `CHANGELOG.md` generation, documentation synchronization, and GitHub release tagging.
 
-### Developer & Agent Versioning Flow:
-1. When modifying or adding a skill, create your changes and commit them using the `git-commit` skill.
-2. Run `pnpm changeset` (or declare a changeset file in `.changeset/<name>.md`) selecting the appropriate bump type (`patch`, `minor`, or `major`) and summarizing the changes in English.
-3. Push changes or open a Pull Request against `main`.
-4. The GitHub Actions release workflow (`.github/workflows/release.yml`) automatically collects pending changesets, opens a `"chore(release): version skills and update changelog"` PR, syncs versions across documentation via `pnpm version` (`scripts/sync-versions.mjs`), and creates git tags/GitHub releases upon merging.
+### Key Versioning Principles
+- **Private Repository Package**: The root `package.json` is marked `"private": true`. Instead of publishing to npm, Changesets is configured (`.changeset/config.json` with `privatePackages: { version: true, tag: true }`) to generate Git Tags (e.g., `v0.2.0`) and official GitHub Releases with formatted changelogs.
+- **Single Source of Truth**: `package.json` contains the primary version number. `scripts/sync-versions.mjs` automatically propagates this version to all skill documentation files (`docs/*/README.md`) and plugin manifests.
+- **Deterministic Releases**: Commits alone do NOT trigger version bumps. A version bump ONLY occurs when one or more Changeset files exist on `main`.
+
+### SemVer Bump Guide (When to choose which type)
+
+| Bump Type | Target Version | Trigger / Scenario | Examples |
+|---|---|---|---|
+| **`patch`** | `0.1.0` $\rightarrow$ `0.1.1` | Bug fixes, script corrections, minor documentation adjustments, dependency patches. | Fixing regex in `commit_helper.py`, correcting a typo in `SKILL.md`. |
+| **`minor`** | `0.1.0` $\rightarrow$ `0.2.0` | Adding a **new skill**, introducing new tools/features to an existing skill without breaking changes. | Adding `skills/workflow/`, adding a new command to an existing skill. |
+| **`major`** | `0.1.0` $\rightarrow$ `1.0.0` | Breaking changes, complete redesign of core skill interfaces or execution models. | Redesigning `SKILL.md` format incompatibility, breaking CLI arguments. |
+
+---
+
+### Step-by-Step Developer & Agent Workflow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Agent as Developer / AI Agent
+    participant Branch as Feature Branch
+    participant Main as main Branch
+    participant Action as Release Workflow (GitHub Action)
+    participant Release as GitHub Release & Git Tags
+
+    Agent->>Branch: 1. Create or edit skill in skills/<name>/ and docs/<name>/
+    Agent->>Branch: 2. Add changeset file (pnpm changeset or direct .changeset/<slug>.md)
+    Agent->>Branch: 3. Commit with git-commit skill and open PR
+    Branch->>Main: 4. PR merged into main
+    Main->>Action: 5. release.yml detects pending changeset(s)
+    Action->>Main: 6. Opens PR: "chore(release): version skills and update changelog"
+    Note over Action,Main: PR bumps package.json, syncs docs/*/README.md via sync-versions.mjs, and updates CHANGELOG.md
+    Agent->>Main: 7. Merge the Version PR
+    Main->>Release: 8. release.yml tags repo (e.g. cezartdev-skills@0.2.0) and publishes GitHub Release
+```
+
+#### Step 1: Implement Skill & Update Documentation
+Create your skill under `skills/<skill-name>/` and corresponding docs under `docs/<skill-name>/README.md`.
+
+#### Step 2: Declare the Changeset
+
+##### Option A: Interactive CLI (Human developers)
+```bash
+pnpm changeset
+```
+Follow interactive prompts to select bump type (`patch`, `minor`, `major`) and enter summary in English.
+
+##### Option B: Programmatic Declaration (AI Agents / Automated scripts)
+Agents running in headless environments should directly generate a `.changeset/<unique-slug>.md` file with the following format:
+
+```markdown
+---
+"cezartdev-skills": minor
+---
+
+Add deterministic workflow skill with LangGraph state machine runner.
+```
+
+*(Note: Replace `minor` with `patch` or `major` and write the summary in English)*.
+
+#### Step 3: Pre-Flight Validation & Commit
+Use the `git-commit` helper script to validate and execute the commit:
+```bash
+python3 skills/git-commit/scripts/commit_helper.py commit \
+  -t feat \
+  -s workflow \
+  -m "implement deterministic state machine runner" \
+  -b "add LangGraph execution engine for structured multi-step tasks"
+```
+
+#### Step 4: Verify Version Synchronization
+To verify that all documentation files match the package version:
+```bash
+pnpm check-version
+```
+
+#### Step 5: Merge & Automated Release
+Once the feature PR merges into `main`, GitHub Actions (`.github/workflows/release.yml`):
+1. Collects all pending changesets.
+2. Creates/updates a single `"chore(release): version skills and update changelog"` PR.
+3. Automatically runs `pnpm version` (`changeset version && node scripts/sync-versions.mjs`).
+4. Upon merging the Release PR, creates the Git Tag and GitHub Release.
 
 ---
 
