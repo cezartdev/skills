@@ -1,5 +1,19 @@
 # cezartdev-skills
 
+## 1.3.0
+
+### Minor Changes
+
+- [`72a8950`](https://github.com/cezartdev/skills/commit/72a895018e999479ae9dcc5a9d1f162f53856602) Thanks [@cezartdev](https://github.com/cezartdev)! - Encapsulate workflow files inside .workflow/ directory, add /workflow specify for Spec-Kit co-authoring, /workflow chat for macro dialogue, /workflow list cheat-sheet, and Smart Path Resolver.
+
+- [`f3337d6`](https://github.com/cezartdev/skills/commit/f3337d6848a63922531eaa97313641aa6a0b8d41) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement autonomous background daemon subagents with cron scheduling, 3-phase Anti-Zombie cleanup, Universal Subagent Dispatch, and the Curator Subagent for release PR rollups.
+
+- [`2de07a6`](https://github.com/cezartdev/skills/commit/2de07a6be7cc1de5d0c408ce73494c2167707509) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement Multi-PR catalog in .workflow/prs/, polyglot test detection (Python, Rust, Go, Node, Java, .NET), and deterministic pipelines with daemon pause/resume controls.
+
+### Patch Changes
+
+- [`26052b4`](https://github.com/cezartdev/skills/commit/26052b4a7e7fb9d51f4cca0be63e924da6c6a0da) Thanks [@cezartdev](https://github.com/cezartdev)! - Standardize CLI execution documentation to prioritize uv run across Linux, Windows, and macOS.
+
 ## 1.2.0
 
 ### Minor Changes
