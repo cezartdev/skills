@@ -57,6 +57,7 @@ As AI agents take on increasingly complex development tasks, deterministic guard
 | Skill | Version | Description | Runtime | Documentation |
 |---|---|---|---|---|
 | [`git`](file:///home/cezartdev/Documents/cezartdev/professional/skills/skills/git) | `1.0.0` | **Deterministic Git Operations Suite**: Pre-commit security gate, 10-step Conventional Commits validation, retrospective history auditing (`/git audit`), atomic commits, and safe push workflows. | Python 3.8+ (Zero external deps) | [📖 `docs/git`](file:///home/cezartdev/Documents/cezartdev/professional/skills/docs/git/README.md) |
+| [`workflow`](file:///home/cezartdev/Documents/cezartdev/professional/skills/skills/workflow) | `1.0.0` | **Deterministic Workflow & TDD Suite**: LangGraph DAG runner, Spec-Driven Development, physical Git Worktrees, hierarchical memory (00-10), and stack drift detector. | Python 3.10+ (Astral uv / LangGraph) | [📖 `docs/workflow`](file:///home/cezartdev/Documents/cezartdev/professional/skills/docs/workflow/README.md) |
 
 #### 🔍 `git` Skill Highlights
 - **Subcommand Suite**: `/git commit`, `/git sync`, `/git status`, `/git branch`, `/git undo`, and `/git audit`.
@@ -64,13 +65,19 @@ As AI agents take on increasingly complex development tasks, deterministic guard
 - **Convention Gate (Tier 2)**: Enforces imperative verbs, proper casing, scope rules, and character boundaries.
 - **Commit History Compliance (`/git audit`)**: Scans past commit logs, scores repository compliance, and suggests automated standardized rewrites.
 
+#### 🔍 `workflow` Skill Highlights
+- **Subcommand Suite**: `/workflow init`, `/workflow explore`, `/workflow drift`, `/workflow new`, `/workflow check`, `/workflow run`, `/workflow daemon`, `/workflow memory`, `/workflow worktree`.
+- **Spec-Driven Architecture**: Structured `spec.md` and atomic TDD issues (`issues/*.md`) inspired by Matt Pocock.
+- **Physical Git Worktree Isolation**: Zero-collision concurrency for background daemons with private staging indices.
+- **Hierarchical Markdown Memory**: 00-10 sliding window with deterministic rollup into `00_project_context.md`.
+- **Pre-Execution Quality Gate**: Human-in-the-loop verification before code execution.
+
 ---
 
 ### Planned & In-Development Skills
 
 | Planned Skill | Target Engine | Purpose & Scope | Status |
 |---|---|---|---|
-| **`workflow`** | Python + LangGraph | Deterministic state-machine runner for multi-step agent tasks, checkpointing, and step transitions. | 🚧 In Design |
 | **`testing`** | Node.js / Python | Automated test generation, snapshot validation, and coverage gatekeeper for autonomous PRs. | 📋 Planned |
 | **`release`** | Node / Changesets | Automated changelog curation, release tag orchestrator, and semantic version reconciler. | 📋 Planned |
 

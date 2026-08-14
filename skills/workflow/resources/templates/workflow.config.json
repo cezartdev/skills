@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0",
+  "test_runner": {
+    "command": "{{TEST_COMMAND}}",
+    "args": ["--run"],
+    "coverage_threshold": 80
+  },
+  "drift_detection": {
+    "enabled": true,
+    "auto_reexplore": true,
+    "manifest_files": ["package.json", "pyproject.toml", "Cargo.toml", "go.mod"]
+  },
+  "memory": {
+    "directory": "memory",
+    "max_episodic_files_per_archetype": 10,
+    "auto_compact_on_threshold": true,
+    "require_memory_before_run": true
+  },
+  "worktrees": {
+    "directory": ".worktrees",
+    "auto_clean_on_merge": true
+  },
+  "daemons": {
+    "auto-fixer": {
+      "archetype": "fix",
+      "runner": "subagent",
+      "target_spec_dir": "specs/bugs/",
+      "worktree": ".worktrees/auto-fixer",
+      "branch": "fix/active-patches",
+      "schedule": {
+        "interval_minutes": 10,
+        "max_iterations": 10
+      },
+      "auto_merge": {
+        "enabled": true,
+        "target_branch": "main",
+        "strategy": "rebase",
+        "require_all_tests_pass": true,
+        "require_security_scan": true
+      }
+    }
+  },
+  "quality_gate": {
+    "require_user_confirmation": true,
+    "strict_acceptance_criteria": true,
+    "suggest_edge_cases": true
+  }
+}

@@ -1,0 +1,15 @@
+[project]
+name = "workflow"
+version = "1.0.0"
+description = "Deterministic state-machine driven workflow runner, spec-driven development, and multi-daemon physical worktree manager powered by LangGraph"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+    "pydantic>=2.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

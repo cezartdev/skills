@@ -201,14 +201,19 @@ Once the feature PR merges into `main`, GitHub Actions (`.github/workflows/relea
 
 ---
 
-## 5. Planned Skills Roadmap
+## 5. Skills Catalog & Roadmap
 
-1. **`workflow` (Deterministic Agent Workflow)**:
-   - **Engine**: Python + LangGraph.
-   - **Purpose**: Provides a deterministic, state-machine driven workflow runner for multi-step tasks across any repository. Ensures agent execution state is logged, verifiable, and strictly bound to step transitions.
-2. **`git` (Deterministic Git Operations Suite)**:
+### Active Implemented Skills
+1. **`git` (Deterministic Git Operations Suite)**:
    - **Engine**: Python 3.8+ CLI helper (`git_helper.py`).
    - **Purpose**: Unified Git suite providing pre-commit security gates, 10-step Conventional Commits validation, commit history compliance auditing (`/git audit`), and safe commit-and-push workflows.
+2. **`workflow` (Deterministic Agent Workflow & TDD Suite)**:
+   - **Engine**: Python 3.10+ (LangGraph + Astral uv).
+   - **Purpose**: Deterministic state-machine workflow runner, Spec-Driven Development (SDD), Test-Driven Development (TDD), hierarchical markdown memory with 00-10 compaction, autonomous codebase exploration with tech drift detection, and multi-daemon physical Git Worktree isolation.
+
+### Planned Roadmap Skills
+3. **`testing` (Autonomous Test Suite & Snapshot Gatekeeper)**: Automated test generation, snapshot validation, and coverage gatekeeper for autonomous PRs.
+4. **`release` (Release Tag Orchestrator)**: Automated changelog curation, release tag orchestrator, and semantic version reconciler.
 
 
 
