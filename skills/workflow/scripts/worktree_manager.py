@@ -1,46 +1,45 @@
-"""Physical Git Worktree lifecycle manager with branch lock safety and self-healing prune."""
+"""Physical Git Worktree manager and self-healing lifecycle engine."""
 
 import os
+import shutil
 import subprocess
 import time
 from typing import Dict, Any, List, Optional
 
 
 def run_git(args: List[str], cwd: str = ".") -> subprocess.CompletedProcess:
-    """Executes a git command and returns CompletedProcess."""
-    return subprocess.run(
-        ["git"] + args,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    """Executes a git command safely in the specified working directory."""
+    return subprocess.run(["git"] + args, cwd=cwd, capture_output=True, text=True, check=False)
 
 
 def list_worktrees(repo_dir: str = ".") -> List[Dict[str, str]]:
-    """Lists all active git worktrees."""
+    """Lists active git worktrees and parses output into structured dictionary."""
     res = run_git(["worktree", "list", "--porcelain"], cwd=repo_dir)
     if res.returncode != 0:
         return []
 
-    worktrees: List[Dict[str, str]] = []
+    worktrees = []
     current: Dict[str, str] = {}
-
     for line in res.stdout.splitlines():
-        if line.startswith("worktree "):
+        line = line.strip()
+        if not line:
             if current:
                 worktrees.append(current)
-            current = {"path": line.replace("worktree ", "").strip()}
+                current = {}
+            continue
+        if line.startswith("worktree "):
+            current["path"] = line.replace("worktree ", "").strip()
         elif line.startswith("HEAD "):
             current["head"] = line.replace("HEAD ", "").strip()
         elif line.startswith("branch "):
             current["branch"] = line.replace("branch ", "").strip()
         elif line == "bare":
             current["bare"] = "true"
+        elif line == "detached":
+            current["detached"] = "true"
 
     if current:
         worktrees.append(current)
-
     return worktrees
 
 
@@ -103,6 +102,43 @@ def remove_worktree(name: str, repo_dir: str = ".", force: bool = False) -> Dict
         return {"status": "ERROR", "error": res.stderr.strip()}
 
     return {"status": "REMOVED", "worktree_path": worktree_dir}
+
+
+def force_purge_worktree(name: str, repo_dir: str = ".") -> Dict[str, Any]:
+    """Anti-Zombie Deep Purge: forces removal of worktree, lockfiles, and git references."""
+    repo_dir = os.path.abspath(repo_dir)
+    wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
+    worktree_dir = os.path.join(wf_root, "worktrees", name)
+
+    # 1. Attempt standard git worktree remove with --force
+    run_git(["worktree", "remove", "--force", worktree_dir], cwd=repo_dir)
+    prune_worktrees(repo_dir)
+
+    # 2. Check for leftover disk directory and forcefully wipe if necessary
+    if os.path.exists(worktree_dir):
+        try:
+            shutil.rmtree(worktree_dir, ignore_errors=True)
+        except Exception as e:
+            pass
+
+    # 3. Clean any stale lockfiles (.git/index.lock or .git/worktrees/<name>/locked)
+    git_dir = os.path.join(repo_dir, ".git")
+    if os.path.exists(git_dir):
+        main_index_lock = os.path.join(git_dir, "index.lock")
+        if os.path.exists(main_index_lock):
+            try:
+                os.remove(main_index_lock)
+            except Exception:
+                pass
+        wt_meta = os.path.join(git_dir, "worktrees", name)
+        if os.path.exists(wt_meta):
+            try:
+                shutil.rmtree(wt_meta, ignore_errors=True)
+            except Exception:
+                pass
+
+    prune_worktrees(repo_dir)
+    return {"status": "PURGED", "worktree_path": worktree_dir}
 
 
 def prune_worktrees(repo_dir: str = ".") -> bool:

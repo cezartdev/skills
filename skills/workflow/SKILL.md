@@ -1,10 +1,10 @@
 ---
 name: workflow
-description: Deterministic state-machine workflow runner, Spec-Driven Development (SDD), Test-Driven Development (TDD), hierarchical markdown memory with 00-10 compaction, autonomous codebase exploration with tech drift detection, and multi-daemon physical Git Worktree isolation encapsulated in .workflow/.
+description: Deterministic state-machine workflow runner, Spec-Driven Development (SDD), Test-Driven Development (TDD), hierarchical markdown memory with 00-10 compaction, autonomous codebase exploration with tech drift detection, Anti-Zombie multi-daemon physical Git Worktree isolation, and automated Release Curator for Pull Requests.
 compatibility: Requires Python 3.10+, Git, and Astral uv. Works across Linux, Windows (PowerShell/CMD), and macOS.
 metadata:
   author: cezartdev
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Workflow Suite Skill Specification
@@ -13,7 +13,7 @@ metadata:
 
 - **Python**: Version **3.10+** is required to execute `scripts/workflow_runner.py`.
 - **Dependencies**: Managed via Astral `uv` (`langgraph`, `langchain-core`, `pydantic`). If `langgraph` is not yet installed, a pure-Python standard library fallback runner automatically executes with an identical contract.
-- **Encapsulated Architecture**: All project artifacts reside in the target project's **`.workflow/`** directory (`.workflow/workflow.json`, `.workflow/specs/`, `.workflow/memory/`, `.workflow/worktrees/`).
+- **Encapsulated Architecture**: All project artifacts reside in the target project's **`.workflow/`** directory (`.workflow/workflow.json`, `.workflow/daemons.json`, `.workflow/specs/`, `.workflow/memory/`, `.workflow/worktrees/`, `.workflow/PR_SUMMARY.md`).
 - **Universal CLI Runners**:
   - **Linux / macOS**:
     ```bash
@@ -48,10 +48,11 @@ skills/workflow/
 │   ├── explorer.py                   # Language-agnostic codebase stack scanner
 │   ├── drift_detector.py             # Manifest checksums & tech drift anomaly detector
 │   ├── memory_manager.py             # Hierarchical 00-10 memory sliding window & compaction engine
-│   ├── worktree_manager.py           # Physical Git Worktree lifecycle manager with self-healing prune
+│   ├── worktree_manager.py           # Physical Git Worktree lifecycle manager with Anti-Zombie force purge
 │   ├── quality_auditor.py            # Pre-execution Quality Gate for spec.md and issues
-│   ├── orchestrator.py               # Hybrid orchestrator for Subagents and background processes
-│   ├── daemon_manager.py             # Multi-daemon runner with scheduled cycles & auto-merge
+│   ├── orchestrator.py               # Universal Subagent Dispatch engine
+│   ├── daemon_manager.py             # Multi-daemon scheduler with cron & Anti-Zombie cleanup
+│   ├── curator.py                    # Release Curator & automated PR synthesizer
 │   └── graph/
 │       ├── state.py                  # LangGraph TypedDict state definitions
 │       ├── nodes.py                  # LangGraph node transitions (RED, GREEN, REFACTOR, GATES)
@@ -65,7 +66,8 @@ skills/workflow/
 │       ├── implement.prompt.md       # Feature builder prompt
 │       ├── doc_sync.prompt.md        # Documentation synchronizer prompt
 │       ├── specify.prompt.md         # Spec Scribe & Socratic Co-Author prompt (Spec-Kit style)
-│       └── chat.prompt.md            # Macro project advisor & brainstorming prompt
+│       ├── chat.prompt.md            # Macro project advisor & brainstorming prompt
+│       └── curator.prompt.md         # Release Curator & PR Integrator prompt
 └── assets/                           # [OPTIONAL] Templates, schemas, and static resources
     ├── spec.template.md              # Matt Pocock-inspired Spec template
     ├── issue.template.md             # Atomic TDD Issue template (Red -> Green -> Refactor)
@@ -89,39 +91,36 @@ skills/workflow/
 | `/workflow plan <spec>` | `plan` | Decomposes refined `spec.md` into atomic TDD tasks in `issues/*.md` | `.workflow/specs/` |
 | `/workflow check <spec>` | `check` | Pre-Execution Quality Gate: verifies acceptance criteria and edge cases | `.workflow/specs/` |
 | `/workflow run <spec>` | `run` | Executes LangGraph DAG state machine (RED $\rightarrow$ GREEN $\rightarrow$ REFACTOR) | `.workflow/specs/` |
-| `/workflow daemon <name>` | `daemon` | Runs background worker in physical worktree with archetype prompt & auto-merge | `.workflow/worktrees/` |
 | `/workflow archive <name>` | `archive` | Moves completed & merged spec folder to `.workflow/specs/archive/<year>/` | `.workflow/specs/archive/` |
 | `/workflow memory <action>` | `memory` | Manages hierarchical memory namespaces (`compact`, `log`, `status`) | `.workflow/memory/<arch>/` |
+| `/workflow daemon start <name>` | `daemon start` | Schedules background daemon subagent with cron interval in worktree | `.workflow/worktrees/<name>/` |
+| `/workflow daemon stop [name]` | `daemon stop` | Anti-Zombie shutdown: terminates subagent, purges worktrees & locks | `.workflow/worktrees/` |
+| `/workflow daemon status` | `daemon status` | Displays active daemon status table, intervals, PIDs, and last results | `.workflow/daemons.json` |
+| `/workflow daemon clean` | `daemon clean` | Forcefully purges stale worktrees, dead PIDs, and dangling lockfiles | `.workflow/worktrees/` |
+| `/workflow curate` | `curate` | Curator Subagent: consolidates memory decisions, tests, and opens PR | `.workflow/PR_SUMMARY.md` |
 | `/workflow worktree <action>` | `worktree` | Manages physical Git Worktrees (`list`, `add`, `clean`, `prune`) | `.workflow/worktrees/` |
 | `/workflow check-env` | `check-env` | Diagnostic check of Python $\ge 3.10$, Git, uv, and LangGraph status | None |
 
 ---
 
-## 4. Agent Cognitive Process & Protocol
-
-When managing workflows and tasks, the AI agent MUST follow this structured chain of thought:
+## 4. Agent Cognitive Process & Execution Protocol
 
 ```text
-[Agent Reflection & Execution Steps]:
+[8-Step Agent Execution Chain]:
 1. Explore or Chat:
-   If brainstorming, invoke '/workflow chat' to explore architectural options.
-   If project context is absent, execute '/workflow explore' to survey the stack into '.workflow/memory/00_project_context.md'.
+   Invoke '/workflow chat' to explore architectural options, or '/workflow explore' to survey the stack.
 2. Scaffold Spec (SDD):
    Run '/workflow new <name> [--archetype feat|bug|refactor]' to initialize the spec in '.workflow/specs/<namespace>/<name>/'.
 3. Debate & Refine Spec (Spec-Kit Style):
-   Run '/workflow specify <name>' to interview the user on data schemas, error handling, and measurable acceptance criteria.
+   Run '/workflow specify <name>' to conduct Socratic co-authoring on data schemas and acceptance criteria.
 4. Plan Atomic Tasks:
    Run '/workflow plan <name>' to generate testable subtasks in 'issues/*.md'.
 5. Quality Gate Audit:
-   Run '/workflow check <name>'. Ensure quality score reaches 100/100 before writing implementation code.
-6. Enforce Deterministic TDD Transitions:
-   - RED: Write failing test, verify failure.
-   - GREEN: Implement minimal surgical code to make test pass.
-   - REFACTOR: Polish structure, lint, verify 100% tests stay green.
-7. Record Decision & Compact Memory:
-   Log technical decision in '.workflow/memory/<archetype>/XX_<decision>.md'. Trigger compaction when 10 files accumulate.
-8. Archive Completed Spec:
-   Run '/workflow archive <name>' to move verified spec to '.workflow/specs/archive/<year>/'.
+   Run '/workflow check <name>' to ensure score reaches 100/100.
+6. Deterministic TDD Execution:
+   Run '/workflow run <name>' (RED -> GREEN -> REFACTOR).
+7. Autonomous Background Daemons:
+   Run '/workflow daemon start auto-fixer --interval 10' to resolve bugs asynchronously in isolated worktrees.
+8. Release Curation:
+   Run '/workflow curate --create-pr' to aggregate all fixes and refactorings into a consolidated Pull Request.
 ```
-
-See [the architecture guide](references/ARCHITECTURE.md) for detailed state transitions and worktree lifecycle rules.
