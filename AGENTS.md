@@ -162,11 +162,11 @@ Format requirement:
 #### Step 3: Pre-Flight Validation & Commit
 Use the `git` helper script to validate and execute the commit:
 ```bash
-python3 skills/git/scripts/git_helper.py commit \
+uv run skills/git/scripts/git_helper.py commit \
   -t feat \
   -s workflow \
   -m "implement deterministic state machine runner" \
-  -b "add LangGraph execution engine for structured multi-step tasks"
+  -b "- Add LangGraph execution engine for structured multi-step tasks."
 ```
 
 #### Step 4: Verify Version Synchronization
@@ -205,7 +205,7 @@ Once the feature PR merges into `main`, GitHub Actions (`.github/workflows/relea
 
 ### Active Implemented Skills
 1. **`git` (Deterministic Git Operations Suite)**:
-   - **Engine**: Python 3.8+ CLI helper (`git_helper.py`).
+   - **Engine**: Python 3.8+ (Astral uv + Standard Library, `git_helper.py`).
    - **Purpose**: Unified Git suite providing pre-commit security gates, 10-step Conventional Commits validation, commit history compliance auditing (`/git audit`), and safe commit-and-push workflows.
 2. **`workflow` (Deterministic Agent Workflow & TDD Suite)**:
    - **Engine**: Python 3.10+ (LangGraph + Astral uv).

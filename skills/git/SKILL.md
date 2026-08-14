@@ -11,45 +11,25 @@ description: Deterministic Git suite for AI agents and developers. Includes pre-
 - **Dependencies**: Built entirely on Python standard library modules (`argparse`, `json`, `os`, `re`, `subprocess`, `sys`, `typing`). No external pip dependencies are needed.
 - **Dependency Specification**: Declared in [`pyproject.toml`](file:///home/cezartdev/Documents/cezartdev/professional/skills/skills/git/pyproject.toml) (`requires-python = ">=3.8"`).
 - **Universal CLI Runners**:
-  - **Linux / macOS**:
+  - **Tier 1 (Universal — Recommended across Linux, macOS, Windows)**:
     ```bash
-    python3 skills/git/scripts/git_helper.py <subcommand>
-    # Or using uv (automatically downloads managed Python if not installed):
     uv run skills/git/scripts/git_helper.py <subcommand>
     ```
-  - **Windows (PowerShell, CMD, Git Bash)**:
-    ```powershell
-    python skills/git/scripts/git_helper.py <subcommand>
-    # Or using py launcher:
-    py skills/git/scripts/git_helper.py <subcommand>
-    # Or using uv:
-    uv run skills/git/scripts/git_helper.py <subcommand>
-    ```
+  - **Tier 2 (Native Platform Launchers)**:
+    - **Linux / macOS**: `bash skills/git/scripts/git_helper.sh <subcommand>`
+    - **Windows (PowerShell)**: `pwsh skills/git/scripts/git_helper.ps1 <subcommand>`
+  - **Tier 3 (Fallback for minimal environments without uv)**:
+    - **Linux / macOS**: `python3 skills/git/scripts/git_helper.py <subcommand>`
+    - **Windows**: `python skills/git/scripts/git_helper.py <subcommand>`
 - **Environment Diagnostic**: Run `check-env` to test Python runtime, Git setup, and uv availability:
   ```bash
-  python3 skills/git/scripts/git_helper.py check-env
+  uv run skills/git/scripts/git_helper.py check-env
   ```
-- **Troubleshooting & Missing Dependencies Setup (Only if missing on your machine)**:
-  - **Option A: Astral `uv` (Recommended - Auto-manages Python on demand)**:
-    - **Windows (PowerShell)**:
-      ```powershell
-      powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-      # Or via WinGet:
-      winget install --id=astral-sh.uv -e
-      ```
-    - **Linux / macOS**:
-      ```bash
-      curl -LsSf https://astral.sh/uv/install.sh | sh
-      ```
-  - **Option B: Manual Python & Git Installation**:
-    - **Windows (WinGet)**:
-      ```powershell
-      winget install -e --id Python.Python.3.12
-      winget install -e --id Git.Git
-      ```
-    - **Linux (Fedora / RHEL)**: `sudo dnf install -y python3 git`
-    - **Linux (Ubuntu / Debian)**: `sudo apt update && sudo apt install -y python3 git`
-    - **macOS**: `brew install python git`
+
+> [!IMPORTANT]
+> **MANDATORY AGENT EXECUTION DIRECTIVE**:
+> AI Agents MUST ALWAYS execute Git commands via `uv run` (e.g. `uv run skills/git/scripts/git_helper.py <subcommand>` or `uv run .agents/skills/git/scripts/git_helper.py <subcommand>`).
+> NEVER invoke `python3` or `python` directly unless running in a restricted sandbox where `uv` is unavailable.
 
 ---
 
@@ -60,7 +40,9 @@ skills/git/
 ├── SKILL.md              # [REQUIRED] Skill specification & agent prompt instructions
 ├── pyproject.toml        # [OPTIONAL] Python manifest (name="git", requires-python=">=3.8")
 └── scripts/
-    └── git_helper.py     # Deterministic CLI runner with security gates, validator, audit & JSON mode
+    ├── git_helper.py     # Deterministic CLI runner with security gates, validator, audit & JSON mode
+    ├── git_helper.sh     # Linux / macOS POSIX launcher with auto-uv resolution
+    └── git_helper.ps1    # Windows PowerShell launcher with auto-uv resolution
 ```
 
 ---
@@ -86,7 +68,7 @@ When executing git tasks, the AI agent MUST follow this structured chain of thou
 ```text
 [Agent Reflection & Execution Steps]:
 1. Check Status & Draft:
-   Run 'python3 skills/git/scripts/git_helper.py draft' to inspect staged files and suggested scopes.
+   Run 'uv run skills/git/scripts/git_helper.py draft' to inspect staged files and suggested scopes.
 2. Security & Hygiene Review:
    Confirm that NO sensitive files (.env, .pem, .key, credentials) or merge conflict markers (<<<<<<<) are staged.
 3. Select Type & Scope:
@@ -96,7 +78,7 @@ When executing git tasks, the AI agent MUST follow this structured chain of thou
    - Must begin with an approved English imperative verb in present tense (e.g., 'add', 'implement', 'fix', 'refactor', 'enforce').
    - First letter lowercase, no period at the end, 10-120 total chars.
 5. Execute via Helper Script:
-   Execute 'python3 skills/git/scripts/git_helper.py commit' (or 'sync') with explicit arguments.
+   Execute 'uv run skills/git/scripts/git_helper.py commit' (or 'sync') with explicit arguments.
 ```
 
 ---
@@ -132,40 +114,40 @@ All commit messages are strictly validated against 10 rules:
 
 ### Safe Local Commit (`/git commit`)
 ```bash
-python3 skills/git/scripts/git_helper.py commit \
+uv run skills/git/scripts/git_helper.py commit \
   -t feat \
   -s git \
   -m "add security gates and commit history audit engine" \
-  -b "block sensitive files, credentials, and unresolved conflict markers" \
-  -b "implement /git audit command to score legacy commits and propose rewrites"
+  -b "- Block sensitive files, credentials, and unresolved conflict markers." \
+  -b "- Implement /git audit command to score legacy commits and propose rewrites."
 ```
 
 ### Commit & Push Sync (`/git` or `/git sync`)
 ```bash
-python3 skills/git/scripts/git_helper.py sync \
+uv run skills/git/scripts/git_helper.py sync \
   -t fix \
   -s release \
   -m "enforce pnpm run version in github release action workflow" \
-  -b "prevent ERR_PNPM_INVALID_VERSION_BUMP in automated release pipeline"
+  -b "- Prevent ERR_PNPM_INVALID_VERSION_BUMP in automated release pipeline."
 ```
 
 ### Audit Historical Commits (`/git audit`)
 ```bash
 # Audit the last 10 commits
-python3 skills/git/scripts/git_helper.py audit -n 10
+uv run skills/git/scripts/git_helper.py audit -n 10
 
 # Audit with machine-readable JSON
-python3 skills/git/scripts/git_helper.py audit -n 10 --json
+uv run skills/git/scripts/git_helper.py audit -n 10 --json
 ```
 
 ### Repository Status & Branch Creation
 ```bash
 # Rich overview of working tree, unpushed commits, and security
-python3 skills/git/scripts/git_helper.py status
+uv run skills/git/scripts/git_helper.py status
 
 # Create a standardized branch
-python3 skills/git/scripts/git_helper.py branch feat/audit-engine
+uv run skills/git/scripts/git_helper.py branch feat/audit-engine
 
 # Undo the last commit safely (preserves working files in staging area)
-python3 skills/git/scripts/git_helper.py undo
+uv run skills/git/scripts/git_helper.py undo
 ```

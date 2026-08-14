@@ -1,7 +1,7 @@
 # 📦 `git` — Deterministic Git Suite for AI Agents & Developers
 
 > **Author**: `cezartdev`  
-> **Version**: `0.2.0`  
+> **Version**: `1.3.0`  
 > **Status**: `Active`  
 > **Interface**: AI Agent Skill & Universal CLI Runner
 
@@ -26,7 +26,7 @@ The **`git`** skill provides a unified, deterministic, and security-hardened Git
   - `/git undo`: Safe soft reset of the last commit (`git reset --soft HEAD~1`).
   - `/git check-env`: Cross-platform runtime diagnostics.
 - 🤖 **Machine-Readable Mode (`--json`)**: Structured JSON output across all subcommands for autonomous agents.
-- 🌐 **Zero External Dependencies**: Standard library Python (`>=3.8`) compatible with `python3`, `python`, `py`, and `uv run`.
+- 🌐 **Zero External Dependencies**: Standard library Python (`>=3.8`) compatible with Astral `uv`, `python3`, `python`, and `py`.
 
 ---
 
@@ -43,40 +43,28 @@ npx skills add cezartdev/skills --skill git
 
 ---
 
-## 🛠️ Prerequisites & Environment Setup
+## 🛠️ Prerequisites & Multi-Platform Launchers
 
 - **Python**: Version **3.8+** is required.
 - **Git**: Installed and configured with `user.name` and `user.email`.
 
+### Execution Modes
+- **Tier 1 (Universal — Recommended across Linux, macOS, Windows)**:
+  ```bash
+  uv run skills/git/scripts/git_helper.py <subcommand>
+  ```
+- **Tier 2 (Native Platform Launchers)**:
+  - **Linux & macOS (Bash / Zsh)**: `bash skills/git/scripts/git_helper.sh <subcommand>`
+  - **Windows (PowerShell)**: `pwsh skills/git/scripts/git_helper.ps1 <subcommand>`
+- **Tier 3 (Fallback for minimal environments without uv)**:
+  - **Linux / macOS**: `python3 skills/git/scripts/git_helper.py <subcommand>`
+  - **Windows**: `python skills/git/scripts/git_helper.py <subcommand>`
+
 ### Environment Diagnostics
 Run the diagnostic command to check your setup:
 ```bash
-python3 skills/git/scripts/git_helper.py check-env
+uv run skills/git/scripts/git_helper.py check-env
 ```
-
-### Missing Dependencies Setup (Only if not installed)
-
-#### Option A: Astral `uv` (Recommended - Auto-manages Python on demand)
-- **Windows (PowerShell)**:
-  ```powershell
-  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-  # Or via WinGet:
-  winget install --id=astral-sh.uv -e
-  ```
-- **Linux / macOS**:
-  ```bash
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  ```
-
-#### Option B: Manual Package Installation
-- **Windows (WinGet)**:
-  ```powershell
-  winget install -e --id Python.Python.3.12
-  winget install -e --id Git.Git
-  ```
-- **Linux (Fedora / RHEL)**: `sudo dnf install -y python3 git`
-- **Linux (Ubuntu / Debian)**: `sudo apt update && sudo apt install -y python3 git`
-- **macOS**: `brew install python git`
 
 ---
 
@@ -85,44 +73,44 @@ python3 skills/git/scripts/git_helper.py check-env
 ### 1. Safe Local Commit (`/git commit`)
 Executes security checks, validates conventional commit formatting, and commits staged files:
 ```bash
-python3 skills/git/scripts/git_helper.py commit \
+uv run skills/git/scripts/git_helper.py commit \
   -t feat \
   -s auth \
   -m "implement oauth2 google login provider" \
-  -b "add jwt validation middleware with rotating keys" \
-  -b "configure authentication redirects and session cookies"
+  -b "- Add jwt validation middleware with rotating keys." \
+  -b "- Configure authentication redirects and session cookies."
 ```
 
 ### 2. Commit & Push Sync (`/git` or `/git sync`)
 Validates, commits, and pushes directly to the current remote branch:
 ```bash
-python3 skills/git/scripts/git_helper.py sync \
+uv run skills/git/scripts/git_helper.py sync \
   -t fix \
   -s api \
   -m "handle null user profile responses gracefully" \
-  -b "prevent 500 internal server error when profile is empty"
+  -b "- Prevent 500 internal server error when profile is empty."
 ```
 
 ### 3. Audit Commit History (`/git audit`)
 Audits the last $N$ commits, scores compliance, and suggests standardized rewrites:
 ```bash
 # Terminal human-readable report
-python3 skills/git/scripts/git_helper.py audit -n 15
+uv run skills/git/scripts/git_helper.py audit -n 15
 
 # Machine-readable JSON output for agents
-python3 skills/git/scripts/git_helper.py audit -n 15 --json
+uv run skills/git/scripts/git_helper.py audit -n 15 --json
 ```
 
 ### 4. Working Tree Status & Branch Management
 ```bash
 # Rich overview of staged, unstaged, unpushed commits, and security scan
-python3 skills/git/scripts/git_helper.py status
+uv run skills/git/scripts/git_helper.py status
 
 # Create a conventional branch
-python3 skills/git/scripts/git_helper.py branch feat/audit-engine
+uv run skills/git/scripts/git_helper.py branch feat/audit-engine
 
 # Undo last commit safely (changes remain staged)
-python3 skills/git/scripts/git_helper.py undo
+uv run skills/git/scripts/git_helper.py undo
 ```
 
 ---
