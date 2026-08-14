@@ -1,54 +1,62 @@
-"""Scaffolder module: initializes target project structure and creates new specs from embedded templates."""
+"""Scaffolder module: initializes target project structure and creates new specs from assets/ templates."""
 
 import os
 import json
 import shutil
 from typing import Optional, Dict, Any
+from datetime import datetime
 
 
-def get_skill_resource_dir() -> str:
-    """Returns the absolute path to skills/workflow/resources."""
+def get_skill_assets_dir() -> str:
+    """Returns the absolute path to skills/workflow/assets."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.abspath(os.path.join(script_dir, "..", "resources"))
+    return os.path.abspath(os.path.join(script_dir, "..", "assets"))
 
 
-def scaffold_init(target_dir: str = ".") -> Dict[str, Any]:
+def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) -> Dict[str, Any]:
     """Initializes workflow structure in target directory."""
     target_dir = os.path.abspath(target_dir)
-    res_dir = get_skill_resource_dir()
-    templates_dir = os.path.join(res_dir, "templates")
+    assets_dir = get_skill_assets_dir()
 
-    # 1. Create specs/ and memory/ directories
+    # 1. Create specs/ namespaces (features, bugs, refactor, docs, archive)
     specs_dir = os.path.join(target_dir, "specs")
+    os.makedirs(os.path.join(specs_dir, "features"), exist_ok=True)
+    os.makedirs(os.path.join(specs_dir, "bugs"), exist_ok=True)
+    os.makedirs(os.path.join(specs_dir, "refactor"), exist_ok=True)
+    os.makedirs(os.path.join(specs_dir, "docs"), exist_ok=True)
+    os.makedirs(os.path.join(specs_dir, "archive"), exist_ok=True)
+
+    # 2. Create hierarchical memory/ directories
     memory_dir = os.path.join(target_dir, "memory")
-    os.makedirs(specs_dir, exist_ok=True)
     os.makedirs(memory_dir, exist_ok=True)
     os.makedirs(os.path.join(memory_dir, "fix"), exist_ok=True)
     os.makedirs(os.path.join(memory_dir, "refactor"), exist_ok=True)
     os.makedirs(os.path.join(memory_dir, "implement"), exist_ok=True)
     os.makedirs(os.path.join(memory_dir, "doc_sync"), exist_ok=True)
 
-    # 2. Scaffold root workflow.json if not present
+    # 3. Scaffold root workflow.json if not present
     config_file = os.path.join(target_dir, "workflow.json")
     config_created = False
+    test_cmd = test_runner_cmd or "pnpm test"
+    
     if not os.path.exists(config_file):
-        template_config = os.path.join(templates_dir, "workflow.config.json")
+        template_config = os.path.join(assets_dir, "workflow.config.json")
         if os.path.exists(template_config):
             with open(template_config, "r", encoding="utf-8") as f:
-                content = f.read().replace("{{TEST_COMMAND}}", "pnpm test")
+                content = f.read().replace("{{TEST_COMMAND}}", test_cmd)
             with open(config_file, "w", encoding="utf-8") as f:
                 f.write(content)
         else:
             default_conf = {
                 "version": "1.0",
-                "test_runner": {"command": "pnpm test", "args": ["--run"]},
+                "test_runner": {"command": test_cmd, "args": ["--run"]},
                 "worktrees": {"directory": ".worktrees", "auto_clean_on_merge": True}
             }
             with open(config_file, "w", encoding="utf-8") as f:
                 json.dump(default_conf, f, indent=2)
         config_created = True
 
-    # 3. Add .worktrees/ to .gitignore
+    # 4. Add .worktrees/ to .gitignore
     gitignore_file = os.path.join(target_dir, ".gitignore")
     gitignore_updated = False
     worktree_entry = ".worktrees/"
@@ -77,29 +85,35 @@ def scaffold_init(target_dir: str = ".") -> Dict[str, Any]:
 
 def scaffold_new_spec(
     spec_name: str,
-    archetype: str = "implement",
+    archetype: str = "features",
     target_dir: str = "."
 ) -> Dict[str, Any]:
-    """Creates a new spec directory from embedded skill templates."""
+    """Creates a new spec directory under specs/features/, specs/bugs/, or specs/refactor/."""
     target_dir = os.path.abspath(target_dir)
-    res_dir = get_skill_resource_dir()
-    templates_dir = os.path.join(res_dir, "templates")
+    assets_dir = get_skill_assets_dir()
 
-    # Determine destination folder based on archetype
-    if archetype == "fix":
-        spec_parent = os.path.join(target_dir, "specs", "bugs")
-    elif archetype == "refactor":
-        spec_parent = os.path.join(target_dir, "specs", "refactor")
-    else:
-        spec_parent = os.path.join(target_dir, "specs")
+    # Normalize archetype aliases
+    arch = archetype.lower()
+    if arch in ["fix", "bug", "bugs"]:
+        parent_folder = "bugs"
+        norm_archetype = "fix"
+    elif arch in ["refactor", "refactoring"]:
+        parent_folder = "refactor"
+        norm_archetype = "refactor"
+    elif arch in ["doc", "docs", "doc_sync"]:
+        parent_folder = "docs"
+        norm_archetype = "doc_sync"
+    else:  # feat, feature, features, implement
+        parent_folder = "features"
+        norm_archetype = "implement"
 
-    spec_dir = os.path.join(spec_parent, spec_name)
+    spec_dir = os.path.join(target_dir, "specs", parent_folder, spec_name)
     issues_dir = os.path.join(spec_dir, "issues")
     os.makedirs(issues_dir, exist_ok=True)
 
-    # 1. Create spec.md
+    # 1. Create spec.md from assets/spec.template.md
     spec_file = os.path.join(spec_dir, "spec.md")
-    template_spec = os.path.join(templates_dir, "spec.template.md")
+    template_spec = os.path.join(assets_dir, "spec.template.md")
     if os.path.exists(template_spec):
         with open(template_spec, "r", encoding="utf-8") as f:
             spec_content = f.read().replace("{{SPEC_NAME}}", spec_name)
@@ -109,9 +123,9 @@ def scaffold_new_spec(
     with open(spec_file, "w", encoding="utf-8") as f:
         f.write(spec_content)
 
-    # 2. Create initial issue 001_initial_task.md
+    # 2. Create initial issue 001_initial_task.md from assets/issue.template.md
     issue_file = os.path.join(issues_dir, "001_initial_task.md")
-    template_issue = os.path.join(templates_dir, "issue.template.md")
+    template_issue = os.path.join(assets_dir, "issue.template.md")
     if os.path.exists(template_issue):
         with open(template_issue, "r", encoding="utf-8") as f:
             issue_content = (
@@ -132,10 +146,10 @@ def scaffold_new_spec(
     initial_state = {
         "spec_name": spec_name,
         "spec_path": spec_dir,
-        "archetype": archetype,
+        "archetype": norm_archetype,
         "daemon_name": None,
         "worktree_path": None,
-        "branch_name": f"workflow/{spec_name}",
+        "branch_name": f"workflow/{parent_folder}-{spec_name}",
         "current_issue_index": 0,
         "issues": [
             {
@@ -162,8 +176,42 @@ def scaffold_new_spec(
     return {
         "status": "SUCCESS",
         "spec_name": spec_name,
-        "archetype": archetype,
+        "archetype": norm_archetype,
+        "namespace": parent_folder,
         "spec_dir": spec_dir,
         "spec_file": spec_file,
         "state_file": state_file,
+    }
+
+
+def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
+    """Moves a completed spec folder into specs/archive/<year>/<spec_name>/."""
+    target_dir = os.path.abspath(target_dir)
+    specs_root = os.path.join(target_dir, "specs")
+    
+    # Search for spec in features, bugs, refactor, docs
+    found_src = None
+    for folder in ["features", "bugs", "refactor", "docs"]:
+        candidate = os.path.join(specs_root, folder, spec_name)
+        if os.path.exists(candidate) and os.path.isdir(candidate):
+            found_src = candidate
+            break
+
+    if not found_src:
+        return {"status": "ERROR", "message": f"Spec '{spec_name}' not found under specs/features, bugs, refactor, or docs."}
+
+    year = str(datetime.now().year)
+    archive_dest = os.path.join(specs_root, "archive", year, spec_name)
+    os.makedirs(os.path.dirname(archive_dest), exist_ok=True)
+
+    if os.path.exists(archive_dest):
+        shutil.rmtree(archive_dest)
+
+    shutil.move(found_src, archive_dest)
+
+    return {
+        "status": "ARCHIVED",
+        "spec_name": spec_name,
+        "source_path": found_src,
+        "archive_path": archive_dest,
     }

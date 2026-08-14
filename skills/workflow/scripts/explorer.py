@@ -18,27 +18,64 @@ def compute_file_hash(filepath: str) -> str:
 
 
 def scan_codebase(root_dir: str = ".") -> Dict[str, Any]:
-    """Scans workspace to detect language, framework, test runner, and package manager."""
+    """Scans workspace to detect language, framework, test runner candidates, and package managers."""
     root_dir = os.path.abspath(root_dir)
     
     languages: List[str] = []
     frameworks: List[str] = []
     package_managers: List[str] = []
-    test_runner = "pnpm test"
-    linters: List[str] = []
+    test_candidates: List[str] = []
     manifest_hashes: Dict[str, str] = {}
 
-    # 1. Check Node / JS / TS ecosystem
+    # 1. Check Python ecosystem first
+    pyproject_path = os.path.join(root_dir, "pyproject.toml")
+    has_python = os.path.exists(pyproject_path) or os.path.exists(os.path.join(root_dir, "requirements.txt")) or os.path.exists(os.path.join(root_dir, "uv.lock"))
+    if has_python:
+        languages.append("Python")
+        if os.path.exists(pyproject_path):
+            manifest_hashes["pyproject.toml"] = compute_file_hash(pyproject_path)
+        if os.path.exists(os.path.join(root_dir, "uv.lock")) or os.path.exists(pyproject_path):
+            package_managers.append("uv")
+            test_candidates.extend(["uv run pytest", "pytest", "python -m unittest"])
+        else:
+            test_candidates.extend(["pytest", "python -m unittest"])
+
+        if os.path.exists(pyproject_path):
+            try:
+                with open(pyproject_path, "r", encoding="utf-8") as f:
+                    py_content = f.read().lower()
+                if "fastapi" in py_content:
+                    frameworks.append("FastAPI")
+                elif "django" in py_content:
+                    frameworks.append("Django")
+                elif "flask" in py_content:
+                    frameworks.append("Flask")
+                elif "langgraph" in py_content:
+                    frameworks.append("LangGraph")
+            except Exception:
+                pass
+
+    # 2. Check Node / JS / TS ecosystem
     pkg_json_path = os.path.join(root_dir, "package.json")
     if os.path.exists(pkg_json_path):
         languages.append("TypeScript / JavaScript")
         manifest_hashes["package.json"] = compute_file_hash(pkg_json_path)
-        if os.path.exists(os.path.join(root_dir, "pnpm-lock.yaml")):
+        has_pnpm = os.path.exists(os.path.join(root_dir, "pnpm-lock.yaml"))
+        has_yarn = os.path.exists(os.path.join(root_dir, "yarn.lock"))
+        has_bun = os.path.exists(os.path.join(root_dir, "bun.lockb"))
+
+        if has_pnpm:
             package_managers.append("pnpm")
-        elif os.path.exists(os.path.join(root_dir, "yarn.lock")):
+            node_pkg = "pnpm"
+        elif has_yarn:
             package_managers.append("yarn")
+            node_pkg = "yarn"
+        elif has_bun:
+            package_managers.append("bun")
+            node_pkg = "bun"
         else:
             package_managers.append("npm")
+            node_pkg = "npm"
 
         try:
             with open(pkg_json_path, "r", encoding="utf-8") as f:
@@ -58,38 +95,13 @@ def scan_codebase(root_dir: str = ".") -> Dict[str, Any]:
                 frameworks.append("Vue")
 
             if "vitest" in deps:
-                test_runner = "pnpm test" if "test" in scripts else "vitest run"
+                test_candidates.insert(0, f"{node_pkg} test" if "test" in scripts else "vitest run")
             elif "jest" in deps:
-                test_runner = "pnpm test" if "test" in scripts else "jest"
+                test_candidates.insert(0, f"{node_pkg} test" if "test" in scripts else "jest")
             elif "test" in scripts:
-                test_runner = "pnpm test"
+                test_candidates.insert(0, f"{node_pkg} test")
         except Exception:
             pass
-
-    # 2. Check Python ecosystem
-    pyproject_path = os.path.join(root_dir, "pyproject.toml")
-    if os.path.exists(pyproject_path) or os.path.exists(os.path.join(root_dir, "requirements.txt")):
-        languages.append("Python")
-        if os.path.exists(pyproject_path):
-            manifest_hashes["pyproject.toml"] = compute_file_hash(pyproject_path)
-        if os.path.exists(os.path.join(root_dir, "uv.lock")) or os.path.exists(pyproject_path):
-            package_managers.append("uv")
-        test_runner = "pytest"
-
-        if os.path.exists(pyproject_path):
-            try:
-                with open(pyproject_path, "r", encoding="utf-8") as f:
-                    py_content = f.read().lower()
-                if "fastapi" in py_content:
-                    frameworks.append("FastAPI")
-                elif "django" in py_content:
-                    frameworks.append("Django")
-                elif "flask" in py_content:
-                    frameworks.append("Flask")
-                elif "langgraph" in py_content:
-                    frameworks.append("LangGraph")
-            except Exception:
-                pass
 
     # 3. Check Rust ecosystem
     cargo_path = os.path.join(root_dir, "Cargo.toml")
@@ -97,7 +109,7 @@ def scan_codebase(root_dir: str = ".") -> Dict[str, Any]:
         languages.append("Rust")
         package_managers.append("cargo")
         manifest_hashes["Cargo.toml"] = compute_file_hash(cargo_path)
-        test_runner = "cargo test"
+        test_candidates.insert(0, "cargo test")
 
     # 4. Check Go ecosystem
     gomod_path = os.path.join(root_dir, "go.mod")
@@ -105,20 +117,25 @@ def scan_codebase(root_dir: str = ".") -> Dict[str, Any]:
         languages.append("Go")
         package_managers.append("go")
         manifest_hashes["go.mod"] = compute_file_hash(gomod_path)
-        test_runner = "go test ./..."
+        test_candidates.insert(0, "go test ./...")
 
     # Defaults if none detected
     if not languages:
         languages.append("Polyglot / Generic")
     if not package_managers:
         package_managers.append("standard")
+    if not test_candidates:
+        test_candidates = ["pnpm test", "pytest", "cargo test", "go test ./..."]
+
+    primary_test_runner = test_candidates[0]
 
     return {
         "project_name": os.path.basename(root_dir),
         "languages": ", ".join(set(languages)),
         "frameworks": ", ".join(set(frameworks)) if frameworks else "Custom / Standard",
         "package_manager": ", ".join(set(package_managers)),
-        "test_runner": test_runner,
+        "test_runner": primary_test_runner,
+        "test_candidates": list(dict.fromkeys(test_candidates)),
         "manifest_hashes": manifest_hashes,
         "scanned_at": datetime.now().isoformat(),
     }
@@ -151,7 +168,7 @@ def generate_master_context(root_dir: str = ".") -> str:
 ---
 
 ## 2. Core Architectural Invariants & Rules
-1. **Spec-Driven Architecture**: All functional features are declared in `specs/` and executed via TDD issues.
+1. **Spec-Driven Architecture**: All functional features are declared in `specs/features/` and executed via TDD issues.
 2. **Worktree Isolation**: Background workers run strictly inside dedicated `.worktrees/` instances.
 3. **Quality Gate Compliance**: Tests must pass 100% with no security gate violations prior to merging.
 

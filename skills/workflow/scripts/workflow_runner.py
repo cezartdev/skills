@@ -8,7 +8,7 @@ import sys
 import subprocess
 from typing import Dict, Any
 
-from scaffolder import scaffold_init, scaffold_new_spec
+from scaffolder import scaffold_init, scaffold_new_spec, archive_spec
 from explorer import scan_codebase, generate_master_context
 from drift_detector import check_drift, sync_drift
 from memory_manager import log_decision, compact_archetype_memory, get_memory_status
@@ -61,20 +61,25 @@ def cmd_check_env(args: argparse.Namespace) -> int:
 
 
 def cmd_init(args: argparse.Namespace) -> int:
-    """Scaffolds workflow directory structure in target repository."""
-    result = scaffold_init(args.target_dir)
-    # Also generate initial master memory context
+    """Scaffolds workflow directory structure in target repository with agnostic test runner selection."""
+    scan = scan_codebase(args.target_dir)
+    selected_test_runner = args.test_runner or scan.get("test_runner", "pnpm test")
+
+    result = scaffold_init(args.target_dir, test_runner_cmd=selected_test_runner)
     master_file = generate_master_context(args.target_dir)
     result["master_memory"] = master_file
+    result["test_runner"] = selected_test_runner
+    result["detected_candidates"] = scan.get("test_candidates", [])
 
     if args.json:
         print(json.dumps(result, indent=2))
     else:
         print(f"✅ Workflow initialized successfully in '{result['target_dir']}':")
-        print(f"  • Config:     {result['config_file']}")
-        print(f"  • Specs Dir:  {result['specs_dir']}")
-        print(f"  • Memory Dir: {result['memory_dir']}")
-        print(f"  • Master Doc: {master_file}")
+        print(f"  • Config:       {result['config_file']}")
+        print(f"  • Test Runner:  {selected_test_runner}")
+        print(f"  • Specs Dir:    {result['specs_dir']} (features, bugs, refactor, docs, archive)")
+        print(f"  • Memory Dir:   {result['memory_dir']}")
+        print(f"  • Master Doc:   {master_file}")
     return 0
 
 
@@ -87,12 +92,13 @@ def cmd_explore(args: argparse.Namespace) -> int:
         print(json.dumps({"status": "SUCCESS", "master_file": master_file, "scan": scan}, indent=2))
     else:
         print(f"🔍 Codebase Explorer Survey Complete:")
-        print(f"  • Project:    {scan['project_name']}")
-        print(f"  • Languages:  {scan['languages']}")
-        print(f"  • Frameworks: {scan['frameworks']}")
-        print(f"  • Packages:   {scan['package_manager']}")
-        print(f"  • Test Suite: {scan['test_runner']}")
-        print(f"  • Master Doc: {master_file}")
+        print(f"  • Project:         {scan['project_name']}")
+        print(f"  • Languages:       {scan['languages']}")
+        print(f"  • Frameworks:      {scan['frameworks']}")
+        print(f"  • Packages:        {scan['package_manager']}")
+        print(f"  • Test Runner:     {scan['test_runner']}")
+        print(f"  • Candidates:      {', '.join(scan.get('test_candidates', []))}")
+        print(f"  • Master Doc:      {master_file}")
     return 0
 
 
@@ -143,15 +149,30 @@ def cmd_memory(args: argparse.Namespace) -> int:
 
 
 def cmd_new(args: argparse.Namespace) -> int:
-    """Creates a new spec directory from embedded skill templates."""
+    """Creates a new spec directory under specs/features/, specs/bugs/, etc."""
     res = scaffold_new_spec(args.spec_name, archetype=args.archetype, target_dir=args.target_dir)
     if args.json:
         print(json.dumps(res, indent=2))
     else:
-        print(f"✨ Created new spec '{args.spec_name}' [{args.archetype}]:")
-        print(f"  • Spec Document: {res['spec_file']}")
+        print(f"✨ Created new spec '{args.spec_name}' [Namespace: specs/{res.get('namespace')}]:")
+        print(f"  • Spec Document:    {res['spec_file']}")
         print(f"  • State Checkpoint: {res['state_file']}")
     return 0
+
+
+def cmd_archive(args: argparse.Namespace) -> int:
+    """Archives a completed spec folder into specs/archive/<year>/."""
+    res = archive_spec(args.spec_name, target_dir=args.target_dir)
+    if args.json:
+        print(json.dumps(res, indent=2))
+    else:
+        if res.get("status") == "ARCHIVED":
+            print(f"📦 Spec Archived Cleanly:")
+            print(f"  • Source:  {res.get('source_path')}")
+            print(f"  • Archive: {res.get('archive_path')}")
+        else:
+            print(f"❌ Archive Error: {res.get('message')}")
+    return 0 if res.get("status") == "ARCHIVED" else 1
 
 
 def cmd_check(args: argparse.Namespace) -> int:
@@ -228,7 +249,7 @@ def cmd_worktree(args: argparse.Namespace) -> int:
             print("Error: --name required for worktree add", file=sys.stderr)
             return 1
         res = create_worktree(args.name, repo_dir=args.target_dir)
-    elif args.action == "clean":
+    elif args.clean:
         if not args.name:
             print("Error: --name required for worktree clean", file=sys.stderr)
             return 1
@@ -262,6 +283,7 @@ def build_parser() -> argparse.ArgumentParser:
     # init
     p_init = subparsers.add_parser("init", help="Initialize specs/, memory/, and workflow.json in target repo")
     p_init.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+    p_init.add_argument("--test-runner", help="Explicit test runner command to set in workflow.json")
 
     # explore
     p_exp = subparsers.add_parser("explore", help="Scan codebase tech stack and generate master context")
@@ -281,10 +303,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_mem.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # new
-    p_new = subparsers.add_parser("new", help="Scaffold a new spec folder from embedded templates")
+    p_new = subparsers.add_parser("new", help="Scaffold a new spec folder under specs/features/, specs/bugs/, etc.")
     p_new.add_argument("spec_name", help="Name of the new spec")
-    p_new.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync"], default="implement", help="Target archetype")
+    p_new.add_argument("--archetype", choices=["feat", "feature", "fix", "bug", "refactor", "doc"], default="feat", help="Target archetype (feat creates under specs/features/)")
     p_new.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
+    # archive
+    p_arc = subparsers.add_parser("archive", help="Move completed spec folder into specs/archive/<year>/")
+    p_arc.add_argument("spec_name", help="Name of the spec to archive")
+    p_arc.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # check
     p_chk = subparsers.add_parser("check", help="Run the Pre-Execution Quality Gate on a spec")
@@ -327,6 +354,7 @@ def main() -> int:
         "drift": cmd_drift,
         "memory": cmd_memory,
         "new": cmd_new,
+        "archive": cmd_archive,
         "check": cmd_check,
         "run": cmd_run,
         "daemon": cmd_daemon,

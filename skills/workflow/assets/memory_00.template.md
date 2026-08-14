@@ -16,14 +16,13 @@
 ---
 
 ## 2. Core Architectural Invariants & Rules
-1. **Spec-Driven Architecture**: All significant changes are declared in `specs/` and executed via TDD issues.
+1. **Spec-Driven Architecture**: All functional features are declared in `specs/` and executed via TDD issues.
 2. **Worktree Isolation**: Background workers run strictly inside dedicated `.worktrees/` instances.
 3. **Quality Gate Compliance**: Tests must pass 100% with no security gate violations prior to merging.
 
 ---
 
 ## 3. Cumulative Decisions & Historical Rollup Log
-<!-- Compacted historical rollup of major technical decisions across archetypes -->
 
 | Date | Archetype | Decision / Milestone | Summary & Impact |
 |---|---|---|---|

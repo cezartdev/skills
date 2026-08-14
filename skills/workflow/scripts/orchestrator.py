@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 def get_archetype_prompt(archetype: str) -> str:
     """Reads archetype system prompt from resources/prompts/."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    prompts_dir = os.path.abspath(os.path.join(script_dir, "..", "resources", "prompts"))
+    prompts_dir = os.path.abspath(os.path.join(script_dir, "..", "references", "prompts"))
     prompt_file = os.path.join(prompts_dir, f"{archetype}.prompt.md")
     
     if os.path.exists(prompt_file):
