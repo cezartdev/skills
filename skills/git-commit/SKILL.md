@@ -18,7 +18,7 @@ This skill provides an automated, deterministic workflow for creating standardiz
   - **Linux / macOS**:
     ```bash
     python3 skills/git-commit/scripts/commit_helper.py <command>
-    # Or using uv:
+    # Or using uv (auto-manages Python if not installed):
     uv run skills/git-commit/scripts/commit_helper.py <command>
     ```
   - **Windows (PowerShell, CMD, Git Bash)**:
@@ -26,7 +26,7 @@ This skill provides an automated, deterministic workflow for creating standardiz
     python skills/git-commit/scripts/commit_helper.py <command>
     # Or using py launcher:
     py skills/git-commit/scripts/commit_helper.py <command>
-    # Or using uv:
+    # Or using uv (auto-manages Python if not installed):
     uv run skills/git-commit/scripts/commit_helper.py <command>
     ```
 - **Environment Diagnostic**: Run `check-env` to test Python version, Git setup, and uv availability:
@@ -34,24 +34,26 @@ This skill provides an automated, deterministic workflow for creating standardiz
   python3 skills/git-commit/scripts/commit_helper.py check-env
   ```
 - **Troubleshooting & Missing Dependencies**:
-  - **Windows**: Install Python and Git via Winget or official installers:
-    ```powershell
-    winget install Python.Python.3.12
-    winget install Git.Git
-    winget install astral-sh.uv
-    ```
-  - **Linux (Fedora / RHEL)**:
-    ```bash
-    sudo dnf install -y python3 git
-    ```
-  - **Linux (Ubuntu / Debian)**:
-    ```bash
-    sudo apt update && sudo apt install -y python3 git
-    ```
-  - **macOS**:
-    ```bash
-    brew install python git
-    ```
+  - **Option A: Astral `uv` (Recommended - Automatically manages Python versions)**:
+    - **Windows (PowerShell)**:
+      ```powershell
+      powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+      # Or via WinGet:
+      winget install --id=astral-sh.uv -e
+      ```
+    - **Linux / macOS**:
+      ```bash
+      curl -LsSf https://astral.sh/uv/install.sh | sh
+      ```
+  - **Option B: Manual Python & Git Installation**:
+    - **Windows (WinGet)**:
+      ```powershell
+      winget install -e --id Python.Python.3.12
+      winget install -e --id Git.Git
+      ```
+    - **Linux (Fedora / RHEL)**: `sudo dnf install -y python3 git`
+    - **Linux (Ubuntu / Debian)**: `sudo apt update && sudo apt install -y python3 git`
+    - **macOS**: `brew install python git`
 
 ---
 

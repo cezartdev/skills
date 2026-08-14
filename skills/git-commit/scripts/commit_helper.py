@@ -290,7 +290,7 @@ def run_git_command(cmd_args: List[str]) -> Tuple[int, str, str]:
         err_msg = (
             "Git executable ('git') was not found in your system PATH.\n"
             "Installation instructions:\n"
-            "  - Windows: Run 'winget install Git.Git' or download from https://git-scm.com/\n"
+            "  - Windows: Run 'winget install -e --id Git.Git' or download from https://git-scm.com/\n"
             "  - Linux (Fedora): Run 'sudo dnf install git'\n"
             "  - Linux (Ubuntu/Debian): Run 'sudo apt update && sudo apt install git'\n"
             "  - macOS: Run 'brew install git'"
@@ -456,7 +456,7 @@ def cmd_check_env() -> int:
         else:
             print("uv Runner: Not installed (optional)")
     except FileNotFoundError:
-        print("uv Runner: Not installed (optional, install with: curl -LsSf https://astral.sh/uv/install.sh | sh or 'winget install astral-sh.uv')")
+        print("uv Runner: Not installed (optional, install with: curl -LsSf https://astral.sh/uv/install.sh | sh or 'winget install --id=astral-sh.uv -e')")
 
     print("=" * 70)
     print("All core runtime requirements checked.")

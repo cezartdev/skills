@@ -51,15 +51,29 @@ skills/git-commit/
 
 ### Environment & Missing Dependencies Setup
 
-#### Windows (PowerShell, CMD, Git Bash)
-If Python or Git is not installed on Windows:
-```powershell
-# Using Windows Package Manager (Winget)
-winget install Python.Python.3.12
-winget install Git.Git
-winget install astral-sh.uv
+#### Option A: Astral `uv` (Recommended - Automatic Python Management)
+`uv` automatically downloads, installs, and manages isolated Python versions without requiring a pre-existing Python installation.
 
-# Run with python, py, or uv:
+- **Windows (PowerShell)**:
+  ```powershell
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  # Or via WinGet:
+  winget install --id=astral-sh.uv -e
+  ```
+- **Linux / macOS**:
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+
+#### Option B: Manual Python & Git Installation
+
+##### Windows (PowerShell / WinGet)
+```powershell
+# Install Python 3.12 and Git using WinGet:
+winget install -e --id Python.Python.3.12
+winget install -e --id Git.Git
+
+# Run with python, py launcher, or uv:
 python skills/git-commit/scripts/commit_helper.py check-env
 py skills/git-commit/scripts/commit_helper.py check-env
 uv run skills/git-commit/scripts/commit_helper.py check-env
