@@ -142,17 +142,22 @@ pnpm changeset
 Follow interactive prompts to select bump type (`patch`, `minor`, `major`) and enter summary in English.
 
 ##### Option B: Programmatic Declaration (AI Agents / Automated scripts)
-Agents running in headless environments should directly generate a `.changeset/<unique-slug>.md` file with the following format:
+Agents running in headless environments MUST directly generate a `.changeset/<descriptive-kebab-slug>.md` file (e.g., `.changeset/add-workflow-skill.md`). 
 
+Format requirement:
 ```markdown
 ---
-"cezartdev-skills": minor
+"cezartdev-skills": <patch|minor|major>
 ---
 
-Add deterministic workflow skill with LangGraph state machine runner.
+<Concise summary of changes in English imperative prose>
 ```
 
-*(Note: Replace `minor` with `patch` or `major` and write the summary in English)*.
+**Agent Directives when asked to create or update skills and declare a changeset:**
+1. **Determine Bump Level**: Check the SemVer matrix above (`patch` for bugfixes/minor docs, `minor` for new skills or new features, `major` for breaking redesigns).
+2. **Generate Changeset File**: Write the `.changeset/<slug>.md` file with the exact package name `"cezartdev-skills"` in the frontmatter.
+3. **Atomic Commit**: Stage both your implementation files and the `.changeset/<slug>.md` file together, and commit using the `git-commit` helper script.
+4. **Lifecycle Awareness**: Recognize that this markdown file is temporary; GitHub Actions consumes and deletes it during the automated release cycle.
 
 #### Step 3: Pre-Flight Validation & Commit
 Use the `git-commit` helper script to validate and execute the commit:
