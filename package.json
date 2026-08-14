@@ -1,10 +1,24 @@
 {
   "name": "cezartdev-skills",
   "version": "0.1.0",
+  "private": true,
   "description": "cezartdev's agent skills",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cezartdev/skills"
+  },
   "scripts": {
+    "changeset": "changeset",
+    "version": "changeset version && node scripts/sync-versions.mjs",
+    "check-version": "node scripts/sync-versions.mjs --check",
+    "release": "changeset git-tag",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "cezartdev",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@changesets/changelog-github": "^1.0.0",
+    "@changesets/cli": "^3.0.0"
+  },
+  "packageManager": "pnpm@11.17.0"
 }

@@ -89,7 +89,19 @@ skills/<skill-name>/
 
 ---
 
-## 4. Planned Skills Roadmap
+## 4. Versioning, Changesets & Release Standards
+
+The repository uses **Changesets** (`@changesets/cli` and `@changesets/changelog-github`) for automated semantic versioning, `CHANGELOG.md` generation, and GitHub release tagging.
+
+### Developer & Agent Versioning Flow:
+1. When modifying or adding a skill, create your changes and commit them using the `git-commit` skill.
+2. Run `pnpm changeset` (or declare a changeset file in `.changeset/<name>.md`) selecting the appropriate bump type (`patch`, `minor`, or `major`) and summarizing the changes in English.
+3. Push changes or open a Pull Request against `main`.
+4. The GitHub Actions release workflow (`.github/workflows/release.yml`) automatically collects pending changesets, opens a `"chore(release): version skills and update changelog"` PR, syncs versions across documentation via `pnpm version` (`scripts/sync-versions.mjs`), and creates git tags/GitHub releases upon merging.
+
+---
+
+## 5. Planned Skills Roadmap
 
 1. **`workflow` (Deterministic Agent Workflow)**:
    - **Engine**: Python + LangGraph.
@@ -97,6 +109,7 @@ skills/<skill-name>/
 2. **`git-commit` (Automated Standardized Commits)**:
    - **Engine**: Node.js / Python CLI helper.
    - **Purpose**: Analyzes git status and staged diffs to draft, validate, and execute Conventional Commit messages following repository standards automatically.
+
 
 
 
