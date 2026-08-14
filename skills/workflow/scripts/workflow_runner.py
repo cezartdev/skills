@@ -239,10 +239,11 @@ def cmd_specify(args: argparse.Namespace) -> int:
             print("\n💡 Quality Recommendations:")
             for r in audit["recommendations"]:
                 print(f"  • {r}")
-        print("\n👉 Next Steps:")
-        print(f"  1. Edit '{spec_file}' to resolve the questions above.")
-        print(f"  2. Run '/workflow check {spec_name}' to verify quality gate.")
-        print(f"  3. Run '/workflow plan {spec_name}' to decompose tasks.")
+        print("\n👉 Next Steps & Interactive Grilling Directive:")
+        print("  • AI Agent: Launch interactive question tool (e.g. ask_question) asking 1 question at a time with curated options.")
+        print(f"  • Update '{spec_file}' iteratively as answers arrive.")
+        print(f"  • Run 'uv run skills/workflow/scripts/workflow_runner.py check {spec_name}' to verify 100/100 Quality Gate.")
+        print(f"  • Proceed to 'uv run skills/workflow/scripts/workflow_runner.py plan {spec_name}'.")
     return 0
 
 

@@ -68,16 +68,16 @@ The suite detects and adapts dynamically to any programming language and toolcha
 
 ```mermaid
 graph TD
-    subgraph Pure-Deterministic Python Pipeline [REGLAS INMUTABLES - 100% CÓDIGO]
+    subgraph Pure-Deterministic Python Pipeline [IMMUTABLE RULES - 100% CODE]
         D1["1. Pre-Flight Manifest Checksums (SHA-256)"]
-        D2["2. Quality Gate Regex Scoring (Criterios [ ] y Schemas)"]
+        D2["2. Quality Gate Regex Scoring (Criteria [ ] & Schemas)"]
         D3["3. Subprocess Test Runner (Exit code 0 = PASS, != 0 = FAIL)"]
         D4["4. State Machine Phase Transitions (RED must fail before GREEN)"]
         D5["5. Anti-Zombie Worktree Purge (SIGKILL + git worktree remove --force + prune)"]
         D6["6. Multi-PR Catalog Table Computation in .workflow/prs/active/"]
     end
 
-    subgraph LLM Reasoning Engine [GENERACIÓN INTELIGENTE DE CÓDIGO]
+    subgraph LLM Reasoning Engine [INTELLIGENT CODE GENERATION]
         L1["A. Write Failing Unit Test (RED Phase)"]
         L2["B. Implement Surgical Code Patch (GREEN Phase)"]
         L3["C. Clean Architecture Refactor (REFACTOR Phase)"]

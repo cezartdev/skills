@@ -26,6 +26,11 @@ metadata:
   - **Linux / macOS**: `python3 skills/workflow/scripts/workflow_runner.py <subcommand>`
   - **Windows**: `python skills/workflow/scripts/workflow_runner.py <subcommand>`
 
+> [!IMPORTANT]
+> **MANDATORY AGENT EXECUTION DIRECTIVES**:
+> 1. **Tool Invocation**: AI Agents MUST ALWAYS invoke workflow commands using `uv run` (e.g. `uv run skills/workflow/scripts/workflow_runner.py <subcommand>` or `uv run .agents/skills/workflow/scripts/workflow_runner.py <subcommand>`). NEVER invoke `python3` or `python` directly.
+> 2. **Specify Grilling Session**: When triggering `/workflow specify <name>`, the AI Agent MUST conduct an interactive 1-by-1 Grilling Session using the interactive question tool (e.g., `ask_question`), asking questions sequentially with multiple-choice recommendations and updating `spec.md` in-place after each answer.
+
 ---
 
 ## 2. Directory Layout (AgentSkills.io Standard)

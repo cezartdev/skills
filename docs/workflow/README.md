@@ -61,7 +61,7 @@ uv run skills/workflow/scripts/workflow_runner.py chat
 # Scaffold new feature spec (defaults to feat)
 uv run skills/workflow/scripts/workflow_runner.py new 001-payment-gateway
 
-# Socratic debate & co-authoring (Spec-Kit style)
+# Interactive Grilling Session & Socratic co-authoring (Matt Pocock / Spec-Kit style)
 uv run skills/workflow/scripts/workflow_runner.py specify 001-payment-gateway
 
 # Decompose into atomic TDD task issues
