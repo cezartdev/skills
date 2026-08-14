@@ -253,7 +253,55 @@ def print_validation_report(full_message: str, all_passed: bool, reports: List[D
 
 
 # ==============================================================================
-# CLI Actions (draft, validate, commit)
+# Cross-Platform Git Execution & Utilities
+# ==============================================================================
+
+def setup_terminal_encoding() -> None:
+    """Configures UTF-8 encoding for standard streams across Linux, macOS, and Windows."""
+    if sys.platform == "win32":
+        if hasattr(sys.stdout, "reconfigure"):
+            try:
+                sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+        if hasattr(sys.stderr, "reconfigure"):
+            try:
+                sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+
+def run_git_command(cmd_args: List[str]) -> Tuple[int, str, str]:
+    """
+    Executes a git command cross-platform with UTF-8 encoding.
+    Returns (exit_code, stdout, stderr).
+    """
+    try:
+        proc = subprocess.run(
+            ["git"] + cmd_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace"
+        )
+        return proc.returncode, proc.stdout.strip(), proc.stderr.strip()
+    except FileNotFoundError:
+        err_msg = (
+            "Git executable ('git') was not found in your system PATH.\n"
+            "Installation instructions:\n"
+            "  - Windows: Run 'winget install Git.Git' or download from https://git-scm.com/\n"
+            "  - Linux (Fedora): Run 'sudo dnf install git'\n"
+            "  - Linux (Ubuntu/Debian): Run 'sudo apt update && sudo apt install git'\n"
+            "  - macOS: Run 'brew install git'"
+        )
+        return 127, "", err_msg
+    except Exception as e:
+        return 1, "", f"Unexpected error executing git: {e}"
+
+
+# ==============================================================================
+# CLI Actions (draft, validate, commit, check-env)
 # ==============================================================================
 
 def cmd_validate(message: str) -> int:
@@ -264,20 +312,19 @@ def cmd_validate(message: str) -> int:
 
 def cmd_draft() -> int:
     """Inspects git status and suggests candidate commit scopes and drafts."""
-    try:
-        status_out = subprocess.check_output(["git", "status", "--porcelain"], text=True).strip()
-    except subprocess.CalledProcessError as e:
-        print(f"Error running git status: {e}", file=sys.stderr)
-        return 1
+    code, stdout, stderr = run_git_command(["status", "--porcelain"])
+    if code != 0:
+        print(f"Error checking git status:\n{stderr}", file=sys.stderr)
+        return code
 
-    if not status_out:
+    if not stdout:
         print("Working tree is completely clean. Nothing to commit.")
         return 0
 
     staged_files = []
     unstaged_files = []
 
-    for line in status_out.splitlines():
+    for line in stdout.splitlines():
         if len(line) < 3:
             continue
         index_status = line[0]
@@ -317,18 +364,22 @@ def cmd_commit(
 ) -> int:
     """Constructs the message, runs full pre-flight validation, and executes git commit."""
     # Step 0: Check working tree status
-    try:
-        status_out = subprocess.check_output(["git", "status", "--porcelain"], text=True).strip()
-        if not status_out:
-            print("[NO CHANGES] Working tree is completely clean. No changes detected to commit. No action taken.")
-            return 0
-            
-        diff_cached = subprocess.check_output(["git", "diff", "--cached", "--name-only"], text=True).strip()
-        if not diff_cached:
-            print("[NO STAGED CHANGES] Changes exist in working tree, but none are staged. Please stage files using 'git add <files>' first.")
-            return 1
-    except subprocess.CalledProcessError as e:
-        print(f"Error checking git status: {e}", file=sys.stderr)
+    code, status_out, stderr = run_git_command(["status", "--porcelain"])
+    if code != 0:
+        print(f"Error checking git status:\n{stderr}", file=sys.stderr)
+        return code
+        
+    if not status_out:
+        print("[NO CHANGES] Working tree is completely clean. No changes detected to commit. No action taken.")
+        return 0
+        
+    code, diff_cached, stderr = run_git_command(["diff", "--cached", "--name-only"])
+    if code != 0:
+        print(f"Error checking staged diff:\n{stderr}", file=sys.stderr)
+        return code
+        
+    if not diff_cached:
+        print("[NO STAGED CHANGES] Changes exist in working tree, but none are staged. Please stage files using 'git add <files>' first.")
         return 1
 
     if raw_message:
@@ -350,15 +401,67 @@ def cmd_commit(
         return 1
 
     # Step 2: Safe commit execution
+    print("\nExecuting git commit...")
+    code, commit_out, commit_err = run_git_command(["commit", "-m", full_message])
+    if code != 0:
+        print(f"Git commit failed:\n{commit_err or commit_out}", file=sys.stderr)
+        return code
+
+    print(commit_out)
+    print("\nCommit successful! Verifying latest commit:")
+    _, log_out, _ = run_git_command(["log", "-1", "--stat"])
+    print(log_out)
+    return 0
+
+
+def cmd_check_env() -> int:
+    """Runs a complete cross-platform environment diagnostic for Linux, Windows, and macOS."""
+    print("=" * 70)
+    print(" ENVIRONMENT DIAGNOSTIC (CROSS-PLATFORM CHECK)")
+    print("=" * 70)
+
+    # 1. Python Check
+    py_ver = sys.version_info
+    py_status = "[PASS]" if py_ver >= (3, 8) else "[FAIL]"
+    print(f"Python Version: {py_ver.major}.{py_ver.minor}.{py_ver.micro} on {sys.platform} {py_status}")
+    if py_ver < (3, 8):
+        print("  ! Python 3.8 or higher is required.")
+
+    # 2. Git Check
+    git_code, git_ver, git_err = run_git_command(["--version"])
+    if git_code == 0:
+        print(f"Git Executable: {git_ver} [PASS]")
+    else:
+        print("Git Executable: NOT FOUND [FAIL]")
+        print(f"  ! {git_err}")
+
+    # 3. Git User Configuration
+    if git_code == 0:
+        _, user_name, _ = run_git_command(["config", "user.name"])
+        _, user_email, _ = run_git_command(["config", "user.email"])
+        if user_name and user_email:
+            print(f"Git Author: {user_name} <{user_email}> [PASS]")
+        else:
+            print("Git Author: Incomplete configuration [WARN]")
+            if not user_name:
+                print("  ! Missing user.name (run: git config --global user.name 'Your Name')")
+            if not user_email:
+                print("  ! Missing user.email (run: git config --global user.email 'you@example.com')")
+
+    # 4. uv Check (Optional modern runner)
     try:
-        print("\nExecuting git commit...")
-        subprocess.check_call(["git", "commit", "-m", full_message])
-        print("\nCommit successful! Verifying latest commit:")
-        subprocess.check_call(["git", "log", "-1", "--stat"])
-        return 0
-    except subprocess.CalledProcessError as e:
-        print(f"Git commit failed: {e}", file=sys.stderr)
-        return 1
+        uv_proc = subprocess.run(["uv", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+        if uv_proc.returncode == 0:
+            print(f"uv Runner: {uv_proc.stdout.strip()} [DETECTED]")
+        else:
+            print("uv Runner: Not installed (optional)")
+    except FileNotFoundError:
+        print("uv Runner: Not installed (optional, install with: curl -LsSf https://astral.sh/uv/install.sh | sh or 'winget install astral-sh.uv')")
+
+    print("=" * 70)
+    print("All core runtime requirements checked.")
+    print("=" * 70)
+    return 0 if (py_ver >= (3, 8) and git_code == 0) else 1
 
 
 # ==============================================================================
@@ -366,8 +469,9 @@ def cmd_commit(
 # ==============================================================================
 
 def main() -> None:
+    setup_terminal_encoding()
     parser = argparse.ArgumentParser(
-        description="Conventional Commit Validator & Safe Commit Runner"
+        description="Conventional Commit Validator & Safe Commit Runner (Linux, Windows, macOS)"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -386,6 +490,9 @@ def main() -> None:
     com_parser.add_argument("-b", "--bullet", action="append", help="Optional body bullet point")
     com_parser.add_argument("--raw", help="Raw full commit message (bypasses -t/-s/-m flags)")
 
+    # Subcommand: check-env
+    subparsers.add_parser("check-env", help="Check Python, Git, and environment compatibility")
+
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -400,7 +507,10 @@ def main() -> None:
                 print("Error: -t/--type, -s/--scope, and -m/--message are all required when not using --raw", file=sys.stderr)
                 sys.exit(1)
             sys.exit(cmd_commit(args.type, args.scope, args.message, bullets=args.bullet))
+    elif args.command == "check-env":
+        sys.exit(cmd_check_env())
 
 
 if __name__ == "__main__":
     main()
+

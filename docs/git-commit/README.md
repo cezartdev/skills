@@ -42,23 +42,46 @@ skills/git-commit/
 
 ---
 
-## 4. Prerequisites & Dependencies
+## 4. Prerequisites & Dependencies (Linux, Windows, macOS)
 
 - **Python 3.8+**: Required to execute the helper scripts (`scripts/commit_helper.py`).
 - **Dependencies**: The script exclusively utilizes Python standard library modules (`argparse`, `re`, `subprocess`, `sys`). No external pip dependencies are needed.
 - **Dependency Declaration**: Declared via [`pyproject.toml`](file:///home/cezartdev/Documents/cezartdev/professional/skills/skills/git-commit/pyproject.toml) with `requires-python = ">=3.8"`.
 - **Git**: Configured with `user.name` and `user.email`.
 
-### Environment & Missing Python Setup
-If Python is not installed on the execution environment:
-- **Linux (Debian/Ubuntu)**: `sudo apt update && sudo apt install -y python3`
-- **Linux (Fedora/RHEL)**: `sudo dnf install -y python3`
-- **macOS**: `brew install python`
-- **Using Astral `uv`**:
-  ```bash
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  uv run skills/git-commit/scripts/commit_helper.py <command>
-  ```
+### Environment & Missing Dependencies Setup
+
+#### Windows (PowerShell, CMD, Git Bash)
+If Python or Git is not installed on Windows:
+```powershell
+# Using Windows Package Manager (Winget)
+winget install Python.Python.3.12
+winget install Git.Git
+winget install astral-sh.uv
+
+# Run with python, py, or uv:
+python skills/git-commit/scripts/commit_helper.py check-env
+py skills/git-commit/scripts/commit_helper.py check-env
+uv run skills/git-commit/scripts/commit_helper.py check-env
+```
+
+#### Linux (Fedora / RHEL / CentOS)
+```bash
+sudo dnf install -y python3 git
+python3 skills/git-commit/scripts/commit_helper.py check-env
+```
+
+#### Linux (Ubuntu / Debian)
+```bash
+sudo apt update && sudo apt install -y python3 git
+python3 skills/git-commit/scripts/commit_helper.py check-env
+```
+
+#### macOS
+```bash
+brew install python git
+python3 skills/git-commit/scripts/commit_helper.py check-env
+```
 
 ---
 
@@ -169,6 +192,37 @@ python3 skills/git-commit/scripts/commit_helper.py commit \
 ```bash
 python3 skills/git-commit/scripts/commit_helper.py commit \
   --raw "docs(git-commit): add comprehensive skill documentation"
+```
+
+---
+
+### D. Environment Diagnostic (`check-env`)
+Runs an automated cross-platform health check of Python, Git, Author configurations, and Astral `uv` runner:
+
+```bash
+# On Linux / macOS:
+python3 skills/git-commit/scripts/commit_helper.py check-env
+
+# On Windows:
+python skills/git-commit/scripts/commit_helper.py check-env
+# Or:
+py skills/git-commit/scripts/commit_helper.py check-env
+# Or:
+uv run skills/git-commit/scripts/commit_helper.py check-env
+```
+
+**Diagnostic Output**:
+```text
+======================================================================
+ ENVIRONMENT DIAGNOSTIC (CROSS-PLATFORM CHECK)
+======================================================================
+Python Version: 3.14.3 on linux [PASS]
+Git Executable: git version 2.53.0 [PASS]
+Git Author: cezartdev <cesaralonsosalazarp@gmail.com> [PASS]
+uv Runner: uv 0.11.28 (x86_64-unknown-linux-gnu) [DETECTED]
+======================================================================
+All core runtime requirements checked.
+======================================================================
 ```
 
 ---

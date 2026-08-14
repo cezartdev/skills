@@ -9,18 +9,49 @@ This skill provides an automated, deterministic workflow for creating standardiz
 
 ---
 
-## 1. Prerequisites & Environment
+## 1. Prerequisites & Environment (Cross-Platform: Linux, Windows, macOS)
 
 - **Python**: Version **3.8+** is required to execute the pre-flight validation and commit runner script (`scripts/commit_helper.py`).
-- **Dependencies**: Uses Python standard library modules (`argparse`, `re`, `subprocess`, `sys`). No third-party packages required.
+- **Dependencies**: Uses Python standard library modules exclusively (`argparse`, `re`, `subprocess`, `sys`). No external pip dependencies are needed.
 - **Dependency Specification**: Declared in [`pyproject.toml`](file:///home/cezartdev/Documents/cezartdev/professional/skills/skills/git-commit/pyproject.toml) (`requires-python = ">=3.8"`).
-- **Execution Runners**: Can be invoked directly with `python3` or via `uv run`:
+- **Universal CLI Runners**:
+  - **Linux / macOS**:
+    ```bash
+    python3 skills/git-commit/scripts/commit_helper.py <command>
+    # Or using uv:
+    uv run skills/git-commit/scripts/commit_helper.py <command>
+    ```
+  - **Windows (PowerShell, CMD, Git Bash)**:
+    ```powershell
+    python skills/git-commit/scripts/commit_helper.py <command>
+    # Or using py launcher:
+    py skills/git-commit/scripts/commit_helper.py <command>
+    # Or using uv:
+    uv run skills/git-commit/scripts/commit_helper.py <command>
+    ```
+- **Environment Diagnostic**: Run `check-env` to test Python version, Git setup, and uv availability:
   ```bash
-  python3 skills/git-commit/scripts/commit_helper.py <command>
-  # Or using uv:
-  uv run skills/git-commit/scripts/commit_helper.py <command>
+  python3 skills/git-commit/scripts/commit_helper.py check-env
   ```
-- **If Python is Missing**: Install Python 3 via your system package manager (e.g., `apt install python3`, `brew install python`, `dnf install python3`) or install `uv` (`curl -LsSf https://astral.sh/uv/install.sh | sh`).
+- **Troubleshooting & Missing Dependencies**:
+  - **Windows**: Install Python and Git via Winget or official installers:
+    ```powershell
+    winget install Python.Python.3.12
+    winget install Git.Git
+    winget install astral-sh.uv
+    ```
+  - **Linux (Fedora / RHEL)**:
+    ```bash
+    sudo dnf install -y python3 git
+    ```
+  - **Linux (Ubuntu / Debian)**:
+    ```bash
+    sudo apt update && sudo apt install -y python3 git
+    ```
+  - **macOS**:
+    ```bash
+    brew install python git
+    ```
 
 ---
 
