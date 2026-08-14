@@ -2,6 +2,7 @@
 
 import os
 import re
+from typing import Dict, Any, Tuple
 try:
     from .explorer import scan_codebase, generate_master_context
 except ImportError:
