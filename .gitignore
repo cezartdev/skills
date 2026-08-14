@@ -11,6 +11,7 @@ __pycache__/
 # Installed Skills Runtime in target projects
 .agent/
 .agents/
+.workflow/
 skills-lock.json
 
 # OS & Editors

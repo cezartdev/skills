@@ -557,8 +557,9 @@ def cmd_curate(args: argparse.Namespace) -> int:
         print(json.dumps(res, indent=2))
         return 0
 
+    file_slug = res.get("file_slug") or "PR_summary.md"
     print("=" * 110)
-    print(f" 🚀 WORKFLOW CURATOR SUMMARY (.workflow/prs/active/{res.get('file_slug', '')})")
+    print(f" 🚀 WORKFLOW CURATOR SUMMARY (.workflow/prs/active/{file_slug})")
     print("=" * 110)
     print(f"{'ARCHETYPE / SCOPE':<24} │ {'ITEMS':<16} │ INTEGRATION VERIFICATION")
     print("-" * 110)
@@ -573,7 +574,7 @@ def cmd_curate(args: argparse.Namespace) -> int:
 
     print_next_steps([
         {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate --create-pr", "desc": "Open pull request directly on GitHub via gh CLI"},
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py curate --archive {res.get('file_slug', '')}", "desc": "Archive merged PR summary to history"},
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py curate --archive {file_slug}", "desc": "Archive merged PR summary to history"},
     ])
     return 0
 

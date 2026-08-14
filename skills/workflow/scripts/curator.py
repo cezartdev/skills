@@ -189,6 +189,11 @@ def create_curator_pr(
         return {
             "status": "NO_CHANGES",
             "message": f"No new memory decisions found for scope '{archetype or spec_name or 'all'}'. Everything is up to date.",
+            "title": summary.get("title", f"Workflow PR Summary: {archetype or spec_name or 'All Changes'}"),
+            "pr_file": summary.get("pr_file", os.path.join(target_dir, ".workflow", "prs", "active")),
+            "file_slug": summary.get("file_slug", "PR_summary.md"),
+            "total_changes": 0,
+            "counts": summary.get("counts", {}),
             "summary": summary,
         }
 
