@@ -9,13 +9,16 @@
   "drift_detection": {
     "enabled": true,
     "auto_reexplore": true,
-    "manifest_files": ["package.json", "pyproject.toml", "Cargo.toml", "go.mod"]
+    "manifest_files": ["package.json", "pyproject.toml", "Cargo.toml", "go.mod", "pom.xml", "build.gradle"]
   },
   "memory": {
     "directory": ".workflow/memory",
     "max_episodic_files_per_archetype": 10,
     "auto_compact_on_threshold": true,
     "require_memory_before_run": true
+  },
+  "prs": {
+    "directory": ".workflow/prs"
   },
   "worktrees": {
     "directory": ".workflow/worktrees",
@@ -27,10 +30,46 @@
       "runner": "subagent",
       "target_spec_dir": ".workflow/specs/bugs/",
       "worktree": ".workflow/worktrees/auto-fixer",
-      "branch": "fix/active-patches",
+      "branch": "workflow/fix-active-patches",
       "schedule": {
         "interval_minutes": 10,
         "max_iterations": 10
+      },
+      "auto_merge": {
+        "enabled": true,
+        "target_branch": "main",
+        "strategy": "rebase",
+        "require_all_tests_pass": true,
+        "require_security_scan": true
+      }
+    },
+    "refactor-worker": {
+      "archetype": "refactor",
+      "runner": "subagent",
+      "target_spec_dir": ".workflow/specs/refactor/",
+      "worktree": ".workflow/worktrees/refactor-worker",
+      "branch": "workflow/refactor-active-modules",
+      "schedule": {
+        "interval_minutes": 15,
+        "max_iterations": 8
+      },
+      "auto_merge": {
+        "enabled": true,
+        "target_branch": "main",
+        "strategy": "rebase",
+        "require_all_tests_pass": true,
+        "require_security_scan": true
+      }
+    },
+    "doc-sync": {
+      "archetype": "doc_sync",
+      "runner": "subagent",
+      "target_spec_dir": ".workflow/specs/docs/",
+      "worktree": ".workflow/worktrees/doc-sync",
+      "branch": "workflow/docs-sync-active",
+      "schedule": {
+        "interval_minutes": 30,
+        "max_iterations": 5
       },
       "auto_merge": {
         "enabled": true,

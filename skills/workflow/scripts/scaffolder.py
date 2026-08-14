@@ -82,7 +82,12 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
                 "test_runner": {"command": test_cmd, "args": ["--run"]},
                 "memory": {"directory": ".workflow/memory"},
                 "prs": {"directory": ".workflow/prs"},
-                "worktrees": {"directory": ".workflow/worktrees", "auto_clean_on_merge": True}
+                "worktrees": {"directory": ".workflow/worktrees", "auto_clean_on_merge": True},
+                "daemons": {
+                    "auto-fixer": {"archetype": "fix", "runner": "subagent", "schedule": {"interval_minutes": 10}},
+                    "refactor-worker": {"archetype": "refactor", "runner": "subagent", "schedule": {"interval_minutes": 15}},
+                    "doc-sync": {"archetype": "doc_sync", "runner": "subagent", "schedule": {"interval_minutes": 30}}
+                }
             }
             with open(config_file, "w", encoding="utf-8") as f:
                 json.dump(default_conf, f, indent=2)

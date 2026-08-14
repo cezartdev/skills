@@ -77,10 +77,16 @@ uv run skills/workflow/scripts/workflow_runner.py run 001-payment-gateway
 uv run skills/workflow/scripts/workflow_runner.py archive 001-payment-gateway
 ```
 
-### 5. Background Daemons & Scheduling
+### 5. Built-in Base Daemons & Scheduling
 ```bash
-# Start auto-fixer subagent every 10 minutes
+# 1. Start auto-fixer subagent (archetype: fix, bugs namespace) every 10 minutes
 uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer --interval 10
+
+# 2. Start refactor-worker subagent (archetype: refactor, refactor namespace) every 15 minutes
+uv run skills/workflow/scripts/workflow_runner.py daemon start refactor-worker --interval 15
+
+# 3. Start doc-sync subagent (archetype: doc_sync, docs namespace) every 30 minutes
+uv run skills/workflow/scripts/workflow_runner.py daemon start doc-sync --interval 30
 
 # Pause daemon cron execution without destroying worktree
 uv run skills/workflow/scripts/workflow_runner.py daemon pause auto-fixer
@@ -91,8 +97,9 @@ uv run skills/workflow/scripts/workflow_runner.py daemon resume auto-fixer
 # View active daemon status table & health metrics
 uv run skills/workflow/scripts/workflow_runner.py daemon status
 
-# Stop daemon with Anti-Zombie purge
+# Stop a specific daemon or all daemons with Anti-Zombie purge
 uv run skills/workflow/scripts/workflow_runner.py daemon stop auto-fixer
+uv run skills/workflow/scripts/workflow_runner.py daemon stop --all
 
 # Clean dead PIDs and stale worktree locks
 uv run skills/workflow/scripts/workflow_runner.py daemon clean

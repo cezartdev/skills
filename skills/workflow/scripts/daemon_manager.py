@@ -77,7 +77,20 @@ def start_daemon(
     config = load_workflow_config(target_dir)
     daemon_conf = config.get("daemons", {}).get(daemon_name, {})
 
-    arch = archetype or daemon_conf.get("archetype", "fix" if "fix" in daemon_name else "refactor")
+    # Resolve archetype
+    if archetype:
+        arch = archetype
+    elif "archetype" in daemon_conf:
+        arch = daemon_conf["archetype"]
+    elif "fix" in daemon_name or "bug" in daemon_name:
+        arch = "fix"
+    elif "refactor" in daemon_name:
+        arch = "refactor"
+    elif "doc" in daemon_name:
+        arch = "doc_sync"
+    else:
+        arch = "implement"
+
     interval = interval_minutes or daemon_conf.get("schedule", {}).get("interval_minutes", 10)
     cron_expr = f"*/{interval} * * * *"
 
@@ -104,11 +117,17 @@ def start_daemon(
     save_daemon_registry(registry, target_dir)
 
     # 3. Build Universal Subagent Dispatch Directive
+    target_specs_folder = (
+        "bugs" if arch == "fix"
+        else ("refactor" if arch == "refactor"
+        else ("docs" if arch == "doc_sync"
+        else "features"))
+    )
     system_prompt_file = f"skills/workflow/references/prompts/{arch}.prompt.md"
     task_prompt = (
         f"Execute background TDD cycle for daemon '{daemon_name}' (archetype: {arch}) "
         f"inside isolated Git Worktree at '{worktree_path}'. "
-        f"Check .workflow/specs/{'bugs' if arch == 'fix' else 'refactor'}/ for pending issues, "
+        f"Check .workflow/specs/{target_specs_folder}/ for pending issues, "
         f"run unit tests, implement surgical patches, and trigger safe auto-merge to main on 100% test pass."
     )
 
