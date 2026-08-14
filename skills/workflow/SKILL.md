@@ -76,31 +76,32 @@ skills/workflow/
 
 ---
 
-## 3. Subcommand Trigger Routing
+## 3. Subcommand Trigger Routing & List Template
 
-| Trigger / User Request | Subcommand | Workflow Action | Path in Target Project |
-|---|---|---|---|
-| `/workflow list` | `list [--json]` | Displays universal command catalog and cheat-sheet | Terminal / Chat |
-| `/workflow chat [spec]` | `chat` | Freeform project brainstorming (or scoped spec debate) | `.workflow/memory/` |
-| `/workflow init` | `init [--test-runner <cmd>]` | Scaffolds `.workflow/` (specs, memory, prs, worktrees, config) | `.workflow/` |
-| `/workflow explore` | `explore` | Scans polyglot stack (Python, Rust, Go, Node, Java, .NET) & updates memory | `.workflow/memory/` |
-| `/workflow drift` | `drift [--sync]` | Detects manifest hash drift; reconciles `.workflow/workflow.json` | `.workflow/memory/` |
-| `/workflow new <name> [--archetype feat|bug|refactor|doc]` | `new` | Creates new spec folder (defaults to feat $\rightarrow$ `.workflow/specs/features/<name>/`) | `.workflow/specs/` |
-| `/workflow specify <spec>` | `specify` | Socratic debate & interactive interview to co-author `spec.md` (GitHub Spec-Kit style) | `.workflow/specs/` |
-| `/workflow plan <spec>` | `plan` | Decomposes refined `spec.md` into atomic TDD tasks in `issues/*.md` | `.workflow/specs/` |
-| `/workflow check <spec>` | `check` | Deterministic Quality Gate: regex audit of criteria, edge cases & score | `.workflow/specs/` |
-| `/workflow run <spec>` | `run` | Executes deterministic LangGraph DAG state machine (RED $\rightarrow$ GREEN $\rightarrow$ REFACTOR) | `.workflow/specs/` |
-| `/workflow archive <name>` | `archive` | Moves completed & merged spec folder to `.workflow/specs/archive/<year>/` | `.workflow/specs/archive/` |
-| `/workflow memory <action>` | `memory` | Manages hierarchical memory namespaces (`compact`, `log`, `status`) | `.workflow/memory/<arch>/` |
-| `/workflow daemon start <name>` | `daemon start` | Schedules background daemon subagent with cron interval in worktree | `.workflow/worktrees/<name>/` |
-| `/workflow daemon pause [name]` | `daemon pause` | Suspends cron triggers without destroying worktree state | `.workflow/daemons.json` |
-| `/workflow daemon resume [name]` | `daemon resume` | Resumes scheduled cron execution | `.workflow/daemons.json` |
-| `/workflow daemon stop [name]` | `daemon stop` | Anti-Zombie shutdown: terminates subagent, purges worktrees & locks | `.workflow/worktrees/` |
-| `/workflow daemon status` | `daemon status` | Displays active daemon status table, intervals, PIDs, and health metrics | `.workflow/daemons.json` |
-| `/workflow daemon clean` | `daemon clean` | Forcefully purges stale worktrees, dead PIDs, and dangling lockfiles | `.workflow/worktrees/` |
-| `/workflow curate` | `curate` | Multi-PR Curator: compiles scoped PR in `.workflow/prs/active/` | `.workflow/prs/active/` |
-| `/workflow worktree <action>` | `worktree` | Manages physical Git Worktrees (`list`, `add`, `clean`, `prune`) | `.workflow/worktrees/` |
-| `/workflow check-env` | `check-env` | Diagnostic check of Python $\ge 3.10$, Git, uv, and LangGraph status | None |
+When `/workflow list` is requested by the user, the AI Agent MUST respond with this exact concise reference table without verbose conversational filler:
+
+| Slash Command | CLI Syntax | Description |
+|---|---|---|
+| `/workflow init` | `workflow init [dir]` | Initialize encapsulated `.workflow/` structure & configs |
+| `/workflow explore` | `workflow explore [dir]` | Survey polyglot stack (Python, Rust, Go, Node, Java, .NET) & update context |
+| `/workflow new` | `workflow new <name> [--archetype <type>]` | Scaffold a new spec under `.workflow/specs/` (default: feat) |
+| `/workflow specify` | `workflow specify <name>` | Interactive 1-by-1 Grilling Session to co-author `spec.md` |
+| `/workflow plan` | `workflow plan <name>` | Decompose refined spec into atomic TDD task issues |
+| `/workflow check` | `workflow check <name>` | Audit spec against deterministic Quality Gate (100/100) |
+| `/workflow run` | `workflow run <name>` | Execute deterministic LangGraph TDD DAG (Red -> Green -> Refactor) |
+| `/workflow archive` | `workflow archive <name>` | Move completed spec to `.workflow/specs/archive/<year>/` |
+| `/workflow drift` | `workflow drift [--sync]` | Detect manifest checksum drift & sync tech context |
+| `/workflow memory` | `workflow memory <action>` | Manage episodic memory sliding window & 00-10 compaction |
+| `/workflow daemon start` | `workflow daemon start [name]` | Start background daemon subagent (`auto-fixer`, `refactor-worker`, `doc-sync`) |
+| `/workflow daemon pause` | `workflow daemon pause [name]` | Pause background worker without deleting worktree |
+| `/workflow daemon resume` | `workflow daemon resume [name]` | Resume paused background worker execution |
+| `/workflow daemon stop` | `workflow daemon stop [name\|--all]` | Terminate background worker & execute Anti-Zombie purge |
+| `/workflow daemon status` | `workflow daemon status` | View active daemon health table & execution metrics |
+| `/workflow daemon clean` | `workflow daemon clean` | Force purge orphaned worktrees & dead worker PIDs |
+| `/workflow curate` | `workflow curate [--archetype <type>]` | Compile scoped PR summary in `.workflow/prs/active/` & open PR |
+| `/workflow chat` | `workflow chat [spec]` | Macro architecture brainstorming & scoped spec debate |
+| `/workflow check-env` | `workflow check-env` | Diagnostic check of Python $\ge 3.10$, Git, uv, and dependencies |
+| `/workflow list` | `workflow list` | Display this concise command reference table |
 
 ---
 

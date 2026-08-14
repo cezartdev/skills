@@ -563,58 +563,42 @@ def cmd_worktree(args: argparse.Namespace) -> int:
 
 
 def cmd_list(args: argparse.Namespace) -> int:
-    """Displays the complete categorized command catalog and cheat-sheet."""
-    catalog = {
-        "Discovery & Setup (Polyglot)": [
-            {"command": "/workflow init", "syntax": "workflow init [dir] [--test-runner <cmd>]", "desc": "Initialize encapsulated .workflow module, specs/, memory/, prs/, and workflow.json"},
-            {"command": "/workflow explore", "syntax": "workflow explore [dir]", "desc": "Scan polyglot stack (Python/uv, Rust, Go, Node, Java, .NET) & update context"},
-            {"command": "/workflow drift", "syntax": "workflow drift [--sync] [dir]", "desc": "Detect manifest checksum changes or framework migrations and sync context"},
-            {"command": "/workflow check-env", "syntax": "workflow check-env", "desc": "Diagnostic check of Python >=3.10, Git, uv, and LangGraph availability"},
-        ],
-        "Spec-Driven Development (SDD)": [
-            {"command": "/workflow new", "syntax": "workflow new <name> [--archetype feat|bug|refactor|doc]", "desc": "Scaffold a new spec (defaults to feat -> .workflow/specs/features/)"},
-            {"command": "/workflow specify", "syntax": "workflow specify <name>", "desc": "Socratic debate & interactive interview to co-author spec.md details (Spec-Kit style)"},
-            {"command": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Decompose refined spec into atomic TDD task issues under issues/*.md"},
-            {"command": "/workflow check", "syntax": "workflow check <name>", "desc": "Pre-Execution Quality Gate: deterministic regex audit of criteria, edge cases & score"},
-            {"command": "/workflow archive", "syntax": "workflow archive <name>", "desc": "Move completed and verified spec folder to .workflow/specs/archive/<year>/"},
-        ],
-        "TDD Execution & Worktrees": [
-            {"command": "/workflow run", "syntax": "workflow run <name>", "desc": "Execute deterministic LangGraph DAG state machine (RED -> GREEN -> REFACTOR)"},
-            {"command": "/workflow worktree", "syntax": "workflow worktree <list|add|clean|prune>", "desc": "Manage physical Git Worktrees under .workflow/worktrees/ with auto-prune"},
-        ],
-        "Autonomous Background Daemons & Control": [
-            {"command": "/workflow daemon start", "syntax": "workflow daemon start [name] [--interval 10]", "desc": "Schedule background daemon subagent with cron in isolated worktree"},
-            {"command": "/workflow daemon pause", "syntax": "workflow daemon pause [name]", "desc": "Temporarily suspend daemon cron triggers without destroying worktree"},
-            {"command": "/workflow daemon resume", "syntax": "workflow daemon resume [name]", "desc": "Resume scheduled cron execution for a paused daemon"},
-            {"command": "/workflow daemon stop", "syntax": "workflow daemon stop [name] [--all]", "desc": "Anti-Zombie shutdown: terminate subagent task, purge worktrees and lockfiles"},
-            {"command": "/workflow daemon status", "syntax": "workflow daemon status", "desc": "View active daemon health table, PIDs, and cron execution metrics"},
-            {"command": "/workflow daemon clean", "syntax": "workflow daemon clean", "desc": "Scan and forcefully purge all stale worktree locks and dead daemon PIDs"},
-        ],
-        "Multi-PR Curator & Memory": [
-            {"command": "/workflow curate", "syntax": "workflow curate [--archetype <arch>] [--spec <name>] [--create-pr]", "desc": "Curator Subagent: compile scoped PR in .workflow/prs/active/ & open GitHub PR"},
-            {"command": "/workflow memory", "syntax": "workflow memory <status|log|compact> [--archetype <arch>]", "desc": "Manage hierarchical episodic memory and 00-10 compaction"},
-            {"command": "/workflow chat", "syntax": "workflow chat [spec_name]", "desc": "Open freeform dialogue about project architecture or scoped spec debate"},
-            {"command": "/workflow list", "syntax": "workflow list [--json]", "desc": "Display this universal command directory and cheat-sheet"},
-        ]
-    }
+    """Displays the concise, fixed command reference table."""
+    commands = [
+        {"slash": "/workflow init", "syntax": "workflow init [dir]", "desc": "Initialize encapsulated .workflow/ structure & configs"},
+        {"slash": "/workflow explore", "syntax": "workflow explore [dir]", "desc": "Survey polyglot stack (Python, Rust, Go, Node, Java, .NET) & update context"},
+        {"slash": "/workflow new", "syntax": "workflow new <name> [--archetype <type>]", "desc": "Scaffold a new spec under .workflow/specs/ (default: feat)"},
+        {"slash": "/workflow specify", "syntax": "workflow specify <name>", "desc": "Interactive 1-by-1 Grilling Session to co-author spec.md"},
+        {"slash": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Decompose refined spec into atomic TDD task issues"},
+        {"slash": "/workflow check", "syntax": "workflow check <name>", "desc": "Audit spec against deterministic Quality Gate (100/100)"},
+        {"slash": "/workflow run", "syntax": "workflow run <name>", "desc": "Execute deterministic LangGraph TDD DAG (Red -> Green -> Refactor)"},
+        {"slash": "/workflow archive", "syntax": "workflow archive <name>", "desc": "Move completed spec to .workflow/specs/archive/<year>/"},
+        {"slash": "/workflow drift", "syntax": "workflow drift [--sync]", "desc": "Detect manifest checksum drift & sync tech context"},
+        {"slash": "/workflow memory", "syntax": "workflow memory <action>", "desc": "Manage episodic memory sliding window & 00-10 compaction"},
+        {"slash": "/workflow daemon start", "syntax": "workflow daemon start [name]", "desc": "Start background daemon subagent (auto-fixer, refactor-worker, doc-sync)"},
+        {"slash": "/workflow daemon pause", "syntax": "workflow daemon pause [name]", "desc": "Pause background worker without deleting worktree"},
+        {"slash": "/workflow daemon resume", "syntax": "workflow daemon resume [name]", "desc": "Resume paused background worker execution"},
+        {"slash": "/workflow daemon stop", "syntax": "workflow daemon stop [name|--all]", "desc": "Terminate background worker & execute Anti-Zombie purge"},
+        {"slash": "/workflow daemon status", "syntax": "workflow daemon status", "desc": "View active daemon health table & execution metrics"},
+        {"slash": "/workflow daemon clean", "syntax": "workflow daemon clean", "desc": "Force purge orphaned worktrees & dead worker PIDs"},
+        {"slash": "/workflow curate", "syntax": "workflow curate [--archetype <type>]", "desc": "Compile scoped PR summary in .workflow/prs/active/ & open PR"},
+        {"slash": "/workflow chat", "syntax": "workflow chat [spec]", "desc": "Macro architecture brainstorming & scoped spec debate"},
+        {"slash": "/workflow check-env", "syntax": "workflow check-env", "desc": "Diagnostic check of Python >=3.10, Git, uv, and dependencies"},
+        {"slash": "/workflow list", "syntax": "workflow list", "desc": "Display this concise command reference table"},
+    ]
 
     if args.json:
-        print(json.dumps(catalog, indent=2))
+        print(json.dumps(commands, indent=2))
         return 0
 
-    print("=" * 88)
-    print(" ⚡ WORKFLOW SUITE — UNIVERSAL COMMAND CATALOG & CHEAT-SHEET (.workflow/)")
-    print("=" * 88)
-
-    for section, commands in catalog.items():
-        print(f"\n📁 {section.upper()}")
-        print("-" * 88)
-        for cmd in commands:
-            print(f"  • {cmd['syntax']:<52} │ {cmd['desc']}")
-
-    print("\n" + "=" * 88)
-    print(" 💡 Pro-Tip: Scoped PRs with '/workflow curate --archetype fix' or '--archetype refactor'.")
-    print("=" * 88)
+    print("=" * 110)
+    print(" ⚡ WORKFLOW COMMANDS REFERENCE (.workflow/)")
+    print("=" * 110)
+    print(f"{'SLASH COMMAND':<24} │ {'CLI SYNTAX':<36} │ DESCRIPTION")
+    print("-" * 110)
+    for c in commands:
+        print(f"{c['slash']:<24} │ {c['syntax']:<36} │ {c['desc']}")
+    print("=" * 110)
     return 0
 
 
