@@ -15,19 +15,16 @@ metadata:
 - **Dependencies**: Managed via Astral `uv` (`langgraph`, `langchain-core`, `pydantic`). If `langgraph` is not yet installed, a pure-Python standard library fallback runner executes automatically.
 - **Polyglot Stacks Supported**: Automatically adapts to Python (`uv`/`pytest`), Rust (`cargo`), Go (`go test`), TypeScript/JavaScript (`pnpm`/`bun`/`npm`), Java (`maven`/`gradle`), and C# (`dotnet`).
 - **Encapsulated Architecture**: All project artifacts reside in the target project's **`.workflow/`** directory (`workflow.json`, `daemons.json`, `specs/`, `memory/`, `prs/`, `worktrees/`).
-- **Universal CLI Runners**:
-  - **Linux / macOS**:
-    ```bash
-    bash skills/workflow/scripts/workflow.sh <subcommand>
-    # Or directly with Python:
-    python3 skills/workflow/scripts/workflow_runner.py <subcommand>
-    ```
-  - **Windows (PowerShell, CMD, Git Bash)**:
-    ```powershell
-    pwsh skills/workflow/scripts/workflow.ps1 <subcommand>
-    # Or using py / python:
-    python skills/workflow/scripts/workflow_runner.py <subcommand>
-    ```
+- **Universal Execution (Tier 1 — Recommended across Linux, Windows, macOS)**:
+  ```bash
+  uv run skills/workflow/scripts/workflow_runner.py <subcommand>
+  ```
+- **Native Platform Launchers (Tier 2)**:
+  - **Linux / macOS**: `bash skills/workflow/scripts/workflow.sh <subcommand>`
+  - **Windows (PowerShell / CMD)**: `pwsh skills/workflow/scripts/workflow.ps1 <subcommand>`
+- **Fallback Execution (Tier 3 — Minimal environments without uv)**:
+  - **Linux / macOS**: `python3 skills/workflow/scripts/workflow_runner.py <subcommand>`
+  - **Windows**: `python skills/workflow/scripts/workflow_runner.py <subcommand>`
 
 ---
 

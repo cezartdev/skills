@@ -20,95 +20,98 @@ The **`workflow`** skill provides a deterministic, state-machine driven developm
 
 ---
 
+## 🛠️ Universal Execution Hierarchy
+
+- **Tier 1 (Universal Recommended — Linux, Windows, macOS)**:
+  ```bash
+  uv run skills/workflow/scripts/workflow_runner.py <subcommand>
+  ```
+- **Tier 2 (Native Platform Launchers)**:
+  - **Linux & macOS (Bash / Zsh)**: `bash skills/workflow/scripts/workflow.sh <subcommand>`
+  - **Windows (PowerShell)**: `pwsh skills/workflow/scripts/workflow.ps1 <subcommand>`
+- **Tier 3 (Fallback for minimal environments without uv)**:
+  - **Linux / macOS**: `python3 skills/workflow/scripts/workflow_runner.py <subcommand>`
+  - **Windows**: `python skills/workflow/scripts/workflow_runner.py <subcommand>`
+
+---
+
 ## 🚀 CLI Command Reference
 
 ### 1. View Universal Catalog & Cheat-Sheet
 ```bash
-python3 skills/workflow/scripts/workflow_runner.py list
+uv run skills/workflow/scripts/workflow_runner.py list
 ```
 
 ### 2. Polyglot Initialization & Codebase Exploration
 ```bash
 # Auto-detects Python/uv, Rust, Go, Node, Java, or .NET
-python3 skills/workflow/scripts/workflow_runner.py explore
+uv run skills/workflow/scripts/workflow_runner.py explore
 
 # Initialize .workflow/ module
-python3 skills/workflow/scripts/workflow_runner.py init
+uv run skills/workflow/scripts/workflow_runner.py init
 ```
 
-### 3. Spec-Driven Development (SDD) Cycle
+### 3. Freeform Brainstorming
+```bash
+uv run skills/workflow/scripts/workflow_runner.py chat
+```
+
+### 4. Spec-Driven Development (SDD) Cycle
 ```bash
 # Scaffold new feature spec (defaults to feat)
-python3 skills/workflow/scripts/workflow_runner.py new 001-payment-gateway
+uv run skills/workflow/scripts/workflow_runner.py new 001-payment-gateway
 
 # Socratic debate & co-authoring (Spec-Kit style)
-python3 skills/workflow/scripts/workflow_runner.py specify 001-payment-gateway
+uv run skills/workflow/scripts/workflow_runner.py specify 001-payment-gateway
 
 # Decompose into atomic TDD task issues
-python3 skills/workflow/scripts/workflow_runner.py plan 001-payment-gateway
+uv run skills/workflow/scripts/workflow_runner.py plan 001-payment-gateway
 
 # Deterministic Quality Gate audit (100/100 score)
-python3 skills/workflow/scripts/workflow_runner.py check 001-payment-gateway
+uv run skills/workflow/scripts/workflow_runner.py check 001-payment-gateway
 
 # Execute LangGraph TDD state machine (RED -> GREEN -> REFACTOR)
-python3 skills/workflow/scripts/workflow_runner.py run 001-payment-gateway
+uv run skills/workflow/scripts/workflow_runner.py run 001-payment-gateway
 
 # Archive completed spec
-python3 skills/workflow/scripts/workflow_runner.py archive 001-payment-gateway
+uv run skills/workflow/scripts/workflow_runner.py archive 001-payment-gateway
 ```
 
-### 4. Background Daemons & Scheduling
+### 5. Background Daemons & Scheduling
 ```bash
 # Start auto-fixer subagent every 10 minutes
-python3 skills/workflow/scripts/workflow_runner.py daemon start auto-fixer --interval 10
+uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer --interval 10
 
 # Pause daemon cron execution without destroying worktree
-python3 skills/workflow/scripts/workflow_runner.py daemon pause auto-fixer
+uv run skills/workflow/scripts/workflow_runner.py daemon pause auto-fixer
 
 # Resume daemon cron execution
-python3 skills/workflow/scripts/workflow_runner.py daemon resume auto-fixer
+uv run skills/workflow/scripts/workflow_runner.py daemon resume auto-fixer
 
 # View active daemon status table & health metrics
-python3 skills/workflow/scripts/workflow_runner.py daemon status
+uv run skills/workflow/scripts/workflow_runner.py daemon status
 
 # Stop daemon with Anti-Zombie purge
-python3 skills/workflow/scripts/workflow_runner.py daemon stop auto-fixer
+uv run skills/workflow/scripts/workflow_runner.py daemon stop auto-fixer
 
 # Clean dead PIDs and stale worktree locks
-python3 skills/workflow/scripts/workflow_runner.py daemon clean
+uv run skills/workflow/scripts/workflow_runner.py daemon clean
 ```
 
-### 5. Multi-PR Release Curation & GitHub PRs
+### 6. Multi-PR Release Curation & GitHub PRs
 ```bash
 # Scoped PR: Compile exclusively bug fixes into .workflow/prs/active/
-python3 skills/workflow/scripts/workflow_runner.py curate --archetype fix
+uv run skills/workflow/scripts/workflow_runner.py curate --archetype fix
 
 # Scoped PR: Compile architectural refactorings
-python3 skills/workflow/scripts/workflow_runner.py curate --archetype refactor
+uv run skills/workflow/scripts/workflow_runner.py curate --archetype refactor
 
 # Feature PR: Compile a specific spec delivery
-python3 skills/workflow/scripts/workflow_runner.py curate --spec 001-payment-gateway
+uv run skills/workflow/scripts/workflow_runner.py curate --spec 001-payment-gateway
 
 # Master Batch PR: Open directly on GitHub via gh CLI
-python3 skills/workflow/scripts/workflow_runner.py curate --create-pr --target-branch main
+uv run skills/workflow/scripts/workflow_runner.py curate --create-pr --target-branch main
 
 # Archive a merged PR record
-python3 skills/workflow/scripts/workflow_runner.py curate --archive PR_fix_rollup_20260814.md
+uv run skills/workflow/scripts/workflow_runner.py curate --archive PR_fix_rollup_20260814.md
 ```
-
----
-
-## 🛠️ Universal Cross-Platform Launchers
-
-- **Windows (PowerShell)**:
-  ```powershell
-  pwsh skills/workflow/scripts/workflow.ps1 list
-  ```
-- **Linux & macOS (Bash / Zsh)**:
-  ```bash
-  bash skills/workflow/scripts/workflow.sh list
-  ```
-- **Direct Python**:
-  ```bash
-  python3 skills/workflow/scripts/workflow_runner.py list
-  ```
