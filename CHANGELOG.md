@@ -1,5 +1,15 @@
 # cezartdev-skills
 
+## 1.1.0
+
+### Minor Changes
+
+- [`bdcca8b`](https://github.com/cezartdev/skills/commit/bdcca8b837ed6641c953b1037881769d54609502) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement workflow skill: deterministic LangGraph state machine runner, Spec-Driven & Test-Driven Development (SDD/TDD), zero-collision hierarchical markdown memory with 00-10 compaction, autonomous codebase explorer with tech drift detection, and multi-daemon physical Git Worktree isolation.
+
+### Patch Changes
+
+- [`e27b9d4`](https://github.com/cezartdev/skills/commit/e27b9d482815e5e48803cfdbbb60b0953b9068fc) Thanks [@cezartdev](https://github.com/cezartdev)! - Add comprehensive repository README documenting skills catalog, installation, and architecture
+
 ## 1.0.0
 
 ### Major Changes
