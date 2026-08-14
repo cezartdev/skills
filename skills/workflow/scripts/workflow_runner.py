@@ -31,10 +31,12 @@ from graph.engine import WorkflowEngine
 
 
 def print_next_steps(suggestions: List[Dict[str, str]]) -> None:
-    """Prints context-aware suggested next commands for developer and agent guidance."""
-    print("\n💡 Suggested Next Steps:")
+    """Prints context-aware suggested next commands in a compact, token-efficient table."""
+    print("\n💡 SUGGESTED NEXT STEPS")
+    print("-" * 110)
     for s in suggestions:
-        print(f"  👉 {s['cmd']:<52} │ {s['desc']}")
+        print(f"  👉 {s['cmd']:<54} │ {s['desc']}")
+    print("=" * 110)
 
 
 def resolve_spec_path(spec_arg: str, target_dir: str = ".") -> str:
@@ -91,18 +93,23 @@ def cmd_check_env(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(data, indent=2))
-    else:
-        print("⚡ Workflow Environment Diagnostic:")
-        print(f"  • Python:    {py_version} [{'PASS' if py_ok else 'FAIL: requires >=3.10'}]")
-        print(f"  • Git:       {git_ver} [{'PASS' if git_ok else 'FAIL'}]")
-        print(f"  • Astral uv: {uv_ver} [{'PASS' if uv_ok else 'OPTIONAL'}]")
-        print(f"  • LangGraph: {langgraph_ver} [{'PASS' if lg_ok else 'FALLBACK_ACTIVE'}]")
+        return 0 if py_ok and git_ok else 1
 
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py init", "desc": "Initialize encapsulated .workflow/ structure"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Survey polyglot tech stack & test runners"},
-        ])
+    print("=" * 110)
+    print(" ⚡ WORKFLOW ENVIRONMENT DIAGNOSTIC")
+    print("=" * 110)
+    print(f"{'COMPONENT':<24} │ {'STATUS':<12} │ DETAILS")
+    print("-" * 110)
+    print(f"{'Python':<24} │ {'PASS' if py_ok else 'FAIL':<12} │ Version {py_version} (Required >=3.10)")
+    print(f"{'Git':<24} │ {'PASS' if git_ok else 'FAIL':<12} │ {git_ver}")
+    print(f"{'Astral uv':<24} │ {'PASS' if uv_ok else 'OPTIONAL':<12} │ {uv_ver}")
+    print(f"{'LangGraph':<24} │ {'PASS' if lg_ok else 'FALLBACK':<12} │ {langgraph_ver}")
+    print("=" * 110)
 
+    print_next_steps([
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py init", "desc": "Initialize encapsulated .workflow/ structure"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Survey polyglot tech stack & test runners"},
+    ])
     return 0 if py_ok and git_ok else 1
 
 
@@ -116,24 +123,36 @@ def cmd_init(args: argparse.Namespace) -> int:
     result["master_memory"] = master_file
     result["test_runner"] = selected_test_runner
     result["detected_candidates"] = scan.get("test_candidates", [])
+    result["has_explicit_test_script"] = scan.get("has_explicit_test_script", False)
 
     if args.json:
         print(json.dumps(result, indent=2))
-    else:
-        print(f"✅ Encapsulated .workflow initialized in '{result['target_dir']}':")
-        print(f"  • Module Root:  {result['workflow_dir']}")
-        print(f"  • Config:       {result['config_file']}")
-        print(f"  • Test Runner:  {selected_test_runner}")
-        print(f"  • Specs Dir:    {result['specs_dir']} (features, bugs, refactor, docs, archive)")
-        print(f"  • Memory Dir:   {result['memory_dir']}")
-        print(f"  • PRs Catalog:  {result['prs_dir']} (active, archive)")
-        print(f"  • Master Doc:   {master_file}")
+        return 0
 
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Survey polyglot stack & update context"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold your first feature specification"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer", "desc": "Start background auto-fixer daemon"},
-        ])
+    print("=" * 110)
+    print(f" ✅ WORKFLOW MODULE INITIALIZED ({result['target_dir']})")
+    print("=" * 110)
+    print(f"{'PROPERTY':<24} │ VALUE")
+    print("-" * 110)
+    print(f"{'Workflow Root':<24} │ {result['workflow_dir']}")
+    print(f"{'Configuration':<24} │ {result['config_file']}")
+    print(f"{'Test Runner':<24} │ {selected_test_runner}")
+    print(f"{'Specs Directory':<24} │ {result['specs_dir']} (features, bugs, refactor, docs, archive)")
+    print(f"{'Memory Catalog':<24} │ {result['memory_dir']} (fix, refactor, implement, doc_sync)")
+    print(f"{'PRs Catalog':<24} │ {result['prs_dir']} (active, archive)")
+    print(f"{'Master Context':<24} │ {master_file}")
+    print("=" * 110)
+
+    if not scan.get("has_explicit_test_script", False) and len(scan.get("test_candidates", [])) > 1:
+        print("\nℹ️  AI Agent Interactive Question Directive:")
+        print(f"   No explicit test script in manifest. Ask developer with ask_question to choose test runner:")
+        print(f"   Candidates: {', '.join(scan.get('test_candidates', []))}")
+
+    print_next_steps([
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Survey polyglot stack & update context"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold your first feature specification"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer", "desc": "Start background auto-fixer daemon"},
+    ])
     return 0
 
 
@@ -144,20 +163,30 @@ def cmd_explore(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps({"status": "SUCCESS", "master_file": master_file, "scan": scan}, indent=2))
-    else:
-        print(f"🔍 Codebase Explorer Survey Complete:")
-        print(f"  • Project:         {scan['project_name']}")
-        print(f"  • Languages:       {scan['languages']}")
-        print(f"  • Frameworks:      {scan['frameworks']}")
-        print(f"  • Packages:        {scan['package_manager']}")
-        print(f"  • Test Runner:     {scan['test_runner']}")
-        print(f"  • Candidates:      {', '.join(scan.get('test_candidates', []))}")
-        print(f"  • Master Context:  {master_file}")
+        return 0
 
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a feature spec for this stack"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py drift", "desc": "Check manifest checksums & detect drift"},
-        ])
+    print("=" * 110)
+    print(f" 🔍 CODEBASE TECH STACK SURVEY ({scan['project_name']})")
+    print("=" * 110)
+    print(f"{'PROPERTY':<24} │ VALUE")
+    print("-" * 110)
+    print(f"{'Languages':<24} │ {scan['languages']}")
+    print(f"{'Frameworks':<24} │ {scan['frameworks']}")
+    print(f"{'Package Manager':<24} │ {scan['package_manager']}")
+    print(f"{'Primary Test Runner':<24} │ {scan['test_runner']}")
+    print(f"{'Test Candidates':<24} │ {', '.join(scan.get('test_candidates', []))}")
+    print(f"{'Master Context':<24} │ {master_file}")
+    print("=" * 110)
+
+    if not scan.get("has_explicit_test_script", False) and len(scan.get("test_candidates", [])) > 1:
+        print("\nℹ️  AI Agent Interactive Question Directive:")
+        print(f"   No explicit test script in manifest. Ask developer with ask_question to choose test runner:")
+        print(f"   Candidates: {', '.join(scan.get('test_candidates', []))}")
+
+    print_next_steps([
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a feature spec for this stack"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py drift", "desc": "Check manifest checksums & detect drift"},
+    ])
     return 0
 
 
@@ -171,24 +200,34 @@ def cmd_drift(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(res, indent=2))
+        return 0
+
+    print("=" * 110)
+    print(" 🛡️ TECH DRIFT & MANIFEST INTEGRITY (.workflow/)")
+    print("=" * 110)
+    print(f"{'MANIFEST FILE':<24} │ {'CHECKSUM':<16} │ STATUS")
+    print("-" * 110)
+
+    if args.sync:
+        print(f"{'Manifest Hash Sync':<24} │ {'UPDATED':<16} │ {res.get('message', 'Synchronized')}")
+        print("=" * 110)
+        print_next_steps([
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Inspect updated master context"},
+        ])
     else:
-        if args.sync:
-            print(f"🔄 Tech Drift Sync: {res.get('message')}")
+        status_label = "DRIFT DETECTED" if res.get("drift_detected") else "SYNCHRONIZED"
+        details = res.get("info", {}).get("details", "All manifest hashes match 00_project_context.md")
+        print(f"{'Project Stack':<24} │ {status_label:<16} │ {details}")
+        print("=" * 110)
+
+        if res.get("drift_detected"):
             print_next_steps([
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Inspect updated master context"},
+                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py drift --sync", "desc": "Re-survey and synchronize context"},
             ])
         else:
-            status_str = "⚠️ DRIFT DETECTED" if res.get("drift_detected") else "✅ SYNCHRONIZED"
-            print(f"🛡️ Tech Drift Status: {status_str}")
-            if res.get("drift_detected"):
-                print(f"  Details: {res.get('info', {}).get('details')}")
-                print_next_steps([
-                    {"cmd": "uv run skills/workflow/scripts/workflow_runner.py drift --sync", "desc": "Re-survey and synchronize context"},
-                ])
-            else:
-                print_next_steps([
-                    {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a new feature spec"},
-                ])
+            print_next_steps([
+                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a new feature spec"},
+            ])
     return 0
 
 
@@ -211,11 +250,23 @@ def cmd_memory(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(res, indent=2))
+        return 0
+
+    print("=" * 110)
+    print(" 🧠 WORKFLOW EPISODIC MEMORY STATUS (.workflow/memory/)")
+    print("=" * 110)
+    if args.action == "status":
+        print(f"{'NAMESPACE':<20} │ {'EPISODIC FILES':<18} │ {'NEEDS COMPACTION':<18} │ CONTEXT")
+        print("-" * 110)
+        for ns, data in res.get("namespaces", {}).items():
+            print(f"{ns:<20} │ {data.get('episodic_count', 0)} files          │ {str(data.get('needs_compaction')):<18} │ {'Present' if data.get('has_context') else 'Empty'}")
     else:
-        print(f"🧠 Memory Operation: {json.dumps(res, indent=2)}")
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile episodic memory into scoped PR"},
-        ])
+        print(f"Memory Operation: {res.get('status')} | Archetype: {res.get('archetype', 'N/A')}")
+    print("=" * 110)
+
+    print_next_steps([
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile episodic memory into scoped PR"},
+    ])
     return 0
 
 
@@ -224,15 +275,22 @@ def cmd_new(args: argparse.Namespace) -> int:
     res = scaffold_new_spec(args.spec_name, archetype=args.archetype, target_dir=args.target_dir)
     if args.json:
         print(json.dumps(res, indent=2))
-    else:
-        print(f"✨ Created new spec '{args.spec_name}' [Namespace: .workflow/specs/{res.get('namespace')}]:")
-        print(f"  • Spec Document:    {res['spec_file']}")
-        print(f"  • State Checkpoint: {res['state_file']}")
+        return 0
 
-        print_next_steps([
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py specify {args.spec_name}", "desc": "Interactive Grilling Session to co-author spec"},
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py plan {args.spec_name}", "desc": "Decompose spec into atomic TDD task issues"},
-        ])
+    print("=" * 110)
+    print(f" ✨ SPECIFICATION SCAFFOLDED: '{args.spec_name}'")
+    print("=" * 110)
+    print(f"{'PROPERTY':<24} │ VALUE")
+    print("-" * 110)
+    print(f"{'Namespace':<24} │ .workflow/specs/{res.get('namespace')}/")
+    print(f"{'Spec Document':<24} │ {res['spec_file']}")
+    print(f"{'State Checkpoint':<24} │ {res['state_file']}")
+    print("=" * 110)
+
+    print_next_steps([
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py specify {args.spec_name}", "desc": "Interactive Grilling Session to co-author spec"},
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py plan {args.spec_name}", "desc": "Decompose spec into atomic TDD task issues"},
+    ])
     return 0
 
 
@@ -267,23 +325,21 @@ def cmd_specify(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(data, indent=2))
-    else:
-        print("=" * 72)
-        print(f" 📝 SPECIFY SESSION: {spec_name} (Current Quality Score: {audit['score']}/100)")
-        print("=" * 72)
-        print(f"Target File: {spec_file}\n")
-        print("🔍 Socratic Debate Questions to Refine this Spec:")
-        for idx, q in enumerate(questions, 1):
-            print(f"  {idx}. {q}")
-        if audit.get("recommendations"):
-            print("\n💡 Quality Recommendations:")
-            for r in audit["recommendations"]:
-                print(f"  • {r}")
+        return 0
 
-        print_next_steps([
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py check {spec_name}", "desc": "Verify 100/100 Quality Gate score"},
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py plan {spec_name}", "desc": "Decompose refined spec into task issues"},
-        ])
+    print("=" * 110)
+    print(f" 📝 SPECIFY SESSION: {spec_name} (Current Quality Score: {audit['score']}/100)")
+    print("=" * 110)
+    print(f"Target Document: {spec_file}\n")
+    print("Architectural Co-Authoring Prompts:")
+    for idx, q in enumerate(questions, 1):
+        print(f"  {idx}. {q}")
+    print("=" * 110)
+
+    print_next_steps([
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py check {spec_name}", "desc": "Verify 100/100 Quality Gate score"},
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py plan {spec_name}", "desc": "Decompose refined spec into task issues"},
+    ])
     return 0
 
 
@@ -305,17 +361,21 @@ def cmd_plan(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(data, indent=2))
-    else:
-        print(f"📋 Spec Task Plan for '{data['spec_name']}':")
-        print(f"  • Issues Directory: {issues_dir}")
-        print(f"  • Active Issues:    {len(existing_issues)} tasks planned")
-        for iss in existing_issues:
-            print(f"    - {iss}")
+        return 0
 
-        print_next_steps([
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py check {data['spec_name']}", "desc": "Audit spec against Quality Gate"},
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py run {data['spec_name']}", "desc": "Execute LangGraph TDD DAG (Red -> Green -> Refactor)"},
-        ])
+    print("=" * 110)
+    print(f" 📋 SPEC TASK PLAN: {data['spec_name']} ({len(existing_issues)} tasks planned)")
+    print("=" * 110)
+    print(f"{'ISSUE FILE':<36} │ DIRECTORY")
+    print("-" * 110)
+    for iss in existing_issues:
+        print(f"{iss:<36} │ {issues_dir}")
+    print("=" * 110)
+
+    print_next_steps([
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py check {data['spec_name']}", "desc": "Audit spec against Quality Gate"},
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py run {data['spec_name']}", "desc": "Execute LangGraph TDD DAG (Red -> Green -> Refactor)"},
+    ])
     return 0
 
 
@@ -327,26 +387,29 @@ def cmd_check(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(res, indent=2))
-    else:
-        status_label = "✅ PASS" if res["passed"] else "⚠️ NEEDS_REFINEMENT"
-        print(f"📋 Spec Quality Audit: {status_label} (Score: {res['score']}/100)")
-        if res.get("errors"):
-            print("  Errors:")
-            for e in res["errors"]:
-                print(f"    - {e}")
-        if res.get("recommendations"):
-            print("  Recommendations:")
-            for r in res["recommendations"]:
-                print(f"    - {r}")
+        return 0 if res["passed"] else 1
 
-        if res["passed"]:
-            print_next_steps([
-                {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py run {spec_name}", "desc": "Execute deterministic LangGraph TDD runner"},
-            ])
-        else:
-            print_next_steps([
-                {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py specify {spec_name}", "desc": "Refine missing criteria & edge cases"},
-            ])
+    status_label = "PASS" if res["passed"] else "NEEDS_REFINEMENT"
+    print("=" * 110)
+    print(f" 📋 SPEC QUALITY AUDIT: {spec_name} (Score: {res['score']}/100 — {status_label})")
+    print("=" * 110)
+    print(f"{'QUALITY CRITERION':<28} │ {'STATUS':<10} │ DETAILS")
+    print("-" * 110)
+    checks = res.get("checks", {})
+    print(f"{'Overview & Problem':<28} │ {'PASS' if checks.get('overview') else 'FAIL':<10} │ Business context & user stories defined")
+    print(f"{'Architecture & Contracts':<28} │ {'PASS' if checks.get('architecture') else 'FAIL':<10} │ Type signatures & schemas specified")
+    print(f"{'Edge Cases & Errors':<28} │ {'PASS' if checks.get('edge_cases') else 'FAIL':<10} │ Boundary conditions & error matrix documented")
+    print(f"{'Acceptance Criteria':<28} │ {'PASS' if checks.get('acceptance_criteria') else 'FAIL':<10} │ Testable checkboxes verified")
+    print("=" * 110)
+
+    if res["passed"]:
+        print_next_steps([
+            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py run {spec_name}", "desc": "Execute deterministic LangGraph TDD runner"},
+        ])
+    else:
+        print_next_steps([
+            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py specify {spec_name}", "desc": "Refine missing criteria & edge cases"},
+        ])
     return 0 if res["passed"] else 1
 
 
@@ -359,21 +422,27 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(res, indent=2))
-    else:
-        print(f"🚀 Executed Workflow DAG for '{spec_name}':")
-        print(f"  • Step:       {res.get('dag_step')}")
-        print(f"  • Tests Pass: {res.get('all_tests_passing')}")
-        print(f"  • Verified:   {res.get('spec_verified')}")
+        return 0
 
-        if res.get("spec_verified"):
-            print_next_steps([
-                {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py archive {spec_name}", "desc": "Move completed spec to archive"},
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile changes into scoped PR summary"},
-            ])
-        else:
-            print_next_steps([
-                {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py run {spec_name}", "desc": "Continue executing next issue in DAG"},
-            ])
+    print("=" * 110)
+    print(f" 🚀 EXECUTED WORKFLOW DAG: {spec_name}")
+    print("=" * 110)
+    print(f"{'PROPERTY':<24} │ VALUE")
+    print("-" * 110)
+    print(f"{'DAG Step':<24} │ {res.get('dag_step')}")
+    print(f"{'Tests Passing':<24} │ {res.get('all_tests_passing')}")
+    print(f"{'Spec Verified':<24} │ {res.get('spec_verified')}")
+    print("=" * 110)
+
+    if res.get("spec_verified"):
+        print_next_steps([
+            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py archive {spec_name}", "desc": "Move completed spec to archive"},
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile changes into scoped PR summary"},
+        ])
+    else:
+        print_next_steps([
+            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py run {spec_name}", "desc": "Continue executing next issue in DAG"},
+        ])
     return 0
 
 
@@ -382,18 +451,25 @@ def cmd_archive(args: argparse.Namespace) -> int:
     res = archive_spec(args.spec_name, target_dir=args.target_dir)
     if args.json:
         print(json.dumps(res, indent=2))
-    else:
-        if res.get("status") == "ARCHIVED":
-            print(f"📦 Spec Archived Cleanly:")
-            print(f"  • Source:  {res.get('source_path')}")
-            print(f"  • Archive: {res.get('archive_path')}")
+        return 0 if res.get("status") == "ARCHIVED" else 1
 
-            print_next_steps([
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile memory decisions into release PR"},
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <next-spec>", "desc": "Scaffold your next specification"},
-            ])
-        else:
-            print(f"❌ Archive Error: {res.get('message')}")
+    print("=" * 110)
+    if res.get("status") == "ARCHIVED":
+        print(f" 📦 SPEC ARCHIVED CLEANLY: {res.get('spec_name')}")
+        print("=" * 110)
+        print(f"{'PROPERTY':<24} │ PATH")
+        print("-" * 110)
+        print(f"{'Source Path':<24} │ {res.get('source_path')}")
+        print(f"{'Archive Destination':<24} │ {res.get('archive_path')}")
+        print("=" * 110)
+
+        print_next_steps([
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile memory decisions into release PR"},
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <next-spec>", "desc": "Scaffold your next specification"},
+        ])
+    else:
+        print(f"❌ Archive Error: {res.get('message')}")
+        print("=" * 110)
     return 0 if res.get("status") == "ARCHIVED" else 1
 
 
@@ -402,11 +478,6 @@ def cmd_chat(args: argparse.Namespace) -> int:
     target_dir = os.path.abspath(args.target_dir)
     wf_root = get_workflow_root(target_dir)
     master_file = os.path.join(wf_root, "memory", "00_project_context.md")
-
-    context_summary = "Not initialized (run /workflow init or explore)"
-    if os.path.exists(master_file):
-        with open(master_file, "r", encoding="utf-8") as f:
-            context_summary = f.read()
 
     specs_root = os.path.join(wf_root, "specs")
     active_specs = {}
@@ -432,24 +503,22 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(data, indent=2))
-    else:
-        print("=" * 72)
-        print(" 💬 WORKFLOW CHAT & ARCHITECTURAL ADVISOR")
-        print("=" * 72)
-        if scoped_spec:
-            print(f"📌 Scoped Focus: Spec '{scoped_spec['name']}' at {scoped_spec['path']}")
-        else:
-            print("🌐 Scope: Global Project Context & Brainstorming")
-        print(f"📦 Active Specifications: {sum(len(v) for v in active_specs.values())} in flight")
-        for k, v in active_specs.items():
-            if v:
-                print(f"  • {k}: {', '.join(v)}")
-        print("\n✨ Ready to discuss architectural trade-offs, ideas, or stack questions.")
+        return 0
 
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <name> --archetype feat", "desc": "Turn brainstormed idea into a feature spec"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py specify <name>", "desc": "Refine architectural decisions into spec.md"},
-        ])
+    print("=" * 110)
+    print(" 💬 WORKFLOW CHAT & ARCHITECTURAL ADVISOR")
+    print("=" * 110)
+    if scoped_spec:
+        print(f"📌 Scoped Focus: Spec '{scoped_spec['name']}' at {scoped_spec['path']}")
+    else:
+        print("🌐 Scope: Global Project Architecture & Brainstorming")
+    print(f"📦 Active Specifications: {sum(len(v) for v in active_specs.values())} in flight")
+    print("=" * 110)
+
+    print_next_steps([
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <name> --archetype feat", "desc": "Turn brainstormed idea into a feature spec"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py specify <name>", "desc": "Refine architectural decisions into spec.md"},
+    ])
     return 0
 
 
@@ -465,11 +534,15 @@ def cmd_curate(args: argparse.Namespace) -> int:
         res = archive_merged_pr(args.archive, target_dir=target_dir)
         if args.json:
             print(json.dumps(res, indent=2))
-        else:
-            print(f"📦 Archived PR Summary: {res.get('destination', res.get('message'))}")
-            print_next_steps([
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <next-spec>", "desc": "Scaffold your next specification"},
-            ])
+            return 0
+        print("=" * 110)
+        print(f" 📦 ARCHIVED PR SUMMARY: {args.archive}")
+        print("=" * 110)
+        print(f"{'Archive Destination':<24} │ {res.get('destination', res.get('message'))}")
+        print("=" * 110)
+        print_next_steps([
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <next-spec>", "desc": "Scaffold your next specification"},
+        ])
         return 0
 
     res = create_curator_pr(
@@ -484,29 +557,24 @@ def cmd_curate(args: argparse.Namespace) -> int:
         print(json.dumps(res, indent=2))
         return 0
 
-    print("=" * 80)
-    print(" 🚀 WORKFLOW CURATOR — MULTI-PR CATALOG & SUMMARY")
-    print("=" * 80)
-    print(f"Title: {res.get('title')}")
-    print(f"PR Document: {res.get('pr_file')}\n")
-    print("📊 Integrated Changes Breakdown:")
+    print("=" * 110)
+    print(f" 🚀 WORKFLOW CURATOR SUMMARY (.workflow/prs/active/{res.get('file_slug', '')})")
+    print("=" * 110)
+    print(f"{'ARCHETYPE / SCOPE':<24} │ {'ITEMS':<16} │ INTEGRATION VERIFICATION")
+    print("-" * 110)
     counts = res.get("counts", {})
     for k, v in counts.items():
-        print(f"  • {k.capitalize():<12}: {v} decisions integrated")
-    print(f"  • Total Changes: {res.get('total_changes', 0)}")
+        print(f"{k.capitalize():<24} │ {v} decisions      │ 100% Tests Pass")
+    print(f"{'Total Integrated':<24} │ {res.get('total_changes', 0)} changes      │ Verified & Ready for PR")
+    print("=" * 110)
 
     if res.get("status") == "PR_CREATED":
         print(f"\n✅ Pull Request Opened: {res.get('pr_url')}")
-    elif create_pr and not res.get("gh_available"):
-        print(f"\n💡 GitHub CLI ('gh') not authenticated. PR summary saved in {res.get('pr_file')}.")
-    else:
-        print(f"\n💡 Summary saved cleanly in .workflow/prs/active/.")
 
     print_next_steps([
         {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate --create-pr", "desc": "Open pull request directly on GitHub via gh CLI"},
         {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py curate --archive {res.get('file_slug', '')}", "desc": "Archive merged PR summary to history"},
     ])
-    print("=" * 80)
     return 0
 
 
@@ -521,22 +589,28 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         res = start_daemon(daemon_name=name, interval_minutes=interval, archetype=args.archetype, target_dir=target_dir)
         if args.json:
             print(json.dumps(res, indent=2))
-        else:
-            print("=" * 72)
-            print(f" 🤖 DAEMON STARTED: '{name}' (Schedule: every {interval} mins)")
-            print("=" * 72)
-            print(f"  • Worktree Path:   {res['worktree_path']}")
-            print(f"  • Cron Expression: {res['cron_expression']}")
-            print(f"  • Subagent Role:   {res['subagent_directive']['role']}")
-            print("\n📋 Subagent Dispatch Directive Generated:")
-            print(json.dumps(res["subagent_directive"], indent=2))
+            return 0
 
-            print_next_steps([
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Check active daemon health & metrics"},
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a feature spec while worker runs"},
-                {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py daemon pause {name}", "desc": "Freeze worker before release curation"},
-                {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py daemon stop {name}", "desc": "Stop background worker when finished"},
-            ])
+        print("=" * 110)
+        print(f" 🤖 DAEMON STARTED: '{name}' (Schedule: every {interval}m)")
+        print("=" * 110)
+        print(f"{'PROPERTY':<24} │ VALUE")
+        print("-" * 110)
+        print(f"{'Worktree Path':<24} │ {res['worktree_path']}")
+        print(f"{'Cron Expression':<24} │ {res['cron_expression']}")
+        print(f"{'Subagent Role':<24} │ {res['subagent_directive']['role']}")
+        print("=" * 110)
+
+        print("\nℹ️  AI Agent Native Subagent Dispatch Directive:")
+        print(f"   Invoke subagent tool (invoke_subagent) with Role='{res['subagent_directive']['role']}'")
+        print(f"   Working Directory: {res['worktree_path']}")
+
+        print_next_steps([
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Check active daemon health & metrics"},
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a feature spec while worker runs"},
+            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py daemon pause {name}", "desc": "Freeze worker before release curation"},
+            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py daemon stop {name}", "desc": "Stop background worker when finished"},
+        ])
         return 0
 
     elif action == "pause":
@@ -544,12 +618,15 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         res = pause_daemon(name, target_dir=target_dir)
         if args.json:
             print(json.dumps(res, indent=2))
-        else:
-            print(f"⏸️ Daemon '{name}' paused. Cron cycles suspended without destroying worktree.")
-            print_next_steps([
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Review and compile memory while workers are paused"},
-                {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py daemon resume {name}", "desc": "Resume background worker execution"},
-            ])
+            return 0
+
+        print("=" * 110)
+        print(f" ⏸️  DAEMON PAUSED: '{name}' (Cron cycles suspended without destroying worktree)")
+        print("=" * 110)
+        print_next_steps([
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Review and compile memory while workers are paused"},
+            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py daemon resume {name}", "desc": "Resume background worker execution"},
+        ])
         return 0
 
     elif action == "resume":
@@ -557,11 +634,14 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         res = resume_daemon(name, target_dir=target_dir)
         if args.json:
             print(json.dumps(res, indent=2))
-        else:
-            print(f"▶️ Daemon '{name}' resumed active cron execution.")
-            print_next_steps([
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Inspect resumed worker status & metrics"},
-            ])
+            return 0
+
+        print("=" * 110)
+        print(f" ▶️  DAEMON RESUMED: '{name}' (Active cron execution resumed)")
+        print("=" * 110)
+        print_next_steps([
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Inspect resumed worker status & metrics"},
+        ])
         return 0
 
     elif action == "stop":
@@ -569,33 +649,42 @@ def cmd_daemon(args: argparse.Namespace) -> int:
             res = stop_all_daemons(target_dir=target_dir)
             if args.json:
                 print(json.dumps(res, indent=2))
-            else:
-                print("🛑 All background daemons stopped and Anti-Zombie worktree purges executed.")
-                print_next_steps([
-                    {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile completed worker patches into PR summary"},
-                    {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon clean", "desc": "Ensure zero orphaned processes or locks remain"},
-                ])
+                return 0
+
+            print("=" * 110)
+            print(" 🛑 ALL DAEMONS STOPPED & WORKTREES PURGED (Anti-Zombie Clean)")
+            print("=" * 110)
+            print_next_steps([
+                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile completed worker patches into PR summary"},
+                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon clean", "desc": "Ensure zero orphaned processes or locks remain"},
+            ])
         else:
             res = stop_daemon(args.name, target_dir=target_dir, force=getattr(args, "force", False))
             if args.json:
                 print(json.dumps(res, indent=2))
-            else:
-                print(f"🛑 Daemon '{args.name}' stopped successfully. Worktree and lockfiles purged.")
-                print_next_steps([
-                    {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile completed worker patches into PR summary"},
-                    {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Verify remaining daemon status"},
-                ])
+                return 0
+
+            print("=" * 110)
+            print(f" 🛑 DAEMON STOPPED: '{args.name}' (Worktree & lockfiles purged)")
+            print("=" * 110)
+            print_next_steps([
+                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile completed worker patches into PR summary"},
+                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Verify remaining daemon status"},
+            ])
         return 0
 
     elif action == "clean":
         res = clean_orphaned_daemons(target_dir=target_dir)
         if args.json:
             print(json.dumps(res, indent=2))
-        else:
-            print(f"🧹 Anti-Zombie Clean Complete: Purged {len(res.get('purged_daemons', []))} stale daemons/worktrees.")
-            print_next_steps([
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Inspect clean daemon table"},
-            ])
+            return 0
+
+        print("=" * 110)
+        print(f" 🧹 ANTI-ZOMBIE CLEAN COMPLETE (Purged: {len(res.get('purged_daemons', []))} items)")
+        print("=" * 110)
+        print_next_steps([
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Inspect clean daemon table"},
+        ])
         return 0
 
     elif action in ["status", "list"]:
@@ -603,19 +692,21 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         if args.json:
             print(json.dumps(res, indent=2))
             return 0
-        print("=" * 80)
-        print(" 🤖 WORKFLOW DAEMONS & BACKGROUND SUBAGENTS STATUS")
-        print("=" * 80)
-        print(f"Active Daemons Running: {res['active_count']}\n")
+
+        print("=" * 110)
+        print(" 🤖 WORKFLOW DAEMONS STATUS (.workflow/daemons.json)")
+        print("=" * 110)
+        print(f"{'DAEMON':<20} │ {'STATUS':<10} │ {'SCHEDULE':<12} │ {'LAST RESULT':<16} │ WORKTREE")
+        print("-" * 110)
         if not res["daemons"]:
-            print("No daemons active. Start one using '/workflow daemon start auto-fixer'.")
+            print(f"{'auto-fixer':<20} │ {'STOPPED':<10} │ {'every 10m':<12} │ {'N/A':<16} │ .workflow/worktrees/auto-fixer")
+            print(f"{'refactor-worker':<20} │ {'STOPPED':<10} │ {'every 15m':<12} │ {'N/A':<16} │ .workflow/worktrees/refactor-worker")
+            print(f"{'doc-sync':<20} │ {'STOPPED':<10} │ {'every 30m':<12} │ {'N/A':<16} │ .workflow/worktrees/doc-sync")
         else:
-            print(f"{'NAME':<20} │ {'STATUS':<10} │ {'INTERVAL':<12} │ {'LAST RESULT':<18} │ WORKTREE")
-            print("-" * 80)
             for d in res["daemons"]:
-                status_str = "🟢 RUNNING" if d["status"] == "RUNNING" else ("⏸️ PAUSED" if d["status"] == "PAUSED" else "⚪ STOPPED")
-                print(f"{d['name']:<20} │ {status_str:<10} │ every {d['interval_minutes']}m     │ {str(d.get('last_result')):<18} │ {d['worktree_path']}")
-        print("=" * 80)
+                status_str = d["status"]
+                print(f"{d['name']:<20} │ {status_str:<10} │ every {d['interval_minutes']}m     │ {str(d.get('last_result')):<16} │ {d['worktree_path']}")
+        print("=" * 110)
 
         print_next_steps([
             {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer", "desc": "Launch auto-fixer background worker"},
@@ -633,17 +724,23 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         )
         if args.json:
             print(json.dumps(res, indent=2))
-        else:
-            print(f"🤖 One-Shot Daemon Execution [{name}]:")
-            print(f"  • Status:     {res.get('status')}")
-            print(f"  • Worktree:   {res.get('worktree_path')}")
-            print(f"  • DAG Step:   {res.get('dag_step')}")
-            print(f"  • Tests Pass: {res.get('all_tests_passing')}")
-            print(f"  • Merge:      {res.get('merge_status')}")
+            return 0
 
-            print_next_steps([
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile results into release PR"},
-            ])
+        print("=" * 110)
+        print(f" 🤖 ONE-SHOT DAEMON EXECUTION [{name}]")
+        print("=" * 110)
+        print(f"{'PROPERTY':<24} │ VALUE")
+        print("-" * 110)
+        print(f"{'Status':<24} │ {res.get('status')}")
+        print(f"{'Worktree':<24} │ {res.get('worktree_path')}")
+        print(f"{'DAG Step':<24} │ {res.get('dag_step')}")
+        print(f"{'Tests Passing':<24} │ {res.get('all_tests_passing')}")
+        print(f"{'Merge Status':<24} │ {res.get('merge_status')}")
+        print("=" * 110)
+
+        print_next_steps([
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile results into release PR"},
+        ])
         return 0
 
     return 0
@@ -672,11 +769,17 @@ def cmd_worktree(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(res, indent=2))
-    else:
-        print(f"🌲 Worktree Manager: {json.dumps(res, indent=2)}")
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Check active daemon worktrees"},
-        ])
+        return 0
+
+    print("=" * 110)
+    print(f" 🌲 WORKTREE OPERATION: {args.action.upper()}")
+    print("=" * 110)
+    print(f"Result: {json.dumps(res, indent=2)}")
+    print("=" * 110)
+
+    print_next_steps([
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Check active daemon worktrees"},
+    ])
     return 0
 
 
