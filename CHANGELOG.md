@@ -1,5 +1,11 @@
 # cezartdev-skills
 
+## 1.2.0
+
+### Minor Changes
+
+- [`31e1c1f`](https://github.com/cezartdev/skills/commit/31e1c1fe531479cb78962ba70318e0ae1e9c418a) Thanks [@cezartdev](https://github.com/cezartdev)! - Standardize workflow skill structure to official AgentSkills.io specification (assets/ and references/), add specs/features/ hierarchy, agnostic test runner discovery, and cross-platform launchers (PowerShell/Bash).
+
 ## 1.1.0
 
 ### Minor Changes
