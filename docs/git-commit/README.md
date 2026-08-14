@@ -35,16 +35,30 @@ It is designed for AI agents and human developers to eliminate non-standard comm
 ```text
 skills/git-commit/
 ├── SKILL.md                 # Complete agent instructions and specifications
+├── pyproject.toml           # Python version specification and package metadata
 └── scripts/
     └── commit_helper.py     # Python CLI validator & safe commit runner
 ```
 
 ---
 
-## 4. Prerequisites
+## 4. Prerequisites & Dependencies
 
-- **Python 3.8+** (Uses standard library `argparse`, `re`, `subprocess`, `sys`).
-- **Git** configured with `user.name` and `user.email`.
+- **Python 3.8+**: Required to execute the helper scripts (`scripts/commit_helper.py`).
+- **Dependencies**: The script exclusively utilizes Python standard library modules (`argparse`, `re`, `subprocess`, `sys`). No external pip dependencies are needed.
+- **Dependency Declaration**: Declared via [`pyproject.toml`](file:///home/cezartdev/Documents/cezartdev/professional/skills/skills/git-commit/pyproject.toml) with `requires-python = ">=3.8"`.
+- **Git**: Configured with `user.name` and `user.email`.
+
+### Environment & Missing Python Setup
+If Python is not installed on the execution environment:
+- **Linux (Debian/Ubuntu)**: `sudo apt update && sudo apt install -y python3`
+- **Linux (Fedora/RHEL)**: `sudo dnf install -y python3`
+- **macOS**: `brew install python`
+- **Using Astral `uv`**:
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  uv run skills/git-commit/scripts/commit_helper.py <command>
+  ```
 
 ---
 

@@ -1,0 +1,11 @@
+[project]
+name = "git-commit"
+version = "0.1.0"
+description = "Conventional Commits validator and safe commit runner skill for AI agents and developers"
+readme = "SKILL.md"
+requires-python = ">=3.8"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

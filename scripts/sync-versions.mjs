@@ -68,6 +68,38 @@ if (existsSync(docsDir)) {
   }
 }
 
+// 2. Scan skills/*/pyproject.toml
+const skillsDir = resolve(rootDir, 'skills');
+if (existsSync(skillsDir)) {
+  const entries = readdirSync(skillsDir);
+  for (const entry of entries) {
+    const pyprojectPath = join(skillsDir, entry, 'pyproject.toml');
+    if (existsSync(pyprojectPath) && statSync(pyprojectPath).isFile()) {
+      const content = readFileSync(pyprojectPath, 'utf8');
+      const pyprojectVersionRegex = /(version\s*=\s*")[^"]+(")/g;
+
+      if (pyprojectVersionRegex.test(content)) {
+        const matches = [...content.matchAll(pyprojectVersionRegex)];
+        for (const match of matches) {
+          const fileVersion = match[0].split('"')[1];
+          if (fileVersion !== currentVersion) {
+            if (isCheck) {
+              console.error(`[FAIL] ${pyprojectPath}: Version mismatch (found: ${fileVersion}, expected: ${currentVersion})`);
+              hasMismatch = true;
+            } else {
+              const updatedContent = content.replace(pyprojectVersionRegex, `$1${currentVersion}$2`);
+              writeFileSync(pyprojectPath, updatedContent, 'utf8');
+              console.log(`[UPDATED] ${pyprojectPath}: ${fileVersion} -> ${currentVersion}`);
+            }
+          } else {
+            console.log(`[OK] ${pyprojectPath} is up-to-date (${currentVersion})`);
+          }
+        }
+      }
+    }
+  }
+}
+
 if (isCheck) {
   if (hasMismatch) {
     console.error('\n[sync-versions] Check failed: Some documentation or manifest versions are out of sync.');
