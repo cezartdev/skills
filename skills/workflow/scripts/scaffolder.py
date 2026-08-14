@@ -6,6 +6,11 @@ import shutil
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
+try:
+    from .explorer import scan_codebase
+except ImportError:
+    from explorer import scan_codebase
+
 
 def get_skill_assets_dir() -> str:
     """Returns the absolute path to skills/workflow/assets."""
@@ -44,14 +49,25 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
     os.makedirs(os.path.join(memory_dir, "implement"), exist_ok=True)
     os.makedirs(os.path.join(memory_dir, "doc_sync"), exist_ok=True)
 
-    # 3. Create .workflow/worktrees/ placeholder
+    # 3. Create .workflow/prs/ catalog (active, archive)
+    prs_dir = os.path.join(wf_root, "prs")
+    os.makedirs(os.path.join(prs_dir, "active"), exist_ok=True)
+    os.makedirs(os.path.join(prs_dir, "archive"), exist_ok=True)
+
+    # 4. Create .workflow/worktrees/ placeholder
     worktrees_dir = os.path.join(wf_root, "worktrees")
     os.makedirs(worktrees_dir, exist_ok=True)
 
-    # 4. Scaffold .workflow/workflow.json if not present
+    # 5. Determine test runner dynamically via polyglot scan
+    if not test_runner_cmd:
+        scan = scan_codebase(target_dir)
+        test_cmd = scan.get("test_runner", "pytest")
+    else:
+        test_cmd = test_runner_cmd
+
+    # 6. Scaffold .workflow/workflow.json if not present
     config_file = os.path.join(wf_root, "workflow.json")
     config_created = False
-    test_cmd = test_runner_cmd or "pnpm test"
     
     if not os.path.exists(config_file):
         template_config = os.path.join(assets_dir, "workflow.config.json")
@@ -65,13 +81,14 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
                 "version": "1.0",
                 "test_runner": {"command": test_cmd, "args": ["--run"]},
                 "memory": {"directory": ".workflow/memory"},
+                "prs": {"directory": ".workflow/prs"},
                 "worktrees": {"directory": ".workflow/worktrees", "auto_clean_on_merge": True}
             }
             with open(config_file, "w", encoding="utf-8") as f:
                 json.dump(default_conf, f, indent=2)
         config_created = True
 
-    # 5. Add .workflow/worktrees/ to .gitignore in project root
+    # 7. Add .workflow/worktrees/ to .gitignore in project root
     gitignore_file = os.path.join(target_dir, ".gitignore")
     gitignore_updated = False
     worktree_entry = ".workflow/worktrees/"
@@ -93,7 +110,9 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
         "workflow_dir": wf_root,
         "specs_dir": specs_dir,
         "memory_dir": memory_dir,
+        "prs_dir": prs_dir,
         "config_file": config_file,
+        "test_runner": test_cmd,
         "config_created": config_created,
         "gitignore_updated": gitignore_updated,
     }
@@ -105,6 +124,7 @@ def scaffold_new_spec(
     target_dir: str = "."
 ) -> Dict[str, Any]:
     """Creates a new spec directory under .workflow/specs/<namespace>/<spec_name>/."""
+    target_dir = os.path.abspath(target_dir)
     wf_root = get_workflow_root(target_dir)
     assets_dir = get_skill_assets_dir()
 
@@ -139,7 +159,18 @@ def scaffold_new_spec(
     with open(spec_file, "w", encoding="utf-8") as f:
         f.write(spec_content)
 
-    # 2. Create initial issue 001_initial_task.md from assets/issue.template.md
+    # 2. Determine test command from workflow.json or polyglot scan
+    config_file = os.path.join(wf_root, "workflow.json")
+    test_cmd = "pytest"
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+                test_cmd = cfg.get("test_runner", {}).get("command", "pytest")
+        except Exception:
+            pass
+
+    # 3. Create initial issue 001_initial_task.md from assets/issue.template.md
     issue_file = os.path.join(issues_dir, "001_initial_task.md")
     template_issue = os.path.join(assets_dir, "issue.template.md")
     if os.path.exists(template_issue):
@@ -149,7 +180,7 @@ def scaffold_new_spec(
                 .replace("{{ISSUE_ID}}", "001")
                 .replace("{{ISSUE_TITLE}}", "Initial Implementation Task")
                 .replace("{{SPEC_NAME}}", spec_name)
-                .replace("{{TEST_COMMAND}}", "pnpm test")
+                .replace("{{TEST_COMMAND}}", test_cmd)
             )
     else:
         issue_content = f"# Issue 001: Initial task for {spec_name}\n"
@@ -157,7 +188,7 @@ def scaffold_new_spec(
     with open(issue_file, "w", encoding="utf-8") as f:
         f.write(issue_content)
 
-    # 3. Create initial state.json
+    # 4. Create initial state.json
     state_file = os.path.join(spec_dir, "state.json")
     initial_state = {
         "spec_name": spec_name,
@@ -214,7 +245,6 @@ def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
             break
 
     if not found_src:
-        # Also check if spec_name is a direct directory path
         if os.path.exists(spec_name) and os.path.isdir(spec_name):
             found_src = os.path.abspath(spec_name)
             spec_name = os.path.basename(found_src)

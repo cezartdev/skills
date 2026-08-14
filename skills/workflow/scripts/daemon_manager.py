@@ -176,6 +176,32 @@ def stop_daemon(daemon_name: str, target_dir: str = ".", force: bool = False) ->
     }
 
 
+def pause_daemon(daemon_name: str, target_dir: str = ".") -> Dict[str, Any]:
+    """Pauses an active daemon's cron cycle without destroying its worktree."""
+    target_dir = os.path.abspath(target_dir)
+    registry = load_daemon_registry(target_dir)
+
+    if daemon_name not in registry.get("daemons", {}):
+        return {"status": "ERROR", "message": f"Daemon '{daemon_name}' is not registered."}
+
+    registry["daemons"][daemon_name]["status"] = "PAUSED"
+    save_daemon_registry(registry, target_dir)
+    return {"status": "PAUSED", "daemon_name": daemon_name}
+
+
+def resume_daemon(daemon_name: str, target_dir: str = ".") -> Dict[str, Any]:
+    """Resumes a paused daemon."""
+    target_dir = os.path.abspath(target_dir)
+    registry = load_daemon_registry(target_dir)
+
+    if daemon_name not in registry.get("daemons", {}):
+        return {"status": "ERROR", "message": f"Daemon '{daemon_name}' is not registered."}
+
+    registry["daemons"][daemon_name]["status"] = "RUNNING"
+    save_daemon_registry(registry, target_dir)
+    return {"status": "RESUMED", "daemon_name": daemon_name}
+
+
 def stop_all_daemons(target_dir: str = ".") -> Dict[str, Any]:
     """Stops all active daemons and executes Anti-Zombie purge across all registered workers."""
     target_dir = os.path.abspath(target_dir)

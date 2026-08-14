@@ -1,44 +1,49 @@
-"""Language- and framework-agnostic codebase exploration scanner."""
+"""Universal Polyglot Codebase Scanner & Stack Explorer for AI Agents."""
 
 import os
 import json
 import hashlib
+import glob
 from typing import Dict, Any, List
 from datetime import datetime
 
 
-def compute_file_hash(filepath: str) -> str:
-    """Computes SHA-256 hash of a file."""
-    if not os.path.exists(filepath):
+def compute_file_hash(file_path: str) -> str:
+    """Computes SHA-256 fingerprint for a given manifest file."""
+    if not os.path.exists(file_path):
         return ""
     hasher = hashlib.sha256()
-    with open(filepath, "rb") as f:
-        hasher.update(f.read())
+    with open(file_path, "rb") as f:
+        while chunk := f.read(8192):
+            hasher.update(chunk)
     return hasher.hexdigest()[:16]
 
 
 def scan_codebase(root_dir: str = ".") -> Dict[str, Any]:
-    """Scans workspace to detect language, framework, test runner candidates, and package managers."""
+    """Scans repository workspace and deterministically detects polyglot stacks and test runners."""
     root_dir = os.path.abspath(root_dir)
-    
     languages: List[str] = []
     frameworks: List[str] = []
     package_managers: List[str] = []
     test_candidates: List[str] = []
     manifest_hashes: Dict[str, str] = {}
 
-    # 1. Check Python ecosystem first
+    # 1. Check Python ecosystem
     pyproject_path = os.path.join(root_dir, "pyproject.toml")
-    has_python = os.path.exists(pyproject_path) or os.path.exists(os.path.join(root_dir, "requirements.txt")) or os.path.exists(os.path.join(root_dir, "uv.lock"))
-    if has_python:
+    reqs_path = os.path.join(root_dir, "requirements.txt")
+    setup_py = os.path.join(root_dir, "setup.py")
+
+    if os.path.exists(pyproject_path) or os.path.exists(reqs_path) or os.path.exists(setup_py):
         languages.append("Python")
         if os.path.exists(pyproject_path):
             manifest_hashes["pyproject.toml"] = compute_file_hash(pyproject_path)
-        if os.path.exists(os.path.join(root_dir, "uv.lock")) or os.path.exists(pyproject_path):
-            package_managers.append("uv")
-            test_candidates.extend(["uv run pytest", "pytest", "python -m unittest"])
-        else:
-            test_candidates.extend(["pytest", "python -m unittest"])
+            package_managers.append("uv / pyproject.toml")
+        elif os.path.exists(reqs_path):
+            manifest_hashes["requirements.txt"] = compute_file_hash(reqs_path)
+            package_managers.append("pip")
+
+        # Detect Python test runners
+        test_candidates.insert(0, "uv run pytest" if os.path.exists(pyproject_path) else "pytest")
 
         if os.path.exists(pyproject_path):
             try:
@@ -62,17 +67,17 @@ def scan_codebase(root_dir: str = ".") -> Dict[str, Any]:
         manifest_hashes["package.json"] = compute_file_hash(pkg_json_path)
         has_pnpm = os.path.exists(os.path.join(root_dir, "pnpm-lock.yaml"))
         has_yarn = os.path.exists(os.path.join(root_dir, "yarn.lock"))
-        has_bun = os.path.exists(os.path.join(root_dir, "bun.lockb"))
+        has_bun = os.path.exists(os.path.join(root_dir, "bun.lockb")) or os.path.exists(os.path.join(root_dir, "bun.lock"))
 
         if has_pnpm:
             package_managers.append("pnpm")
             node_pkg = "pnpm"
-        elif has_yarn:
-            package_managers.append("yarn")
-            node_pkg = "yarn"
         elif has_bun:
             package_managers.append("bun")
             node_pkg = "bun"
+        elif has_yarn:
+            package_managers.append("yarn")
+            node_pkg = "yarn"
         else:
             package_managers.append("npm")
             node_pkg = "npm"
@@ -119,13 +124,37 @@ def scan_codebase(root_dir: str = ".") -> Dict[str, Any]:
         manifest_hashes["go.mod"] = compute_file_hash(gomod_path)
         test_candidates.insert(0, "go test ./...")
 
+    # 5. Check Java / Kotlin (Maven / Gradle)
+    pom_path = os.path.join(root_dir, "pom.xml")
+    gradle_path = os.path.join(root_dir, "build.gradle")
+    gradle_kts = os.path.join(root_dir, "build.gradle.kts")
+    if os.path.exists(pom_path):
+        languages.append("Java")
+        package_managers.append("maven")
+        manifest_hashes["pom.xml"] = compute_file_hash(pom_path)
+        test_candidates.insert(0, "mvn test")
+    elif os.path.exists(gradle_path) or os.path.exists(gradle_kts):
+        languages.append("Java / Kotlin")
+        package_managers.append("gradle")
+        gradle_file = gradle_path if os.path.exists(gradle_path) else gradle_kts
+        manifest_hashes[os.path.basename(gradle_file)] = compute_file_hash(gradle_file)
+        test_candidates.insert(0, "./gradlew test" if os.path.exists(os.path.join(root_dir, "gradlew")) else "gradle test")
+
+    # 6. Check C# / .NET
+    sln_files = glob.glob(os.path.join(root_dir, "*.sln"))
+    csproj_files = glob.glob(os.path.join(root_dir, "*.csproj"))
+    if sln_files or csproj_files:
+        languages.append("C# / .NET")
+        package_managers.append("dotnet")
+        test_candidates.insert(0, "dotnet test")
+
     # Defaults if none detected
     if not languages:
         languages.append("Polyglot / Generic")
     if not package_managers:
         package_managers.append("standard")
     if not test_candidates:
-        test_candidates = ["pnpm test", "pytest", "cargo test", "go test ./..."]
+        test_candidates = ["pytest", "cargo test", "go test ./...", "pnpm test"]
 
     primary_test_runner = test_candidates[0]
 
@@ -186,4 +215,3 @@ def generate_master_context(root_dir: str = ".") -> str:
         f.write(content)
 
     return master_file
-

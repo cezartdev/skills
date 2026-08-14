@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Workflow Suite: Deterministic State Machine Runner, SDD/TDD Engine, and Multi-Daemon Manager."""
+"""Workflow Suite: Deterministic State Machine Runner, SDD/TDD Engine, Multi-Daemon & Multi-PR Curator."""
 
 import argparse
 import json
@@ -17,13 +17,15 @@ from quality_auditor import audit_spec
 from daemon_manager import (
     start_daemon,
     stop_daemon,
+    pause_daemon,
+    resume_daemon,
     stop_all_daemons,
     clean_orphaned_daemons,
     get_daemon_status_table,
     run_daemon_cycle,
     load_workflow_config
 )
-from curator import compile_pr_summary, create_curator_pr
+from curator import compile_scoped_pr_summary, create_curator_pr, archive_merged_pr
 from orchestrator import prepare_subagent_dispatch, generate_subagent_directive, get_archetype_prompt
 from graph.engine import WorkflowEngine
 
@@ -31,27 +33,23 @@ from graph.engine import WorkflowEngine
 def resolve_spec_path(spec_arg: str, target_dir: str = ".") -> str:
     """Smart Path Resolver: resolves spec path from shorthand name or direct path."""
     target_dir = os.path.abspath(target_dir)
-    # 1. Direct path check
     if os.path.exists(spec_arg):
         return os.path.abspath(spec_arg)
 
     wf_root = get_workflow_root(target_dir)
     specs_root = os.path.join(wf_root, "specs")
 
-    # 2. Search under .workflow/specs/<namespace>/<spec_arg>
     for folder in ["features", "bugs", "refactor", "docs"]:
         candidate = os.path.join(specs_root, folder, spec_arg)
         if os.path.exists(candidate):
             return candidate
 
-    # 3. Search under legacy specs/<namespace>/<spec_arg>
     legacy_specs = os.path.join(target_dir, "specs")
     for folder in ["features", "bugs", "refactor", "docs"]:
         candidate = os.path.join(legacy_specs, folder, spec_arg)
         if os.path.exists(candidate):
             return candidate
 
-    # Fallback to .workflow/specs/features/<spec_arg>
     return os.path.abspath(os.path.join(specs_root, "features", spec_arg))
 
 
@@ -99,7 +97,7 @@ def cmd_check_env(args: argparse.Namespace) -> int:
 def cmd_init(args: argparse.Namespace) -> int:
     """Scaffolds encapsulated .workflow directory structure in target repository."""
     scan = scan_codebase(args.target_dir)
-    selected_test_runner = args.test_runner or scan.get("test_runner", "pnpm test")
+    selected_test_runner = args.test_runner or scan.get("test_runner", "pytest")
 
     result = scaffold_init(args.target_dir, test_runner_cmd=selected_test_runner)
     master_file = generate_master_context(args.target_dir)
@@ -116,6 +114,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         print(f"  • Test Runner:  {selected_test_runner}")
         print(f"  • Specs Dir:    {result['specs_dir']} (features, bugs, refactor, docs, archive)")
         print(f"  • Memory Dir:   {result['memory_dir']}")
+        print(f"  • PRs Catalog:  {result['prs_dir']} (active, archive)")
         print(f"  • Master Doc:   {master_file}")
     return 0
 
@@ -205,7 +204,6 @@ def cmd_specify(args: argparse.Namespace) -> int:
     spec_file = audit.get("spec_file", resolved_path)
     spec_name = os.path.basename(resolved_path.rstrip("/\\"))
 
-    # Generate targeted Socratic debate questions
     questions = []
     if not audit["checks"].get("architecture"):
         questions.append("What are the primary data models, schemas, or function interfaces involved?")
@@ -339,7 +337,6 @@ def cmd_chat(args: argparse.Namespace) -> int:
         with open(master_file, "r", encoding="utf-8") as f:
             context_summary = f.read()
 
-    # Count active specs across namespaces
     specs_root = os.path.join(wf_root, "specs")
     active_specs = {}
     if os.path.exists(specs_root):
@@ -382,36 +379,50 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
 
 def cmd_curate(args: argparse.Namespace) -> int:
-    """Executes the Curator Subagent: consolidates memory logs and compiles PR summary."""
+    """Executes the Curator Subagent: manages multi-PR catalog and compiles scoped PR summaries."""
     target_dir = os.path.abspath(args.target_dir if hasattr(args, "target_dir") and args.target_dir else ".")
     target_branch = args.target_branch if hasattr(args, "target_branch") and args.target_branch else "main"
     create_pr = getattr(args, "create_pr", False)
+    archetype = getattr(args, "archetype", None)
+    spec_name = getattr(args, "spec", None)
 
-    res = create_curator_pr(target_dir=target_dir, target_branch=target_branch, create_pr=create_pr)
+    if getattr(args, "archive", None):
+        res = archive_merged_pr(args.archive, target_dir=target_dir)
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"📦 Archived PR Summary: {res.get('destination', res.get('message'))}")
+        return 0
+
+    res = create_curator_pr(
+        target_dir=target_dir,
+        archetype=archetype,
+        spec_name=spec_name,
+        target_branch=target_branch,
+        create_pr=create_pr
+    )
 
     if args.json:
         print(json.dumps(res, indent=2))
         return 0
 
     print("=" * 80)
-    print(" 🚀 WORKFLOW CURATOR — RELEASE & PR SUMMARY")
+    print(" 🚀 WORKFLOW CURATOR — MULTI-PR CATALOG & SUMMARY")
     print("=" * 80)
     print(f"Title: {res.get('title')}")
-    print(f"Summary Document: {res.get('summary_file')}\n")
+    print(f"PR Document: {res.get('pr_file')}\n")
     print("📊 Integrated Changes Breakdown:")
     counts = res.get("counts", {})
-    print(f"  • Bug Fixes:     {counts.get('fix', 0)} resolved by auto-fixer")
-    print(f"  • Refactoring:   {counts.get('refactor', 0)} enhanced by refactor-worker")
-    print(f"  • Features:      {counts.get('implement', 0)} completed by implementer")
-    print(f"  • Doc Syncs:     {counts.get('doc_sync', 0)} updated by doc-sync")
+    for k, v in counts.items():
+        print(f"  • {k.capitalize():<12}: {v} decisions integrated")
     print(f"  • Total Changes: {res.get('total_changes', 0)}")
 
     if res.get("status") == "PR_CREATED":
         print(f"\n✅ Pull Request Opened: {res.get('pr_url')}")
     elif create_pr and not res.get("gh_available"):
-        print("\n💡 GitHub CLI ('gh') not authenticated. PR summary saved in .workflow/PR_SUMMARY.md.")
+        print(f"\n💡 GitHub CLI ('gh') not authenticated. PR summary saved in {res.get('pr_file')}.")
     else:
-        print(f"\n💡 Summary saved cleanly. Run '/workflow curate --create-pr' to open the PR.")
+        print(f"\n💡 Summary saved cleanly in .workflow/prs/active/. Run with '--create-pr' to open GitHub PR.")
     print("=" * 80)
     return 0
 
@@ -437,6 +448,24 @@ def cmd_daemon(args: argparse.Namespace) -> int:
             print("\n📋 Subagent Dispatch Directive Generated:")
             print(json.dumps(res["subagent_directive"], indent=2))
             print("\n👉 To stop this worker, run '/workflow daemon stop " + name + "'")
+        return 0
+
+    elif action == "pause":
+        name = args.name or "auto-fixer"
+        res = pause_daemon(name, target_dir=target_dir)
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"⏸️ Daemon '{name}' paused. Cron cycles suspended without destroying worktree.")
+        return 0
+
+    elif action == "resume":
+        name = args.name or "auto-fixer"
+        res = resume_daemon(name, target_dir=target_dir)
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"▶️ Daemon '{name}' resumed active cron execution.")
         return 0
 
     elif action == "stop":
@@ -477,7 +506,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
             print(f"{'NAME':<20} │ {'STATUS':<10} │ {'INTERVAL':<12} │ {'LAST RESULT':<18} │ WORKTREE")
             print("-" * 80)
             for d in res["daemons"]:
-                status_str = "🟢 RUNNING" if d["status"] == "RUNNING" else "⚪ STOPPED"
+                status_str = "🟢 RUNNING" if d["status"] == "RUNNING" else ("⏸️ PAUSED" if d["status"] == "PAUSED" else "⚪ STOPPED")
                 print(f"{d['name']:<20} │ {status_str:<10} │ every {d['interval_minutes']}m     │ {str(d.get('last_result')):<18} │ {d['worktree_path']}")
         print("=" * 80)
         return 0
@@ -535,31 +564,33 @@ def cmd_worktree(args: argparse.Namespace) -> int:
 def cmd_list(args: argparse.Namespace) -> int:
     """Displays the complete categorized command catalog and cheat-sheet."""
     catalog = {
-        "Discovery & Setup": [
-            {"command": "/workflow init", "syntax": "workflow init [dir] [--test-runner <cmd>]", "desc": "Initialize encapsulated .workflow module, specs/, memory/, and workflow.json"},
-            {"command": "/workflow explore", "syntax": "workflow explore [dir]", "desc": "Scan project languages, frameworks, package managers, and test runners"},
-            {"command": "/workflow drift", "syntax": "workflow drift [--sync] [dir]", "desc": "Detect manifest hash changes or framework migrations and sync context"},
+        "Discovery & Setup (Polyglot)": [
+            {"command": "/workflow init", "syntax": "workflow init [dir] [--test-runner <cmd>]", "desc": "Initialize encapsulated .workflow module, specs/, memory/, prs/, and workflow.json"},
+            {"command": "/workflow explore", "syntax": "workflow explore [dir]", "desc": "Scan polyglot stack (Python/uv, Rust, Go, Node, Java, .NET) & update context"},
+            {"command": "/workflow drift", "syntax": "workflow drift [--sync] [dir]", "desc": "Detect manifest checksum changes or framework migrations and sync context"},
             {"command": "/workflow check-env", "syntax": "workflow check-env", "desc": "Diagnostic check of Python >=3.10, Git, uv, and LangGraph availability"},
         ],
         "Spec-Driven Development (SDD)": [
             {"command": "/workflow new", "syntax": "workflow new <name> [--archetype feat|bug|refactor|doc]", "desc": "Scaffold a new spec (defaults to feat -> .workflow/specs/features/)"},
             {"command": "/workflow specify", "syntax": "workflow specify <name>", "desc": "Socratic debate & interactive interview to co-author spec.md details (Spec-Kit style)"},
             {"command": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Decompose refined spec into atomic TDD task issues under issues/*.md"},
-            {"command": "/workflow check", "syntax": "workflow check <name>", "desc": "Pre-Execution Quality Gate: audit acceptance criteria, edge cases, and score"},
+            {"command": "/workflow check", "syntax": "workflow check <name>", "desc": "Pre-Execution Quality Gate: deterministic regex audit of criteria, edge cases & score"},
             {"command": "/workflow archive", "syntax": "workflow archive <name>", "desc": "Move completed and verified spec folder to .workflow/specs/archive/<year>/"},
         ],
         "TDD Execution & Worktrees": [
             {"command": "/workflow run", "syntax": "workflow run <name>", "desc": "Execute deterministic LangGraph DAG state machine (RED -> GREEN -> REFACTOR)"},
             {"command": "/workflow worktree", "syntax": "workflow worktree <list|add|clean|prune>", "desc": "Manage physical Git Worktrees under .workflow/worktrees/ with auto-prune"},
         ],
-        "Autonomous Background Daemons & Curator": [
+        "Autonomous Background Daemons & Control": [
             {"command": "/workflow daemon start", "syntax": "workflow daemon start [name] [--interval 10]", "desc": "Schedule background daemon subagent with cron in isolated worktree"},
+            {"command": "/workflow daemon pause", "syntax": "workflow daemon pause [name]", "desc": "Temporarily suspend daemon cron triggers without destroying worktree"},
+            {"command": "/workflow daemon resume", "syntax": "workflow daemon resume [name]", "desc": "Resume scheduled cron execution for a paused daemon"},
             {"command": "/workflow daemon stop", "syntax": "workflow daemon stop [name] [--all]", "desc": "Anti-Zombie shutdown: terminate subagent task, purge worktrees and lockfiles"},
             {"command": "/workflow daemon status", "syntax": "workflow daemon status", "desc": "View active daemon health table, PIDs, and cron execution metrics"},
             {"command": "/workflow daemon clean", "syntax": "workflow daemon clean", "desc": "Scan and forcefully purge all stale worktree locks and dead daemon PIDs"},
-            {"command": "/workflow curate", "syntax": "workflow curate [--create-pr] [--target-branch main]", "desc": "Curator Subagent: aggregate memory decisions, verify test suite, and open PR"},
         ],
-        "Memory & Dialogue": [
+        "Multi-PR Curator & Memory": [
+            {"command": "/workflow curate", "syntax": "workflow curate [--archetype <arch>] [--spec <name>] [--create-pr]", "desc": "Curator Subagent: compile scoped PR in .workflow/prs/active/ & open GitHub PR"},
             {"command": "/workflow memory", "syntax": "workflow memory <status|log|compact> [--archetype <arch>]", "desc": "Manage hierarchical episodic memory and 00-10 compaction"},
             {"command": "/workflow chat", "syntax": "workflow chat [spec_name]", "desc": "Open freeform dialogue about project architecture or scoped spec debate"},
             {"command": "/workflow list", "syntax": "workflow list [--json]", "desc": "Display this universal command directory and cheat-sheet"},
@@ -570,19 +601,19 @@ def cmd_list(args: argparse.Namespace) -> int:
         print(json.dumps(catalog, indent=2))
         return 0
 
-    print("=" * 85)
+    print("=" * 88)
     print(" ⚡ WORKFLOW SUITE — UNIVERSAL COMMAND CATALOG & CHEAT-SHEET (.workflow/)")
-    print("=" * 85)
+    print("=" * 88)
 
     for section, commands in catalog.items():
         print(f"\n📁 {section.upper()}")
-        print("-" * 85)
+        print("-" * 88)
         for cmd in commands:
-            print(f"  • {cmd['syntax']:<48} │ {cmd['desc']}")
+            print(f"  • {cmd['syntax']:<52} │ {cmd['desc']}")
 
-    print("\n" + "=" * 85)
-    print(" 💡 Pro-Tip: Start daemons with '/workflow daemon start auto-fixer --interval 10'.")
-    print("=" * 85)
+    print("\n" + "=" * 88)
+    print(" 💡 Pro-Tip: Scoped PRs with '/workflow curate --archetype fix' or '--archetype refactor'.")
+    print("=" * 88)
     return 0
 
 
@@ -590,7 +621,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Constructs CLI argument parser with all subcommands."""
     parser = argparse.ArgumentParser(
         prog="workflow_runner.py",
-        description="Deterministic State Machine Runner, SDD/TDD Engine, Multi-Daemon Manager & Release Curator",
+        description="Deterministic State Machine Runner, SDD/TDD Engine, Multi-Daemon Manager & Multi-PR Curator",
     )
     parser.add_argument("--json", action="store_true", help="Output results in JSON format")
 
@@ -605,7 +636,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("--test-runner", help="Explicit test runner command to set in workflow.json")
 
     # explore
-    p_exp = subparsers.add_parser("explore", help="Scan codebase tech stack and generate master context in .workflow/memory/")
+    p_exp = subparsers.add_parser("explore", help="Scan codebase polyglot stack and generate master context in .workflow/memory/")
     p_exp.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # drift
@@ -657,18 +688,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_chat.add_argument("--target-dir", default=".", help="Target workspace directory")
 
     # curate
-    p_curate = subparsers.add_parser("curate", help="Curator Subagent: aggregate episodic memory, compile PR summary, and open release PR")
+    p_curate = subparsers.add_parser("curate", help="Curator Subagent: manage multi-PR catalog in .workflow/prs/active/, compile scoped PRs, and open release PRs")
+    p_curate.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync", "all"], help="Scope PR to specific archetype decisions")
+    p_curate.add_argument("--spec", help="Scope PR to a specific specification name")
+    p_curate.add_argument("--archive", help="Archive a merged PR filename into .workflow/prs/archive/<year>/")
     p_curate.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
     p_curate.add_argument("--target-branch", default="main", help="Target merge branch (default: main)")
     p_curate.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # daemon
     p_daemon = subparsers.add_parser("daemon", help="Manage background daemon subagents, cron scheduling, and Anti-Zombie lifecycle")
-    p_daemon.add_argument("action", nargs="?", default="status", choices=["start", "stop", "status", "clean", "list", "run"], help="Daemon action")
+    p_daemon.add_argument("action", nargs="?", default="status", choices=["start", "pause", "resume", "stop", "status", "clean", "list", "run"], help="Daemon action")
     p_daemon.add_argument("name", nargs="?", help="Named daemon (e.g. auto-fixer, refactor-worker)")
     p_daemon.add_argument("--interval", type=int, default=10, help="Cron interval in minutes (default: 10)")
     p_daemon.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync"], help="Archetype persona")
-    p_daemon.add_argument("--all", action="store_true", help="Apply stop to all running daemons")
+    p_daemon.add_argument("--all", action="store_true", help="Apply stop/pause to all running daemons")
     p_daemon.add_argument("--force", action="store_true", help="Force terminate process and wipe worktree")
     p_daemon.add_argument("--auto-merge", action="store_true", help="Enable safe auto-merge into main on completion")
     p_daemon.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
