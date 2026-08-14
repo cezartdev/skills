@@ -10,9 +10,10 @@ ARCHETYPES = ["fix", "refactor", "implement", "doc_sync"]
 
 
 def get_archetype_memory_dir(root_dir: str, archetype: str) -> str:
-    """Returns directory path for a specific archetype's memory namespace."""
+    """Returns directory path for a specific archetype's memory namespace under .workflow/memory/."""
     root_dir = os.path.abspath(root_dir)
-    arch_dir = os.path.join(root_dir, "memory", archetype)
+    wf_root = os.path.join(root_dir, ".workflow") if os.path.basename(root_dir) != ".workflow" else root_dir
+    arch_dir = os.path.join(wf_root, "memory", archetype)
     os.makedirs(arch_dir, exist_ok=True)
     return arch_dir
 
@@ -112,9 +113,10 @@ def compact_archetype_memory(root_dir: str, archetype: str) -> Dict[str, Any]:
 
 
 def get_memory_status(root_dir: str = ".") -> Dict[str, Any]:
-    """Returns memory status and file counts across all archetypes."""
+    """Returns memory status and file counts across all archetypes under .workflow/memory/."""
     root_dir = os.path.abspath(root_dir)
-    mem_dir = os.path.join(root_dir, "memory")
+    wf_root = os.path.join(root_dir, ".workflow") if os.path.basename(root_dir) != ".workflow" else root_dir
+    mem_dir = os.path.join(wf_root, "memory")
     
     status = {"master_context_exists": os.path.exists(os.path.join(mem_dir, "00_project_context.md")), "namespaces": {}}
 

@@ -49,9 +49,10 @@ def create_worktree(
     base_branch: str = "HEAD",
     repo_dir: str = "."
 ) -> Dict[str, Any]:
-    """Creates a physical git worktree under .worktrees/<name> with an isolated branch."""
+    """Creates a physical git worktree under .workflow/worktrees/<name> with an isolated branch."""
     repo_dir = os.path.abspath(repo_dir)
-    worktree_dir = os.path.join(repo_dir, ".worktrees", name)
+    wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
+    worktree_dir = os.path.join(wf_root, "worktrees", name)
     branch_name = f"workflow/worktree-{name}-{int(time.time())}"
 
     # Self-healing prune first
@@ -84,7 +85,12 @@ def create_worktree(
 def remove_worktree(name: str, repo_dir: str = ".", force: bool = False) -> Dict[str, Any]:
     """Removes a physical worktree and cleans up git references."""
     repo_dir = os.path.abspath(repo_dir)
-    worktree_dir = os.path.join(repo_dir, ".worktrees", name)
+    wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
+    worktree_dir = os.path.join(wf_root, "worktrees", name)
+    if not os.path.exists(worktree_dir):
+        legacy_dir = os.path.join(repo_dir, ".worktrees", name)
+        if os.path.exists(legacy_dir):
+            worktree_dir = legacy_dir
 
     args = ["worktree", "remove", worktree_dir]
     if force:

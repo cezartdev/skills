@@ -12,21 +12,21 @@
     "manifest_files": ["package.json", "pyproject.toml", "Cargo.toml", "go.mod"]
   },
   "memory": {
-    "directory": "memory",
+    "directory": ".workflow/memory",
     "max_episodic_files_per_archetype": 10,
     "auto_compact_on_threshold": true,
     "require_memory_before_run": true
   },
   "worktrees": {
-    "directory": ".worktrees",
+    "directory": ".workflow/worktrees",
     "auto_clean_on_merge": true
   },
   "daemons": {
     "auto-fixer": {
       "archetype": "fix",
       "runner": "subagent",
-      "target_spec_dir": "specs/bugs/",
-      "worktree": ".worktrees/auto-fixer",
+      "target_spec_dir": ".workflow/specs/bugs/",
+      "worktree": ".workflow/worktrees/auto-fixer",
       "branch": "fix/active-patches",
       "schedule": {
         "interval_minutes": 10,

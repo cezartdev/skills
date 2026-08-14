@@ -142,9 +142,11 @@ def scan_codebase(root_dir: str = ".") -> Dict[str, Any]:
 
 
 def generate_master_context(root_dir: str = ".") -> str:
-    """Scans repository and creates/updates memory/00_project_context.md."""
+    """Scans repository and creates/updates .workflow/memory/00_project_context.md."""
+    root_dir = os.path.abspath(root_dir)
+    wf_root = os.path.join(root_dir, ".workflow") if os.path.basename(root_dir) != ".workflow" else root_dir
     scan = scan_codebase(root_dir)
-    memory_dir = os.path.join(root_dir, "memory")
+    memory_dir = os.path.join(wf_root, "memory")
     os.makedirs(memory_dir, exist_ok=True)
     master_file = os.path.join(memory_dir, "00_project_context.md")
 
@@ -168,8 +170,8 @@ def generate_master_context(root_dir: str = ".") -> str:
 ---
 
 ## 2. Core Architectural Invariants & Rules
-1. **Spec-Driven Architecture**: All functional features are declared in `specs/features/` and executed via TDD issues.
-2. **Worktree Isolation**: Background workers run strictly inside dedicated `.worktrees/` instances.
+1. **Spec-Driven Architecture**: All functional features are declared in `.workflow/specs/features/` and executed via TDD issues.
+2. **Worktree Isolation**: Background workers run strictly inside dedicated `.workflow/worktrees/` instances.
 3. **Quality Gate Compliance**: Tests must pass 100% with no security gate violations prior to merging.
 
 ---
@@ -184,3 +186,4 @@ def generate_master_context(root_dir: str = ".") -> str:
         f.write(content)
 
     return master_file
+

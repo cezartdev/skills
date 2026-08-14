@@ -1,9 +1,9 @@
-"""Scaffolder module: initializes target project structure and creates new specs from assets/ templates."""
+"""Scaffolder module: initializes target project structure and creates new specs inside .workflow/."""
 
 import os
 import json
 import shutil
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 
@@ -13,29 +13,43 @@ def get_skill_assets_dir() -> str:
     return os.path.abspath(os.path.join(script_dir, "..", "assets"))
 
 
-def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) -> Dict[str, Any]:
-    """Initializes workflow structure in target directory."""
+def get_workflow_root(target_dir: str = ".") -> str:
+    """Returns the absolute path to the encapsulated .workflow directory in target project."""
     target_dir = os.path.abspath(target_dir)
+    # If target_dir is already inside .workflow, return it
+    if os.path.basename(target_dir) == ".workflow":
+        return target_dir
+    return os.path.join(target_dir, ".workflow")
+
+
+def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) -> Dict[str, Any]:
+    """Initializes encapsulated .workflow structure in target directory."""
+    target_dir = os.path.abspath(target_dir)
+    wf_root = get_workflow_root(target_dir)
     assets_dir = get_skill_assets_dir()
 
-    # 1. Create specs/ namespaces (features, bugs, refactor, docs, archive)
-    specs_dir = os.path.join(target_dir, "specs")
+    # 1. Create .workflow/specs/ namespaces (features, bugs, refactor, docs, archive)
+    specs_dir = os.path.join(wf_root, "specs")
     os.makedirs(os.path.join(specs_dir, "features"), exist_ok=True)
     os.makedirs(os.path.join(specs_dir, "bugs"), exist_ok=True)
     os.makedirs(os.path.join(specs_dir, "refactor"), exist_ok=True)
     os.makedirs(os.path.join(specs_dir, "docs"), exist_ok=True)
     os.makedirs(os.path.join(specs_dir, "archive"), exist_ok=True)
 
-    # 2. Create hierarchical memory/ directories
-    memory_dir = os.path.join(target_dir, "memory")
+    # 2. Create hierarchical .workflow/memory/ directories
+    memory_dir = os.path.join(wf_root, "memory")
     os.makedirs(memory_dir, exist_ok=True)
     os.makedirs(os.path.join(memory_dir, "fix"), exist_ok=True)
     os.makedirs(os.path.join(memory_dir, "refactor"), exist_ok=True)
     os.makedirs(os.path.join(memory_dir, "implement"), exist_ok=True)
     os.makedirs(os.path.join(memory_dir, "doc_sync"), exist_ok=True)
 
-    # 3. Scaffold root workflow.json if not present
-    config_file = os.path.join(target_dir, "workflow.json")
+    # 3. Create .workflow/worktrees/ placeholder
+    worktrees_dir = os.path.join(wf_root, "worktrees")
+    os.makedirs(worktrees_dir, exist_ok=True)
+
+    # 4. Scaffold .workflow/workflow.json if not present
+    config_file = os.path.join(wf_root, "workflow.json")
     config_created = False
     test_cmd = test_runner_cmd or "pnpm test"
     
@@ -50,20 +64,21 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
             default_conf = {
                 "version": "1.0",
                 "test_runner": {"command": test_cmd, "args": ["--run"]},
-                "worktrees": {"directory": ".worktrees", "auto_clean_on_merge": True}
+                "memory": {"directory": ".workflow/memory"},
+                "worktrees": {"directory": ".workflow/worktrees", "auto_clean_on_merge": True}
             }
             with open(config_file, "w", encoding="utf-8") as f:
                 json.dump(default_conf, f, indent=2)
         config_created = True
 
-    # 4. Add .worktrees/ to .gitignore
+    # 5. Add .workflow/worktrees/ to .gitignore in project root
     gitignore_file = os.path.join(target_dir, ".gitignore")
     gitignore_updated = False
-    worktree_entry = ".worktrees/"
+    worktree_entry = ".workflow/worktrees/"
     if os.path.exists(gitignore_file):
         with open(gitignore_file, "r", encoding="utf-8") as f:
             lines = f.read().splitlines()
-        if worktree_entry not in lines and ".worktrees" not in lines:
+        if worktree_entry not in lines and ".workflow/worktrees" not in lines:
             with open(gitignore_file, "a", encoding="utf-8") as f:
                 f.write(f"\n# Git Worktree isolation for workflow daemons\n{worktree_entry}\n")
             gitignore_updated = True
@@ -75,6 +90,7 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
     return {
         "status": "SUCCESS",
         "target_dir": target_dir,
+        "workflow_dir": wf_root,
         "specs_dir": specs_dir,
         "memory_dir": memory_dir,
         "config_file": config_file,
@@ -88,12 +104,12 @@ def scaffold_new_spec(
     archetype: str = "features",
     target_dir: str = "."
 ) -> Dict[str, Any]:
-    """Creates a new spec directory under specs/features/, specs/bugs/, or specs/refactor/."""
-    target_dir = os.path.abspath(target_dir)
+    """Creates a new spec directory under .workflow/specs/<namespace>/<spec_name>/."""
+    wf_root = get_workflow_root(target_dir)
     assets_dir = get_skill_assets_dir()
 
-    # Normalize archetype aliases
-    arch = archetype.lower()
+    # Normalize archetype aliases (defaults to features/implement)
+    arch = (archetype or "feat").lower()
     if arch in ["fix", "bug", "bugs"]:
         parent_folder = "bugs"
         norm_archetype = "fix"
@@ -107,7 +123,7 @@ def scaffold_new_spec(
         parent_folder = "features"
         norm_archetype = "implement"
 
-    spec_dir = os.path.join(target_dir, "specs", parent_folder, spec_name)
+    spec_dir = os.path.join(wf_root, "specs", parent_folder, spec_name)
     issues_dir = os.path.join(spec_dir, "issues")
     os.makedirs(issues_dir, exist_ok=True)
 
@@ -185,9 +201,9 @@ def scaffold_new_spec(
 
 
 def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
-    """Moves a completed spec folder into specs/archive/<year>/<spec_name>/."""
-    target_dir = os.path.abspath(target_dir)
-    specs_root = os.path.join(target_dir, "specs")
+    """Moves a completed spec folder into .workflow/specs/archive/<year>/<spec_name>/."""
+    wf_root = get_workflow_root(target_dir)
+    specs_root = os.path.join(wf_root, "specs")
     
     # Search for spec in features, bugs, refactor, docs
     found_src = None
@@ -198,7 +214,12 @@ def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
             break
 
     if not found_src:
-        return {"status": "ERROR", "message": f"Spec '{spec_name}' not found under specs/features, bugs, refactor, or docs."}
+        # Also check if spec_name is a direct directory path
+        if os.path.exists(spec_name) and os.path.isdir(spec_name):
+            found_src = os.path.abspath(spec_name)
+            spec_name = os.path.basename(found_src)
+        else:
+            return {"status": "ERROR", "message": f"Spec '{spec_name}' not found under .workflow/specs/features, bugs, refactor, or docs."}
 
     year = str(datetime.now().year)
     archive_dest = os.path.join(specs_root, "archive", year, spec_name)

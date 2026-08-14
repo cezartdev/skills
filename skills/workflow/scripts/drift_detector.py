@@ -10,12 +10,18 @@ except ImportError:
 
 
 def check_drift(root_dir: str = ".") -> Tuple[bool, Dict[str, Any]]:
-    """Compares current manifest hashes against memory/00_project_context.md."""
+    """Compares current manifest hashes against .workflow/memory/00_project_context.md."""
     root_dir = os.path.abspath(root_dir)
-    master_file = os.path.join(root_dir, "memory", "00_project_context.md")
+    wf_root = os.path.join(root_dir, ".workflow") if os.path.basename(root_dir) != ".workflow" else root_dir
+    master_file = os.path.join(wf_root, "memory", "00_project_context.md")
 
     if not os.path.exists(master_file):
-        return True, {"reason": "MISSING_MEMORY", "details": "memory/00_project_context.md does not exist"}
+        # Fallback check
+        legacy_master = os.path.join(root_dir, "memory", "00_project_context.md")
+        if os.path.exists(legacy_master):
+            master_file = legacy_master
+        else:
+            return True, {"reason": "MISSING_MEMORY", "details": ".workflow/memory/00_project_context.md does not exist"}
 
     with open(master_file, "r", encoding="utf-8") as f:
         content = f.read()

@@ -15,8 +15,15 @@ except ImportError:
 
 
 def load_workflow_config(root_dir: str = ".") -> Dict[str, Any]:
-    """Loads root workflow.json or returns default configuration."""
-    cfg_path = os.path.join(root_dir, "workflow.json")
+    """Loads .workflow/workflow.json or returns default configuration."""
+    root_dir = os.path.abspath(root_dir)
+    wf_root = os.path.join(root_dir, ".workflow") if os.path.basename(root_dir) != ".workflow" else root_dir
+    cfg_path = os.path.join(wf_root, "workflow.json")
+    if not os.path.exists(cfg_path):
+        legacy_cfg = os.path.join(root_dir, "workflow.json")
+        if os.path.exists(legacy_cfg):
+            cfg_path = legacy_cfg
+
     if os.path.exists(cfg_path):
         try:
             with open(cfg_path, "r", encoding="utf-8") as f:
@@ -36,14 +43,15 @@ def run_daemon_cycle(
 ) -> Dict[str, Any]:
     """Executes a single daemon cycle inside an isolated physical worktree."""
     root_dir = os.path.abspath(root_dir)
+    wf_root = os.path.join(root_dir, ".workflow") if os.path.basename(root_dir) != ".workflow" else root_dir
     config = load_workflow_config(root_dir)
     
     daemon_conf = config.get("daemons", {}).get(daemon_name, {})
     archetype = archetype or daemon_conf.get("archetype", "fix")
-    worktree_name = worktree_name or daemon_conf.get("worktree", f".worktrees/{daemon_name}").replace(".worktrees/", "")
+    worktree_name = worktree_name or daemon_conf.get("worktree", f".workflow/worktrees/{daemon_name}").replace(".workflow/worktrees/", "").replace(".worktrees/", "")
     
     if not spec_dir:
-        spec_dir = daemon_conf.get("target_spec_dir", os.path.join("specs", "bugs" if archetype == "fix" else "refactor"))
+        spec_dir = daemon_conf.get("target_spec_dir", os.path.join(".workflow", "specs", "bugs" if archetype == "fix" else "refactor"))
     
     spec_dir = os.path.abspath(os.path.join(root_dir, spec_dir))
 
