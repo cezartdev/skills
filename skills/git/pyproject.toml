@@ -1,0 +1,11 @@
+[project]
+name = "git"
+version = "0.2.0"
+description = "Deterministic Git suite for AI agents and developers with security gates, conventional commits validation, and commit history auditing"
+readme = "SKILL.md"
+requires-python = ">=3.8"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

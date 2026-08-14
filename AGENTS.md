@@ -121,7 +121,7 @@ sequenceDiagram
 
     Agent->>Branch: 1. Create or edit skill in skills/<name>/ and docs/<name>/
     Agent->>Branch: 2. Add changeset file (pnpm changeset or direct .changeset/<slug>.md)
-    Agent->>Branch: 3. Commit with git-commit skill and open PR
+    Agent->>Branch: 3. Commit with git skill and open PR
     Branch->>Main: 4. PR merged into main
     Main->>Action: 5. release.yml detects pending changeset(s)
     Action->>Main: 6. Opens PR: "chore(release): version skills and update changelog"
@@ -156,13 +156,13 @@ Format requirement:
 **Agent Directives when asked to create or update skills and declare a changeset:**
 1. **Determine Bump Level**: Check the SemVer matrix above (`patch` for bugfixes/minor docs, `minor` for new skills or new features, `major` for breaking redesigns).
 2. **Generate Changeset File**: Write the `.changeset/<slug>.md` file with the exact package name `"cezartdev-skills"` in the frontmatter.
-3. **Atomic Commit**: Stage both your implementation files and the `.changeset/<slug>.md` file together, and commit using the `git-commit` helper script.
+3. **Atomic Commit**: Stage both your implementation files and the `.changeset/<slug>.md` file together, and commit using the `git` helper script.
 4. **Lifecycle Awareness**: Recognize that this markdown file is temporary; GitHub Actions consumes and deletes it during the automated release cycle.
 
 #### Step 3: Pre-Flight Validation & Commit
-Use the `git-commit` helper script to validate and execute the commit:
+Use the `git` helper script to validate and execute the commit:
 ```bash
-python3 skills/git-commit/scripts/commit_helper.py commit \
+python3 skills/git/scripts/git_helper.py commit \
   -t feat \
   -s workflow \
   -m "implement deterministic state machine runner" \
@@ -206,9 +206,9 @@ Once the feature PR merges into `main`, GitHub Actions (`.github/workflows/relea
 1. **`workflow` (Deterministic Agent Workflow)**:
    - **Engine**: Python + LangGraph.
    - **Purpose**: Provides a deterministic, state-machine driven workflow runner for multi-step tasks across any repository. Ensures agent execution state is logged, verifiable, and strictly bound to step transitions.
-2. **`git-commit` (Automated Standardized Commits)**:
-   - **Engine**: Node.js / Python CLI helper.
-   - **Purpose**: Analyzes git status and staged diffs to draft, validate, and execute Conventional Commit messages following repository standards automatically.
+2. **`git` (Deterministic Git Operations Suite)**:
+   - **Engine**: Python 3.8+ CLI helper (`git_helper.py`).
+   - **Purpose**: Unified Git suite providing pre-commit security gates, 10-step Conventional Commits validation, commit history compliance auditing (`/git audit`), and safe commit-and-push workflows.
 
 
 
