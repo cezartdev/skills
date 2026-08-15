@@ -656,14 +656,15 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 
     elif action == "start":
         name = args.name or "auto-fixer"
-        interval = args.interval or 10
+        interval = getattr(args, "interval", None)
         res = start_daemon(daemon_name=name, interval_minutes=interval, archetype=args.archetype, target_dir=target_dir)
         if args.json:
             print(json.dumps(res, indent=2))
             return 0
 
+        actual_interval = res.get("interval_minutes", 10)
         print("=" * 110)
-        print(f" 🤖 DAEMON STARTED: '{name}' (Schedule: every {interval}m)")
+        print(f" 🤖 DAEMON STARTED: '{name}' (Schedule: every {actual_interval}m)")
         print("=" * 110)
         print(f"{'PROPERTY':<24} │ VALUE")
         print("-" * 110)
@@ -978,7 +979,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_daemon = subparsers.add_parser("daemon", help="Manage background daemon subagents, cron scheduling, and Anti-Zombie lifecycle")
     p_daemon.add_argument("action", nargs="?", default="status", choices=["list", "start", "pause", "resume", "stop", "status", "clean", "run"], help="Daemon action")
     p_daemon.add_argument("name", nargs="?", help="Named daemon (e.g. auto-fixer, refactor-worker)")
-    p_daemon.add_argument("--interval", type=int, default=10, help="Cron interval in minutes (default: 10)")
+    p_daemon.add_argument("--interval", type=int, default=None, help="Cron interval in minutes (defaults to workflow.json setting or 10)")
     p_daemon.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync"], help="Archetype persona")
     p_daemon.add_argument("--all", action="store_true", help="Apply stop/pause to all running daemons")
     p_daemon.add_argument("--force", action="store_true", help="Force terminate process and wipe worktree")

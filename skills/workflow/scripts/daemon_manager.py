@@ -150,7 +150,14 @@ def get_daemon_catalog(target_dir: str = ".") -> Dict[str, Any]:
 
     for name, conf in config_daemons.items():
         arch = conf.get("archetype", "implement")
-        interval = conf.get("schedule", {}).get("interval_minutes", 10)
+        interval = (
+            conf.get("schedule", {}).get("interval_minutes")
+            if isinstance(conf.get("schedule"), dict) and "interval_minutes" in conf["schedule"]
+            else conf.get("interval_minutes")
+            or (conf.get("schedule", {}).get("interval") if isinstance(conf.get("schedule"), dict) else None)
+            or conf.get("interval")
+            or 10
+        )
         desc = conf.get("description") or descriptions.get(name, f"Background worker for {arch}")
         active_entry = registry.get("daemons", {}).get(name, {})
         status = active_entry.get("status", "STOPPED")
@@ -176,7 +183,7 @@ def get_daemon_catalog(target_dir: str = ".") -> Dict[str, Any]:
 
 def start_daemon(
     daemon_name: str,
-    interval_minutes: int = 10,
+    interval_minutes: Optional[int] = None,
     archetype: Optional[str] = None,
     target_dir: str = "."
 ) -> Dict[str, Any]:
@@ -204,7 +211,20 @@ def start_daemon(
     else:
         arch = "implement"
 
-    interval = interval_minutes or daemon_conf.get("schedule", {}).get("interval_minutes", 10)
+    # Resolve interval: CLI parameter > workflow.json schedule.interval_minutes / interval_minutes > fallback 10
+    if interval_minutes is not None and interval_minutes > 0:
+        interval = interval_minutes
+    elif "schedule" in daemon_conf and "interval_minutes" in daemon_conf["schedule"]:
+        interval = int(daemon_conf["schedule"]["interval_minutes"])
+    elif "interval_minutes" in daemon_conf:
+        interval = int(daemon_conf["interval_minutes"])
+    elif "schedule" in daemon_conf and "interval" in daemon_conf["schedule"]:
+        interval = int(daemon_conf["schedule"]["interval"])
+    elif "interval" in daemon_conf:
+        interval = int(daemon_conf["interval"])
+    else:
+        interval = 10
+
     cron_expr = f"*/{interval} * * * *"
 
     # 1. Pre-Flight Self-Healing: purge any prior zombie or stale worktree of this daemon
