@@ -1,5 +1,15 @@
 # cezartdev-skills
 
+## 1.4.0
+
+### Minor Changes
+
+- [`c538044`](https://github.com/cezartdev/skills/commit/c53804406a5692d78bd655c627038f9d4231a0d3) Thanks [@cezartdev](https://github.com/cezartdev)! - Enhance /workflow explore to automatically analyze codebase style conventions, linters, and generate 00_coding_preferences.md.
+
+### Patch Changes
+
+- [`d26b9c7`](https://github.com/cezartdev/skills/commit/d26b9c7b726bc3aa109d9be65faac864d78e6ec6) Thanks [@cezartdev](https://github.com/cezartdev)! - Fix daemon interval resolution to prioritize workflow.json settings and integrate native schedule cron tool for recurring cycles.
+
 ## 1.3.3
 
 ### Patch Changes
