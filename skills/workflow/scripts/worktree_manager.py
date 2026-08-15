@@ -167,6 +167,45 @@ def force_purge_worktree(name: str, repo_dir: str = ".") -> Dict[str, Any]:
     return {"status": "PURGED", "worktree_path": worktree_dir}
 
 
+def sync_worktree_with_base(
+    worktree_path: str,
+    base_branch: str = "main",
+    repo_dir: str = "."
+) -> Dict[str, Any]:
+    """Pre-Cycle Synchronization: Safely rebases the worktree branch onto the latest base branch."""
+    worktree_path = os.path.abspath(worktree_path)
+    repo_dir = os.path.abspath(repo_dir)
+
+    if not os.path.exists(worktree_path):
+        return {"status": "NOT_FOUND", "worktree_path": worktree_path}
+
+    # 1. Fetch from remotes if configured
+    run_git(["fetch", "--all"], cwd=repo_dir)
+
+    # 2. Check if base_branch exists, fallback to HEAD
+    has_branch = run_git(["rev-parse", "--verify", base_branch], cwd=repo_dir)
+    target_ref = base_branch if has_branch.returncode == 0 else "HEAD"
+
+    # 3. Execute safe rebase inside worktree
+    rebase_res = run_git(["rebase", target_ref], cwd=worktree_path)
+    if rebase_res.returncode != 0:
+        # Abort rebase to maintain pristine working tree state
+        run_git(["rebase", "--abort"], cwd=worktree_path)
+        return {
+            "status": "CONFLICT",
+            "message": f"Conflict detected while rebasing worktree onto '{target_ref}'. Rebase aborted safely.",
+            "error": rebase_res.stderr.strip() or rebase_res.stdout.strip(),
+            "worktree_path": worktree_path,
+            "base_branch": target_ref,
+        }
+
+    return {
+        "status": "SYNCHRONIZED",
+        "worktree_path": worktree_path,
+        "base_branch": target_ref,
+    }
+
+
 def prune_worktrees(repo_dir: str = ".") -> bool:
     """Self-healing prune of stale worktree entries."""
     res = run_git(["worktree", "prune"], cwd=repo_dir)

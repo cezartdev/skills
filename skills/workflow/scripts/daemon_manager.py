@@ -8,7 +8,14 @@ import subprocess
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-from worktree_manager import create_worktree, remove_worktree, force_purge_worktree, prune_worktrees, ensure_git_repository
+from worktree_manager import (
+    create_worktree,
+    remove_worktree,
+    force_purge_worktree,
+    prune_worktrees,
+    ensure_git_repository,
+    sync_worktree_with_base,
+)
 from scaffolder import get_workflow_root
 from graph.engine import WorkflowEngine
 
@@ -366,7 +373,17 @@ def run_daemon_cycle(
     wt_path = wt_result["worktree_path"]
     branch_name = wt_result.get("branch_name", f"workflow/worktree-{daemon_name}")
 
-    # 2. Find pending spec or run test health check
+    # 2. Pre-Cycle Sync: Safely rebase worktree onto latest base branch (e.g. main)
+    sync_res = sync_worktree_with_base(wt_path, base_branch="main", repo_dir=root_dir)
+    if sync_res.get("status") == "CONFLICT":
+        return {
+            "status": "SYNC_CONFLICT",
+            "message": "Worktree branch has conflicts with latest base branch. Resolve manually or re-create worktree.",
+            "details": sync_res,
+            "worktree_path": wt_path,
+        }
+
+    # 3. Find pending spec or run test health check
     target_spec_path = None
     if os.path.exists(spec_dir):
         for item in os.listdir(spec_dir):
