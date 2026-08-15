@@ -1,6 +1,7 @@
 """Physical Git Worktree manager and self-healing lifecycle engine."""
 
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -10,6 +11,35 @@ from typing import Dict, Any, List, Optional
 def run_git(args: List[str], cwd: str = ".") -> subprocess.CompletedProcess:
     """Executes a git command safely in the specified working directory."""
     return subprocess.run(["git"] + args, cwd=cwd, capture_output=True, text=True, check=False)
+
+
+def get_default_branch(repo_dir: str = ".") -> str:
+    """Dynamically resolves the default base branch (main vs master vs remote HEAD)."""
+    repo_dir = os.path.abspath(repo_dir)
+    
+    # 1. Check remote HEAD symbolic-ref (e.g. origin/main)
+    sym_res = run_git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], cwd=repo_dir)
+    if sym_res.returncode == 0 and sym_res.stdout.strip():
+        branch = sym_res.stdout.strip().replace("origin/", "")
+        if branch:
+            return branch
+
+    # 2. Check local main branch
+    main_res = run_git(["rev-parse", "--verify", "main"], cwd=repo_dir)
+    if main_res.returncode == 0:
+        return "main"
+
+    # 3. Check local master branch
+    master_res = run_git(["rev-parse", "--verify", "master"], cwd=repo_dir)
+    if master_res.returncode == 0:
+        return "master"
+
+    # 4. Fallback to current active branch
+    current_res = run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_dir)
+    if current_res.returncode == 0 and current_res.stdout.strip() != "HEAD":
+        return current_res.stdout.strip()
+
+    return "main"
 
 
 def ensure_git_repository(repo_dir: str = ".") -> Dict[str, Any]:
@@ -32,6 +62,7 @@ def ensure_git_repository(repo_dir: str = ".") -> Dict[str, Any]:
         "status": "READY",
         "initialized": initialized,
         "initial_commit_created": initial_commit_created,
+        "default_branch": get_default_branch(repo_dir),
     }
 
 
@@ -70,15 +101,19 @@ def list_worktrees(repo_dir: str = ".") -> List[Dict[str, str]]:
 
 def create_worktree(
     name: str,
-    base_branch: str = "HEAD",
+    base_branch: Optional[str] = None,
     repo_dir: str = "."
 ) -> Dict[str, Any]:
     """Creates a physical git worktree under .workflow/worktrees/<name> with an isolated branch."""
     repo_dir = os.path.abspath(repo_dir)
     ensure_git_repository(repo_dir)
+    
+    clean_name = re.sub(r"[^a-zA-Z0-9_-]+", "-", os.path.basename(name.replace("\\", "/"))).strip("-._").lower() or "unnamed"
+    target_base = base_branch or get_default_branch(repo_dir)
+
     wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
-    worktree_dir = os.path.join(wf_root, "worktrees", name)
-    branch_name = f"workflow/worktree-{name}-{int(time.time())}"
+    worktree_dir = os.path.join(wf_root, "worktrees", clean_name)
+    branch_name = f"workflow/worktree-{clean_name}-{int(time.time())}"
 
     # Self-healing prune first
     prune_worktrees(repo_dir)
@@ -91,7 +126,7 @@ def create_worktree(
         }
 
     os.makedirs(os.path.dirname(worktree_dir), exist_ok=True)
-    res = run_git(["worktree", "add", "-b", branch_name, worktree_dir, base_branch], cwd=repo_dir)
+    res = run_git(["worktree", "add", "-b", branch_name, worktree_dir, target_base], cwd=repo_dir)
 
     if res.returncode != 0:
         return {
@@ -104,16 +139,18 @@ def create_worktree(
         "status": "CREATED",
         "worktree_path": worktree_dir,
         "branch_name": branch_name,
+        "base_branch": target_base,
     }
 
 
 def remove_worktree(name: str, repo_dir: str = ".", force: bool = False) -> Dict[str, Any]:
     """Removes a physical worktree and cleans up git references."""
     repo_dir = os.path.abspath(repo_dir)
+    clean_name = re.sub(r"[^a-zA-Z0-9_-]+", "-", os.path.basename(name.replace("\\", "/"))).strip("-._").lower()
     wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
-    worktree_dir = os.path.join(wf_root, "worktrees", name)
+    worktree_dir = os.path.join(wf_root, "worktrees", clean_name)
     if not os.path.exists(worktree_dir):
-        legacy_dir = os.path.join(repo_dir, ".worktrees", name)
+        legacy_dir = os.path.join(repo_dir, ".worktrees", clean_name)
         if os.path.exists(legacy_dir):
             worktree_dir = legacy_dir
 
@@ -133,8 +170,9 @@ def remove_worktree(name: str, repo_dir: str = ".", force: bool = False) -> Dict
 def force_purge_worktree(name: str, repo_dir: str = ".") -> Dict[str, Any]:
     """Anti-Zombie Deep Purge: forces removal of worktree, lockfiles, and git references."""
     repo_dir = os.path.abspath(repo_dir)
+    clean_name = re.sub(r"[^a-zA-Z0-9_-]+", "-", os.path.basename(name.replace("\\", "/"))).strip("-._").lower()
     wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
-    worktree_dir = os.path.join(wf_root, "worktrees", name)
+    worktree_dir = os.path.join(wf_root, "worktrees", clean_name)
 
     # 1. Attempt standard git worktree remove with --force
     run_git(["worktree", "remove", "--force", worktree_dir], cwd=repo_dir)
@@ -144,7 +182,7 @@ def force_purge_worktree(name: str, repo_dir: str = ".") -> Dict[str, Any]:
     if os.path.exists(worktree_dir):
         try:
             shutil.rmtree(worktree_dir, ignore_errors=True)
-        except Exception as e:
+        except Exception:
             pass
 
     # 3. Clean any stale lockfiles (.git/index.lock or .git/worktrees/<name>/locked)
@@ -156,7 +194,7 @@ def force_purge_worktree(name: str, repo_dir: str = ".") -> Dict[str, Any]:
                 os.remove(main_index_lock)
             except Exception:
                 pass
-        wt_meta = os.path.join(git_dir, "worktrees", name)
+        wt_meta = os.path.join(git_dir, "worktrees", clean_name)
         if os.path.exists(wt_meta):
             try:
                 shutil.rmtree(wt_meta, ignore_errors=True)
@@ -169,7 +207,7 @@ def force_purge_worktree(name: str, repo_dir: str = ".") -> Dict[str, Any]:
 
 def sync_worktree_with_base(
     worktree_path: str,
-    base_branch: str = "main",
+    base_branch: Optional[str] = None,
     repo_dir: str = "."
 ) -> Dict[str, Any]:
     """Pre-Cycle Synchronization: Safely rebases the worktree branch onto the latest base branch."""
@@ -182,9 +220,8 @@ def sync_worktree_with_base(
     # 1. Fetch from remotes if configured
     run_git(["fetch", "--all"], cwd=repo_dir)
 
-    # 2. Check if base_branch exists, fallback to HEAD
-    has_branch = run_git(["rev-parse", "--verify", base_branch], cwd=repo_dir)
-    target_ref = base_branch if has_branch.returncode == 0 else "HEAD"
+    # 2. Dynamically resolve base branch
+    target_ref = base_branch or get_default_branch(repo_dir)
 
     # 3. Execute safe rebase inside worktree
     rebase_res = run_git(["rebase", target_ref], cwd=worktree_path)

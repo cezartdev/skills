@@ -8,7 +8,7 @@ import sys
 import subprocess
 from typing import Dict, Any, List, Optional
 
-from scaffolder import scaffold_init, scaffold_new_spec, archive_spec, get_workflow_root
+from scaffolder import scaffold_init, scaffold_new_spec, archive_spec, get_workflow_root, sanitize_identifier
 from explorer import scan_codebase, generate_master_context
 from drift_detector import check_drift, sync_drift
 from memory_manager import log_decision, compact_archetype_memory, get_memory_status
@@ -24,7 +24,8 @@ from daemon_manager import (
     get_daemon_status_table,
     get_daemon_catalog,
     run_daemon_cycle,
-    load_workflow_config
+    load_workflow_config,
+    reconcile_daemon_registry,
 )
 from curator import compile_scoped_pr_summary, create_curator_pr, archive_merged_pr
 from orchestrator import prepare_subagent_dispatch, generate_subagent_directive, get_archetype_prompt
@@ -622,7 +623,15 @@ def cmd_curate(args: argparse.Namespace) -> int:
 def cmd_daemon(args: argparse.Namespace) -> int:
     """Manages background daemon subagents, cron scheduling, and Anti-Zombie lifecycle."""
     action = args.action or "status"
-    target_dir = os.path.abspath(args.target_dir if hasattr(args, "target_dir") and args.target_dir else ".")
+    target_dir = getattr(args, "target_dir", ".") or "."
+
+    # If action doesn't require a daemon name (status, list, clean) and name is a directory path
+    if action in ["status", "list", "clean"] and getattr(args, "name", None):
+        if os.path.isdir(args.name) or args.name.startswith("/") or args.name.startswith("."):
+            target_dir = args.name
+            args.name = None
+
+    target_dir = os.path.abspath(target_dir)
 
     if action == "list":
         res = get_daemon_catalog(target_dir=target_dir)
@@ -996,6 +1005,13 @@ def main() -> int:
     if not args.subcommand:
         parser.print_help()
         return 0
+
+    # Automatic Post-Reboot Self-Healing Reconciliation
+    try:
+        target_dir = getattr(args, "target_dir", ".") or "."
+        reconcile_daemon_registry(target_dir)
+    except Exception:
+        pass
 
     commands = {
         "check-env": cmd_check_env,

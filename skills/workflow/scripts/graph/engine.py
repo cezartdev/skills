@@ -102,12 +102,20 @@ class WorkflowEngine:
             "updated_at": datetime.now().isoformat(),
         }
 
+try:
+    from scaffolder import atomic_write_json
+except ImportError:
+    from ..scaffolder import atomic_write_json
+
     def save_state(self, state: Dict[str, Any]):
-        """Persists state to state.json."""
+        """Persists state atomically to state.json."""
         state["updated_at"] = datetime.now().isoformat()
         os.makedirs(self.spec_dir, exist_ok=True)
-        with open(self.state_file, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2)
+        try:
+            atomic_write_json(self.state_file, state)
+        except Exception:
+            with open(self.state_file, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2)
 
     def run_step(self, step_name: Optional[str] = None) -> Dict[str, Any]:
         """Executes a graph step and saves checkpoint."""

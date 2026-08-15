@@ -3,6 +3,8 @@
 import os
 import json
 import shutil
+import re
+import time
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
@@ -10,6 +12,35 @@ try:
     from .explorer import scan_codebase
 except ImportError:
     from explorer import scan_codebase
+
+
+def sanitize_identifier(name: str) -> str:
+    """Sanitizes an identifier (spec, daemon, worktree) against path traversal and invalid chars."""
+    if not name:
+        return "unnamed"
+    cleaned = os.path.basename(name.replace("\\", "/"))
+    cleaned = re.sub(r"[^a-zA-Z0-9_-]+", "-", cleaned).strip("-._")
+    return cleaned.lower() or "unnamed"
+
+
+def atomic_write_json(file_path: str, data: Dict[str, Any]) -> None:
+    """Safely writes a JSON dictionary atomically to disk using a temporary file and os.replace."""
+    file_path = os.path.abspath(file_path)
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    temp_path = f"{file_path}.tmp.{os.getpid()}_{int(time.time()*1000)}"
+    try:
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, file_path)
+    except Exception as e:
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+        raise e
 
 
 def get_skill_assets_dir() -> str:
@@ -21,7 +52,6 @@ def get_skill_assets_dir() -> str:
 def get_workflow_root(target_dir: str = ".") -> str:
     """Returns the absolute path to the encapsulated .workflow directory in target project."""
     target_dir = os.path.abspath(target_dir)
-    # If target_dir is already inside .workflow, return it
     if os.path.basename(target_dir) == ".workflow":
         return target_dir
     return os.path.join(target_dir, ".workflow")
@@ -68,49 +98,44 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
     # 6. Scaffold .workflow/workflow.json if not present
     config_file = os.path.join(wf_root, "workflow.json")
     config_created = False
-    
     if not os.path.exists(config_file):
         template_config = os.path.join(assets_dir, "workflow.config.json")
         if os.path.exists(template_config):
             with open(template_config, "r", encoding="utf-8") as f:
-                content = f.read().replace("{{TEST_COMMAND}}", test_cmd)
-            with open(config_file, "w", encoding="utf-8") as f:
-                f.write(content)
+                cfg_data = json.load(f)
+            cfg_data.setdefault("test_runner", {})["command"] = test_cmd
+            atomic_write_json(config_file, cfg_data)
         else:
-            default_conf = {
-                "version": "1.0",
-                "test_runner": {"command": test_cmd, "args": ["--run"]},
-                "memory": {"directory": ".workflow/memory"},
-                "prs": {"directory": ".workflow/prs"},
-                "worktrees": {"directory": ".workflow/worktrees", "auto_clean_on_merge": True},
+            atomic_write_json(config_file, {
+                "version": "1.0.0",
+                "test_runner": {"command": test_cmd},
                 "daemons": {
-                    "auto-fixer": {"archetype": "fix", "runner": "subagent", "schedule": {"interval_minutes": 10}},
-                    "refactor-worker": {"archetype": "refactor", "runner": "subagent", "schedule": {"interval_minutes": 15}},
-                    "doc-sync": {"archetype": "doc_sync", "runner": "subagent", "schedule": {"interval_minutes": 30}}
+                    "auto-fixer": {"archetype": "fix", "schedule": {"interval_minutes": 10}},
+                    "refactor-worker": {"archetype": "refactor", "schedule": {"interval_minutes": 15}},
+                    "doc-sync": {"archetype": "doc_sync", "schedule": {"interval_minutes": 30}}
                 }
-            }
-            with open(config_file, "w", encoding="utf-8") as f:
-                json.dump(default_conf, f, indent=2)
+            })
         config_created = True
 
-    # 7. Add .workflow/worktrees/ to .gitignore in project root
-    gitignore_file = os.path.join(target_dir, ".gitignore")
+    # 7. Add .workflow/worktrees to .gitignore if not present
+    gitignore_path = os.path.join(target_dir, ".gitignore")
     gitignore_updated = False
-    worktree_entry = ".workflow/worktrees/"
-    if os.path.exists(gitignore_file):
-        with open(gitignore_file, "r", encoding="utf-8") as f:
-            lines = f.read().splitlines()
-        if worktree_entry not in lines and ".workflow/worktrees" not in lines:
-            with open(gitignore_file, "a", encoding="utf-8") as f:
-                f.write(f"\n# Git Worktree isolation for workflow daemons\n{worktree_entry}\n")
+    if os.path.exists(gitignore_path):
+        with open(gitignore_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        needed_entries = [".workflow/worktrees/", ".workflow/logs/"]
+        to_add = [e for e in needed_entries if e not in content]
+        if to_add:
+            with open(gitignore_path, "a", encoding="utf-8") as f:
+                f.write("\n# Workflow Ephemeral Artifacts\n" + "\n".join(to_add) + "\n")
             gitignore_updated = True
     else:
-        with open(gitignore_file, "w", encoding="utf-8") as f:
-            f.write(f"# Git Worktree isolation for workflow daemons\n{worktree_entry}\n")
+        with open(gitignore_path, "w", encoding="utf-8") as f:
+            f.write("# Workflow Ephemeral Artifacts\n.workflow/worktrees/\n.workflow/logs/\n")
         gitignore_updated = True
 
     return {
-        "status": "SUCCESS",
+        "status": "INITIALIZED",
         "target_dir": target_dir,
         "workflow_dir": wf_root,
         "specs_dir": specs_dir,
@@ -133,6 +158,8 @@ def scaffold_new_spec(
     wf_root = get_workflow_root(target_dir)
     assets_dir = get_skill_assets_dir()
 
+    clean_name = sanitize_identifier(spec_name)
+
     # Normalize archetype aliases (defaults to features/implement)
     arch = (archetype or "feat").lower()
     if arch in ["fix", "bug", "bugs"]:
@@ -148,7 +175,7 @@ def scaffold_new_spec(
         parent_folder = "features"
         norm_archetype = "implement"
 
-    spec_dir = os.path.join(wf_root, "specs", parent_folder, spec_name)
+    spec_dir = os.path.join(wf_root, "specs", parent_folder, clean_name)
     issues_dir = os.path.join(spec_dir, "issues")
     os.makedirs(issues_dir, exist_ok=True)
 
@@ -157,9 +184,9 @@ def scaffold_new_spec(
     template_spec = os.path.join(assets_dir, "spec.template.md")
     if os.path.exists(template_spec):
         with open(template_spec, "r", encoding="utf-8") as f:
-            spec_content = f.read().replace("{{SPEC_NAME}}", spec_name)
+            spec_content = f.read().replace("{{SPEC_NAME}}", clean_name)
     else:
-        spec_content = f"# Spec: {spec_name}\n\n## 1. Overview\n\n## 5. Acceptance Criteria\n"
+        spec_content = f"# Spec: {clean_name}\n\n## 1. Overview\n\n## 5. Acceptance Criteria\n"
     
     with open(spec_file, "w", encoding="utf-8") as f:
         f.write(spec_content)
@@ -167,12 +194,12 @@ def scaffold_new_spec(
     # 2. Create initial state.json with clean empty issues list (tasks generated during /workflow plan)
     state_file = os.path.join(spec_dir, "state.json")
     initial_state = {
-        "spec_name": spec_name,
+        "spec_name": clean_name,
         "spec_path": spec_dir,
         "archetype": norm_archetype,
         "daemon_name": None,
         "worktree_path": None,
-        "branch_name": f"workflow/{parent_folder}-{spec_name}",
+        "branch_name": f"workflow/{parent_folder}-{clean_name}",
         "current_issue_index": 0,
         "issues": [],
         "dag_step": "NEW_SPEC_INITIALIZED",
@@ -184,12 +211,11 @@ def scaffold_new_spec(
         "can_auto_merge": False,
         "memory_logged": False,
     }
-    with open(state_file, "w", encoding="utf-8") as f:
-        json.dump(initial_state, f, indent=2)
+    atomic_write_json(state_file, initial_state)
 
     return {
         "status": "SUCCESS",
-        "spec_name": spec_name,
+        "spec_name": clean_name,
         "archetype": norm_archetype,
         "namespace": parent_folder,
         "spec_dir": spec_dir,
@@ -202,11 +228,12 @@ def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
     """Moves a completed spec folder into .workflow/specs/archive/<year>/<spec_name>/."""
     wf_root = get_workflow_root(target_dir)
     specs_root = os.path.join(wf_root, "specs")
+    clean_name = sanitize_identifier(spec_name)
     
     # Search for spec in features, bugs, refactor, docs
     found_src = None
     for folder in ["features", "bugs", "refactor", "docs"]:
-        candidate = os.path.join(specs_root, folder, spec_name)
+        candidate = os.path.join(specs_root, folder, clean_name)
         if os.path.exists(candidate) and os.path.isdir(candidate):
             found_src = candidate
             break
@@ -214,12 +241,12 @@ def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
     if not found_src:
         if os.path.exists(spec_name) and os.path.isdir(spec_name):
             found_src = os.path.abspath(spec_name)
-            spec_name = os.path.basename(found_src)
+            clean_name = sanitize_identifier(os.path.basename(found_src))
         else:
             return {"status": "ERROR", "message": f"Spec '{spec_name}' not found under .workflow/specs/features, bugs, refactor, or docs."}
 
     year = str(datetime.now().year)
-    archive_dest = os.path.join(specs_root, "archive", year, spec_name)
+    archive_dest = os.path.join(specs_root, "archive", year, clean_name)
     os.makedirs(os.path.dirname(archive_dest), exist_ok=True)
 
     if os.path.exists(archive_dest):
@@ -229,7 +256,7 @@ def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
 
     return {
         "status": "ARCHIVED",
-        "spec_name": spec_name,
+        "spec_name": clean_name,
         "source_path": found_src,
         "archive_path": archive_dest,
     }
