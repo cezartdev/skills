@@ -22,6 +22,33 @@ from scaffolder import get_workflow_root, sanitize_identifier, atomic_write_json
 from graph.engine import WorkflowEngine
 
 
+import socket
+import getpass
+import platform
+
+
+def get_machine_identity() -> Dict[str, str]:
+    """Returns stable host and machine metadata for multi-developer team collaboration."""
+    try:
+        user = getpass.getuser()
+    except Exception:
+        user = "developer"
+    try:
+        hostname = socket.gethostname()
+    except Exception:
+        hostname = "local-machine"
+
+    os_name = platform.system().lower()
+    host_tag = f"{user}@{hostname}"
+
+    return {
+        "user": user,
+        "hostname": hostname,
+        "os": os_name,
+        "host_tag": host_tag,
+    }
+
+
 def get_daemon_registry_path(target_dir: str = ".") -> str:
     """Returns absolute path to .workflow/daemons.json."""
     wf_root = get_workflow_root(target_dir)
@@ -60,18 +87,25 @@ def is_workflow_process(pid: Optional[int]) -> bool:
 
 
 def reconcile_daemon_registry(target_dir: str = ".") -> Dict[str, Any]:
-    """Post-Reboot Self-Healing & Zombie State Reconciler.
+    """Post-Reboot Self-Healing & Zombie State Reconciler with Multi-Machine Host Affinity.
     
-    Validates all registered daemons. If machine was rebooted or processes crashed,
-    reconciles stale RUNNING states to STOPPED and cleans abandoned lockfiles.
+    Validates all registered daemons belonging to the current host. If the local machine was rebooted
+    or processes crashed, reconciles stale RUNNING states to STOPPED. Daemons hosted on other machines
+    are respected and not erroneously killed or terminated.
     """
     target_dir = os.path.abspath(target_dir)
     registry = load_daemon_registry(target_dir)
     recovered = []
+    current_host = get_machine_identity()["host_tag"]
 
     for name, entry in list(registry.get("daemons", {}).items()):
         status = entry.get("status")
         pid = entry.get("pid")
+        entry_host = entry.get("host")
+
+        # Multi-Machine Protection: Only audit local PIDs for daemons started on this machine
+        if entry_host and entry_host != current_host:
+            continue
 
         if status in ["RUNNING", "PAUSED"]:
             if not is_workflow_process(pid):
@@ -89,6 +123,7 @@ def reconcile_daemon_registry(target_dir: str = ".") -> Dict[str, Any]:
         "status": "RECONCILED",
         "recovered_count": len(recovered),
         "recovered_daemons": recovered,
+        "host": current_host,
     }
 
 
@@ -132,6 +167,127 @@ def load_workflow_config(target_dir: str = ".") -> Dict[str, Any]:
     return {"daemons": {}, "test_runner": {"command": "pnpm test"}}
 
 
+def save_workflow_config(config: Dict[str, Any], target_dir: str = ".") -> str:
+    """Saves workflow configuration atomically to .workflow/workflow.json."""
+    target_dir = os.path.abspath(target_dir)
+    wf_root = get_workflow_root(target_dir)
+    os.makedirs(wf_root, exist_ok=True)
+    cfg_path = os.path.join(wf_root, "workflow.json")
+    atomic_write_json(cfg_path, config)
+    return cfg_path
+
+
+def create_daemon_blueprint(
+    name: str,
+    archetype: str = "fix",
+    interval_minutes: int = 10,
+    max_iterations: Optional[int] = None,
+    description: Optional[str] = None,
+    target_spec_dir: Optional[str] = None,
+    target_dir: str = "."
+) -> Dict[str, Any]:
+    """Creates a new daemon blueprint entry in .workflow/workflow.json without manual editing."""
+    target_dir = os.path.abspath(target_dir)
+    clean_name = sanitize_identifier(name)
+    config = load_workflow_config(target_dir)
+
+    if "daemons" not in config:
+        config["daemons"] = {}
+
+    default_descriptions = {
+        "fix": f"Autonomous bug fixer & regression hunter for {clean_name}",
+        "refactor": f"Architectural cleanup & code smell refactorer for {clean_name}",
+        "implement": f"Autonomous feature implementer for {clean_name}",
+        "doc_sync": f"Documentation synchronizer & README updater for {clean_name}",
+    }
+    desc = description or default_descriptions.get(archetype, f"Background worker for {clean_name}")
+
+    spec_folder_map = {
+        "fix": ".workflow/specs/bugs",
+        "refactor": ".workflow/specs/refactor",
+        "doc_sync": ".workflow/specs/docs",
+        "implement": ".workflow/specs/features",
+    }
+    spec_dir = target_spec_dir or spec_folder_map.get(archetype, ".workflow/specs/features")
+
+    schedule_payload: Dict[str, Any] = {"interval_minutes": int(interval_minutes)}
+    if max_iterations is not None and max_iterations > 0:
+        schedule_payload["max_iterations"] = int(max_iterations)
+
+    config["daemons"][clean_name] = {
+        "archetype": archetype,
+        "description": desc,
+        "schedule": schedule_payload,
+        "target_spec_dir": spec_dir,
+        "worktree": f".workflow/worktrees/{clean_name}",
+    }
+
+    save_workflow_config(config, target_dir)
+    return {
+        "status": "CREATED",
+        "daemon_name": clean_name,
+        "archetype": archetype,
+        "interval_minutes": int(interval_minutes),
+        "max_iterations": max_iterations,
+        "description": desc,
+        "target_spec_dir": spec_dir,
+    }
+
+
+def update_daemon_config(
+    name: str,
+    interval_minutes: Optional[int] = None,
+    max_iterations: Optional[int] = None,
+    archetype: Optional[str] = None,
+    description: Optional[str] = None,
+    target_dir: str = "."
+) -> Dict[str, Any]:
+    """Updates an existing daemon blueprint in .workflow/workflow.json and synchronizes daemons.json."""
+    target_dir = os.path.abspath(target_dir)
+    clean_name = sanitize_identifier(name)
+    config = load_workflow_config(target_dir)
+
+    if "daemons" not in config or clean_name not in config["daemons"]:
+        return {"status": "NOT_FOUND", "daemon_name": clean_name}
+
+    daemon_entry = config["daemons"][clean_name]
+    if "schedule" not in daemon_entry:
+        daemon_entry["schedule"] = {}
+
+    if interval_minutes is not None and interval_minutes > 0:
+        daemon_entry["schedule"]["interval_minutes"] = int(interval_minutes)
+    if max_iterations is not None:
+        if max_iterations > 0:
+            daemon_entry["schedule"]["max_iterations"] = int(max_iterations)
+        elif "max_iterations" in daemon_entry["schedule"]:
+            del daemon_entry["schedule"]["max_iterations"]
+    if archetype:
+        daemon_entry["archetype"] = archetype
+    if description:
+        daemon_entry["description"] = description
+
+    save_workflow_config(config, target_dir)
+
+    # Synchronize active registry in daemons.json
+    registry = load_daemon_registry(target_dir)
+    if clean_name in registry.get("daemons", {}):
+        active_d = registry["daemons"][clean_name]
+        if interval_minutes is not None and interval_minutes > 0:
+            active_d["interval_minutes"] = int(interval_minutes)
+            active_d["cron_expression"] = f"*/{interval_minutes} * * * *"
+        if max_iterations is not None:
+            active_d["max_iterations"] = max_iterations if max_iterations > 0 else None
+        if archetype:
+            active_d["archetype"] = archetype
+        save_daemon_registry(registry, target_dir)
+
+    return {
+        "status": "UPDATED",
+        "daemon_name": clean_name,
+        "config": daemon_entry,
+    }
+
+
 def get_daemon_catalog(target_dir: str = ".") -> Dict[str, Any]:
     """Returns catalog of all configured daemon blueprints from workflow.json alongside active status."""
     target_dir = os.path.abspath(target_dir)
@@ -150,25 +306,29 @@ def get_daemon_catalog(target_dir: str = ".") -> Dict[str, Any]:
 
     for name, conf in config_daemons.items():
         arch = conf.get("archetype", "implement")
+        sched = conf.get("schedule", {}) if isinstance(conf.get("schedule"), dict) else {}
         interval = (
-            conf.get("schedule", {}).get("interval_minutes")
-            if isinstance(conf.get("schedule"), dict) and "interval_minutes" in conf["schedule"]
-            else conf.get("interval_minutes")
-            or (conf.get("schedule", {}).get("interval") if isinstance(conf.get("schedule"), dict) else None)
+            sched.get("interval_minutes")
+            or conf.get("interval_minutes")
+            or sched.get("interval")
             or conf.get("interval")
             or 10
         )
+        max_iter = sched.get("max_iterations") or conf.get("max_iterations")
         desc = conf.get("description") or descriptions.get(name, f"Background worker for {arch}")
         active_entry = registry.get("daemons", {}).get(name, {})
         status = active_entry.get("status", "STOPPED")
+        host = active_entry.get("host")
 
         catalog.append({
             "name": name,
             "archetype": arch,
             "default_interval_minutes": interval,
+            "max_iterations": max_iter,
             "cron_expression": f"*/{interval} * * * *",
             "description": desc,
             "status": status,
+            "host": host,
             "conversation_id": active_entry.get("conversation_id"),
             "worktree_path": active_entry.get("worktree_path") or os.path.join(".workflow", "worktrees", name),
         })
@@ -184,6 +344,7 @@ def get_daemon_catalog(target_dir: str = ".") -> Dict[str, Any]:
 def start_daemon(
     daemon_name: str,
     interval_minutes: Optional[int] = None,
+    max_iterations: Optional[int] = None,
     archetype: Optional[str] = None,
     target_dir: str = "."
 ) -> Dict[str, Any]:
@@ -196,6 +357,7 @@ def start_daemon(
     wf_root = get_workflow_root(target_dir)
     config = load_workflow_config(target_dir)
     daemon_conf = config.get("daemons", {}).get(clean_name, {})
+    sched = daemon_conf.get("schedule", {}) if isinstance(daemon_conf.get("schedule"), dict) else {}
 
     # Resolve archetype
     if archetype:
@@ -225,6 +387,9 @@ def start_daemon(
     else:
         interval = 10
 
+    # Resolve max iterations
+    effective_max_iter = max_iterations if max_iterations is not None else sched.get("max_iterations")
+
     cron_expr = f"*/{interval} * * * *"
 
     # 1. Pre-Flight Self-Healing: purge any prior zombie or stale worktree of this daemon
@@ -232,8 +397,9 @@ def start_daemon(
 
     worktree_path = os.path.join(wf_root, "worktrees", clean_name)
     now = datetime.now().isoformat()
+    machine = get_machine_identity()
 
-    # 2. Register active daemon in .workflow/daemons.json
+    # 2. Register active daemon in .workflow/daemons.json with multi-machine host tagging
     registry = load_daemon_registry(target_dir)
     registry["daemons"][clean_name] = {
         "name": clean_name,
@@ -241,6 +407,8 @@ def start_daemon(
         "archetype": arch,
         "cron_expression": cron_expr,
         "interval_minutes": interval,
+        "max_iterations": effective_max_iter,
+        "iteration_count": 0,
         "worktree_path": worktree_path,
         "started_at": now,
         "last_heartbeat": now,
@@ -248,6 +416,8 @@ def start_daemon(
         "last_result": "INITIALIZED",
         "conversation_id": None,
         "pid": os.getpid(),
+        "host": machine["host_tag"],
+        "os": machine["os"],
     }
     save_daemon_registry(registry, target_dir)
 
@@ -306,8 +476,10 @@ def stop_daemon(daemon_name: str, target_dir: str = ".", force: bool = False) ->
     conv_id = entry.get("conversation_id")
     pid = entry.get("pid")
 
-    # Phase 1: Process & Task Termination (with PID recycling defense)
-    if pid and pid != os.getpid() and is_workflow_process(pid):
+    # Phase 1: Process & Task Termination (with PID recycling defense & Host Affinity)
+    current_host = get_machine_identity()["host_tag"]
+    entry_host = entry.get("host")
+    if (not entry_host or entry_host == current_host) and pid and pid != os.getpid() and is_workflow_process(pid):
         try:
             os.kill(pid, signal.SIGTERM)
             time.sleep(0.5)
@@ -404,7 +576,7 @@ def clean_orphaned_daemons(target_dir: str = ".") -> Dict[str, Any]:
 
 
 def get_daemon_status_table(target_dir: str = ".") -> Dict[str, Any]:
-    """Returns structured table of active daemons, schedules, and health metrics."""
+    """Returns structured table of active daemons, schedules, host affinity, and health metrics."""
     target_dir = os.path.abspath(target_dir)
     reconcile_daemon_registry(target_dir)
     registry = load_daemon_registry(target_dir)
@@ -419,6 +591,10 @@ def get_daemon_status_table(target_dir: str = ".") -> Dict[str, Any]:
             "archetype": entry.get("archetype", "fix"),
             "cron_expression": entry.get("cron_expression", "N/A"),
             "interval_minutes": entry.get("interval_minutes", 10),
+            "max_iterations": entry.get("max_iterations"),
+            "iteration_count": entry.get("iteration_count", 0),
+            "host": entry.get("host", "local"),
+            "os": entry.get("os", "unknown"),
             "started_at": entry.get("started_at"),
             "last_heartbeat": entry.get("last_heartbeat"),
             "last_run_at": entry.get("last_run_at"),

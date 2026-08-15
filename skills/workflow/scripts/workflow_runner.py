@@ -26,6 +26,8 @@ from daemon_manager import (
     run_daemon_cycle,
     load_workflow_config,
     reconcile_daemon_registry,
+    create_daemon_blueprint,
+    update_daemon_config,
 )
 from curator import compile_scoped_pr_summary, create_curator_pr, archive_merged_pr
 from orchestrator import prepare_subagent_dispatch, generate_subagent_directive, get_archetype_prompt
@@ -661,22 +663,119 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("=" * 110)
         print(" 🤖 AVAILABLE WORKFLOW DAEMONS (.workflow/workflow.json)")
         print("=" * 110)
-        print(f"{'NAME':<20} │ {'ARCHETYPE':<12} │ {'DEFAULT CRON':<14} │ {'STATUS':<10} │ DESCRIPTION")
+        print(f"{'NAME':<18} │ {'ARCHETYPE':<10} │ {'CRON':<12} │ {'MAX ITER':<10} │ {'STATUS':<10} │ {'HOST':<20} │ DESCRIPTION")
         print("-" * 110)
         for d in res.get("daemons", []):
-            print(f"{d['name']:<20} │ {d['archetype']:<12} │ every {d['default_interval_minutes']}m     │ {d['status']:<10} │ {d['description']}")
+            max_it = str(d.get("max_iterations") or "Unlimited")
+            host_str = str(d.get("host") or "-")
+            print(f"{d['name']:<18} │ {d['archetype']:<10} │ every {d['default_interval_minutes']}m    │ {max_it:<10} │ {d['status']:<10} │ {host_str:<20} │ {d['description']}")
         print("=" * 110)
 
         print_next_steps([
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon create <name>", "desc": "Create a new custom daemon blueprint"},
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon set <name> --interval <m>", "desc": "Configure daemon schedule or iterations"},
             {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer", "desc": "Start background daemon subagent"},
             {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "View active daemon health table"},
+        ])
+        return 0
+
+    elif action in ["create", "add"]:
+        if not getattr(args, "name", None):
+            print("Error: Daemon name is required for daemon create. Example: workflow daemon create perf-monitor --archetype refactor", file=sys.stderr)
+            return 1
+
+        name = args.name
+        archetype = args.archetype or "fix"
+        interval = getattr(args, "interval", None) or 10
+        max_iter = getattr(args, "max_iterations", None)
+        desc = getattr(args, "description", None)
+        target_spec = getattr(args, "target_spec_dir", None)
+
+        res = create_daemon_blueprint(
+            name=name,
+            archetype=archetype,
+            interval_minutes=interval,
+            max_iterations=max_iter,
+            description=desc,
+            target_spec_dir=target_spec,
+            target_dir=target_dir
+        )
+
+        if args.json:
+            print(json.dumps(res, indent=2))
+            return 0
+
+        print("=" * 110)
+        print(f" ✨ DAEMON BLUEPRINT CREATED: '{res['daemon_name']}' (.workflow/workflow.json)")
+        print("=" * 110)
+        print(f"{'PROPERTY':<24} │ VALUE")
+        print("-" * 110)
+        print(f"{'Archetype':<24} │ {res['archetype']}")
+        print(f"{'Execution Interval':<24} │ every {res['interval_minutes']}m (cron: */{res['interval_minutes']} * * * *)")
+        print(f"{'Max Iterations':<24} │ {res['max_iterations'] if res['max_iterations'] else 'Unlimited (Continuous)'}")
+        print(f"{'Description':<24} │ {res['description']}")
+        print(f"{'Target Spec Dir':<24} │ {res['target_spec_dir']}")
+        print(f"{'Isolated Worktree':<24} │ .workflow/worktrees/{res['daemon_name']}")
+        print("=" * 110)
+
+        print_next_steps([
+            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py daemon start {res['daemon_name']}", "desc": "Launch this new daemon background worker"},
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon list", "desc": "Inspect all registered daemon blueprints"},
+        ])
+        return 0
+
+    elif action in ["set", "edit", "config"]:
+        if not getattr(args, "name", None):
+            print("Error: Daemon name is required for daemon set. Example: workflow daemon set auto-fixer --interval 5 --max-iterations 10", file=sys.stderr)
+            return 1
+
+        name = args.name
+        interval = getattr(args, "interval", None)
+        max_iter = getattr(args, "max_iterations", None)
+        archetype = args.archetype
+        desc = getattr(args, "description", None)
+
+        res = update_daemon_config(
+            name=name,
+            interval_minutes=interval,
+            max_iterations=max_iter,
+            archetype=archetype,
+            description=desc,
+            target_dir=target_dir
+        )
+
+        if res.get("status") == "NOT_FOUND":
+            print(f"Error: Daemon '{name}' not found in .workflow/workflow.json. Use 'workflow daemon create {name}' first.", file=sys.stderr)
+            return 1
+
+        if args.json:
+            print(json.dumps(res, indent=2))
+            return 0
+
+        cfg = res.get("config", {})
+        sched = cfg.get("schedule", {})
+        print("=" * 110)
+        print(f" ⚙️  DAEMON CONFIGURATION UPDATED: '{name}' (.workflow/workflow.json)")
+        print("=" * 110)
+        print(f"{'PROPERTY':<24} │ VALUE")
+        print("-" * 110)
+        print(f"{'Archetype':<24} │ {cfg.get('archetype')}")
+        print(f"{'Execution Interval':<24} │ every {sched.get('interval_minutes', 10)}m")
+        print(f"{'Max Iterations':<24} │ {sched.get('max_iterations', 'Unlimited (Continuous)')}")
+        print(f"{'Description':<24} │ {cfg.get('description')}")
+        print("=" * 110)
+
+        print_next_steps([
+            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py daemon start {name}", "desc": "Launch daemon with updated schedule configuration"},
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon list", "desc": "Inspect daemon blueprints catalog"},
         ])
         return 0
 
     elif action == "start":
         name = args.name or "auto-fixer"
         interval = getattr(args, "interval", None)
-        res = start_daemon(daemon_name=name, interval_minutes=interval, archetype=args.archetype, target_dir=target_dir)
+        max_iter = getattr(args, "max_iterations", None)
+        res = start_daemon(daemon_name=name, interval_minutes=interval, max_iterations=max_iter, archetype=args.archetype, target_dir=target_dir)
         if args.json:
             print(json.dumps(res, indent=2))
             return 0
@@ -795,20 +894,24 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("=" * 110)
         print(" 🤖 WORKFLOW DAEMONS STATUS (.workflow/daemons.json)")
         print("=" * 110)
-        print(f"{'DAEMON':<20} │ {'STATUS':<10} │ {'SCHEDULE':<12} │ {'LAST RESULT':<16} │ WORKTREE")
+        print(f"{'DAEMON':<18} │ {'STATUS':<9} │ {'SCHEDULE':<10} │ {'MAX ITER':<10} │ {'HOST':<18} │ {'RESULT':<12} │ WORKTREE")
         print("-" * 110)
         if not res["daemons"]:
-            print(f"{'auto-fixer':<20} │ {'STOPPED':<10} │ {'every 10m':<12} │ {'N/A':<16} │ .workflow/worktrees/auto-fixer")
-            print(f"{'refactor-worker':<20} │ {'STOPPED':<10} │ {'every 15m':<12} │ {'N/A':<16} │ .workflow/worktrees/refactor-worker")
-            print(f"{'doc-sync':<20} │ {'STOPPED':<10} │ {'every 30m':<12} │ {'N/A':<16} │ .workflow/worktrees/doc-sync")
+            print(f"{'auto-fixer':<18} │ {'STOPPED':<9} │ {'every 10m':<10} │ {'Unlimited':<10} │ {'-':<18} │ {'N/A':<12} │ .workflow/worktrees/auto-fixer")
+            print(f"{'refactor-worker':<18} │ {'STOPPED':<9} │ {'every 15m':<10} │ {'Unlimited':<10} │ {'-':<18} │ {'N/A':<12} │ .workflow/worktrees/refactor-worker")
+            print(f"{'doc-sync':<18} │ {'STOPPED':<9} │ {'every 30m':<10} │ {'Unlimited':<10} │ {'-':<18} │ {'N/A':<12} │ .workflow/worktrees/doc-sync")
         else:
             for d in res["daemons"]:
                 status_str = d["status"]
-                print(f"{d['name']:<20} │ {status_str:<10} │ every {d['interval_minutes']}m     │ {str(d.get('last_result')):<16} │ {d['worktree_path']}")
+                max_it = str(d.get("max_iterations") or "Unlimited")
+                host_str = str(d.get("host") or "-")
+                res_str = str(d.get("last_result") or "-")
+                print(f"{d['name']:<18} │ {status_str:<9} │ every {d['interval_minutes']}m   │ {max_it:<10} │ {host_str:<18} │ {res_str:<12} │ {d['worktree_path']}")
         print("=" * 110)
 
         print_next_steps([
             {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer", "desc": "Launch auto-fixer background worker"},
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon create <name>", "desc": "Create a new custom daemon blueprint"},
             {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon pause --all", "desc": "Freeze all workers for release curation"},
         ])
         return 0
@@ -895,12 +998,14 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow archive", "syntax": "workflow archive <name>", "desc": "Move completed spec to .workflow/specs/archive/<year>/"},
         {"slash": "/workflow drift", "syntax": "workflow drift [--sync]", "desc": "Detect manifest checksum drift & sync tech context"},
         {"slash": "/workflow memory", "syntax": "workflow memory <action>", "desc": "Manage episodic memory sliding window & 00-10 compaction"},
-        {"slash": "/workflow daemon list", "syntax": "workflow daemon list", "desc": "Display catalog of configured daemon blueprints & activation status"},
+        {"slash": "/workflow daemon list", "syntax": "workflow daemon list", "desc": "Display catalog of configured daemon blueprints & multi-machine status"},
+        {"slash": "/workflow daemon create", "syntax": "workflow daemon create <name> [--archetype <type>]", "desc": "Create a new daemon blueprint in workflow.json"},
+        {"slash": "/workflow daemon set", "syntax": "workflow daemon set <name> [--interval <m>]", "desc": "Modify daemon schedule interval or max iterations"},
         {"slash": "/workflow daemon start", "syntax": "workflow daemon start [name]", "desc": "Start background daemon subagent (auto-fixer, refactor-worker, doc-sync)"},
         {"slash": "/workflow daemon pause", "syntax": "workflow daemon pause [name]", "desc": "Pause background worker without deleting worktree"},
         {"slash": "/workflow daemon resume", "syntax": "workflow daemon resume [name]", "desc": "Resume paused background worker execution"},
         {"slash": "/workflow daemon stop", "syntax": "workflow daemon stop [name|--all]", "desc": "Terminate background worker & execute Anti-Zombie purge"},
-        {"slash": "/workflow daemon status", "syntax": "workflow daemon status", "desc": "View active daemon health table & execution metrics"},
+        {"slash": "/workflow daemon status", "syntax": "workflow daemon status", "desc": "View active daemon health table, host affinity & execution metrics"},
         {"slash": "/workflow daemon clean", "syntax": "workflow daemon clean", "desc": "Force purge orphaned worktrees & dead worker PIDs"},
         {"slash": "/workflow curate", "syntax": "workflow curate [--archetype <type>]", "desc": "Compile scoped PR summary in .workflow/prs/active/ & open PR"},
         {"slash": "/workflow chat", "syntax": "workflow chat [spec]", "desc": "Macro architecture brainstorming & scoped spec debate"},
@@ -1004,10 +1109,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     # daemon
     p_daemon = subparsers.add_parser("daemon", help="Manage background daemon subagents, cron scheduling, and Anti-Zombie lifecycle")
-    p_daemon.add_argument("action", nargs="?", default="status", choices=["list", "start", "pause", "resume", "stop", "status", "clean", "run"], help="Daemon action")
+    p_daemon.add_argument("action", nargs="?", default="status", choices=["list", "create", "add", "set", "edit", "config", "start", "pause", "resume", "stop", "status", "clean", "run"], help="Daemon action")
     p_daemon.add_argument("name", nargs="?", help="Named daemon (e.g. auto-fixer, refactor-worker)")
     p_daemon.add_argument("--interval", type=int, default=None, help="Cron interval in minutes (defaults to workflow.json setting or 10)")
+    p_daemon.add_argument("--max-iterations", type=int, default=None, help="Maximum number of iterations before stopping (0/None for unlimited)")
     p_daemon.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync"], help="Archetype persona")
+    p_daemon.add_argument("--description", help="Human-readable description of daemon responsibilities")
+    p_daemon.add_argument("--target-spec-dir", help="Custom directory containing target specs")
     p_daemon.add_argument("--all", action="store_true", help="Apply stop/pause to all running daemons")
     p_daemon.add_argument("--force", action="store_true", help="Force terminate process and wipe worktree")
     p_daemon.add_argument("--auto-merge", action="store_true", help="Enable safe auto-merge into main on completion")

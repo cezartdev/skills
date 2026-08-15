@@ -40,6 +40,14 @@ metadata:
 >    - Terminate any active subagent conversation for that daemon (`manage_subagents(Action="kill", ConversationIds=[...])`).
 >    - If a scheduled wakeup prompt is received while `.workflow/daemons.json` marks the daemon as `STOPPED` or `PAUSED`, the agent MUST abort immediately without performing any worktree operations, tests, or code changes.
 > 5. **Interactive Test Runner Selection**: When `/workflow init` or `/workflow explore` indicates that no explicit test script is defined in project manifests, the AI Agent MUST prompt the developer using `ask_question` in English to pick from the detected ecosystem candidates (e.g. `pnpm test`, `vitest run`, `jest`).
+> 6. **Daemon Blueprint Creation & Configuration Grilling**: When triggering `/workflow daemon create` or `/workflow daemon set` without flags, the AI Agent MUST conduct an interactive Grilling Session using `ask_question` asking sequentially:
+>    - Daemon Name (e.g. `security-auditor`, `perf-monitor`).
+>    - Archetype persona (`fix`, `refactor`, `implement`, `doc_sync`).
+>    - Execution interval in minutes (`5`, `10`, `15`, `30`, `60`).
+>    - Max iterations cap (`Unlimited`, `5`, `10`, `20`, `50`).
+>    - Responsibilities description.
+>    - Then execute `uv run skills/workflow/scripts/workflow_runner.py daemon create ...` or `daemon set ...` with atomic updates to `.workflow/workflow.json`.
+> 7. **Multi-Machine Host Affinity**: All daemons register their machine fingerprint (`host: user@hostname`). AI Agents and scripts on other machines MUST respect remote workers and NEVER send local OS kill signals or corrupt worktrees belonging to other team members.
 
 ---
 
@@ -102,12 +110,14 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 | `/workflow archive` | `workflow archive <name>` | Move completed spec to `.workflow/specs/archive/<year>/` |
 | `/workflow drift` | `workflow drift [--sync]` | Detect manifest checksum drift & sync tech context |
 | `/workflow memory` | `workflow memory <action>` | Manage episodic memory sliding window & 00-10 compaction |
-| `/workflow daemon list` | `workflow daemon list` | Display catalog of configured daemon blueprints & activation status |
+| `/workflow daemon list` | `workflow daemon list` | Display catalog of configured daemon blueprints & multi-machine status |
+| `/workflow daemon create` | `workflow daemon create <name>` | Create a new daemon blueprint in `workflow.json` via interactive Grilling |
+| `/workflow daemon set` | `workflow daemon set <name> [--interval <m>]` | Modify daemon schedule interval, max iterations, or archetype |
 | `/workflow daemon start` | `workflow daemon start [name]` | Start background daemon subagent (`auto-fixer`, `refactor-worker`, `doc-sync`) |
 | `/workflow daemon pause` | `workflow daemon pause [name]` | Pause background worker without deleting worktree |
 | `/workflow daemon resume` | `workflow daemon resume [name]` | Resume paused background worker execution |
 | `/workflow daemon stop` | `workflow daemon stop [name\|--all]` | Terminate background worker & execute Anti-Zombie purge |
-| `/workflow daemon status` | `workflow daemon status` | View active daemon health table & execution metrics |
+| `/workflow daemon status` | `workflow daemon status` | View active daemon health table, host affinity & execution metrics |
 | `/workflow daemon clean` | `workflow daemon clean` | Force purge orphaned worktrees & dead worker PIDs |
 | `/workflow curate` | `workflow curate [--archetype <type>]` | Compile scoped PR summary in `.workflow/prs/active/` & open PR |
 | `/workflow chat` | `workflow chat [spec]` | Macro architecture brainstorming & scoped spec debate |

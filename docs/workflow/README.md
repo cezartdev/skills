@@ -77,10 +77,20 @@ uv run skills/workflow/scripts/workflow_runner.py run 001-payment-gateway
 uv run skills/workflow/scripts/workflow_runner.py archive 001-payment-gateway
 ```
 
-### 5. Built-in Base Daemons & Scheduling
+### 5. Multi-Daemon Scheduling & Configuration
 ```bash
-# View catalog of all configured daemon blueprints & activation status
+# View catalog of all configured daemon blueprints & multi-machine status
 uv run skills/workflow/scripts/workflow_runner.py daemon list
+
+# Create a new daemon blueprint without manual JSON editing
+uv run skills/workflow/scripts/workflow_runner.py daemon create security-auditor \
+  --archetype fix \
+  --interval 5 \
+  --max-iterations 20 \
+  --description "Vulnerability audit & regression hunter"
+
+# Modify an existing daemon blueprint's schedule or iterations dynamically
+uv run skills/workflow/scripts/workflow_runner.py daemon set security-auditor --interval 3 --max-iterations 50
 
 # 1. Start auto-fixer subagent (archetype: fix, bugs namespace) every 10 minutes
 uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer --interval 10
@@ -97,7 +107,7 @@ uv run skills/workflow/scripts/workflow_runner.py daemon pause auto-fixer
 # Resume daemon cron execution
 uv run skills/workflow/scripts/workflow_runner.py daemon resume auto-fixer
 
-# View active daemon status table & health metrics
+# View active daemon status table, multi-machine host affinity (user@hostname) & health metrics
 uv run skills/workflow/scripts/workflow_runner.py daemon status
 
 # Stop a specific daemon or all daemons with Anti-Zombie purge
