@@ -46,14 +46,29 @@ def atomic_write_json(file_path: str, data: Dict[str, Any]) -> None:
 def ensure_dir_with_gitkeep(dir_path: str) -> str:
     """Ensures directory exists and places an empty .gitkeep file so git preserves the directory structure."""
     os.makedirs(dir_path, exist_ok=True)
-    gitkeep_file = os.path.join(dir_path, ".gitkeep")
-    if not os.path.exists(gitkeep_file):
-        try:
-            with open(gitkeep_file, "w", encoding="utf-8") as f:
-                f.write("")
-        except Exception:
-            pass
+    reconcile_gitkeep(dir_path)
     return dir_path
+
+
+def reconcile_gitkeep(dir_path: str) -> None:
+    """Ensures .gitkeep is deleted if directory contains real files/dirs, or restored if completely empty."""
+    if not os.path.exists(dir_path) or not os.path.isdir(dir_path):
+        return
+    gitkeep_file = os.path.join(dir_path, ".gitkeep")
+    entries = [e for e in os.listdir(dir_path) if e != ".gitkeep"]
+    if len(entries) > 0:
+        if os.path.exists(gitkeep_file):
+            try:
+                os.remove(gitkeep_file)
+            except OSError:
+                pass
+    else:
+        if not os.path.exists(gitkeep_file):
+            try:
+                with open(gitkeep_file, "w", encoding="utf-8") as f:
+                    f.write("")
+            except OSError:
+                pass
 
 
 def get_skill_assets_dir() -> str:
@@ -225,6 +240,10 @@ def scaffold_new_spec(
     }
     atomic_write_json(state_file, initial_state)
 
+    # Reconcile parent namespace directory (removes .gitkeep from specs/<parent_folder> since spec_dir now exists)
+    parent_specs_dir = os.path.join(wf_root, "specs", parent_folder)
+    reconcile_gitkeep(parent_specs_dir)
+
     return {
         "status": "SUCCESS",
         "spec_name": clean_name,
@@ -237,23 +256,26 @@ def scaffold_new_spec(
 
 
 def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
-    """Moves a completed spec folder into .workflow/specs/archive/<year>/<spec_name>/."""
+    """Moves a completed spec folder into .workflow/specs/archive/<year>/<spec_name>/ and reconciles .gitkeep."""
     wf_root = get_workflow_root(target_dir)
     specs_root = os.path.join(wf_root, "specs")
     clean_name = sanitize_identifier(spec_name)
-    
+
     # Search for spec in features, bugs, refactor, docs
     found_src = None
+    src_parent_folder = None
     for folder in ["features", "bugs", "refactor", "docs"]:
         candidate = os.path.join(specs_root, folder, clean_name)
         if os.path.exists(candidate) and os.path.isdir(candidate):
             found_src = candidate
+            src_parent_folder = os.path.join(specs_root, folder)
             break
 
     if not found_src:
         if os.path.exists(spec_name) and os.path.isdir(spec_name):
             found_src = os.path.abspath(spec_name)
             clean_name = sanitize_identifier(os.path.basename(found_src))
+            src_parent_folder = os.path.dirname(found_src)
         else:
             return {"status": "ERROR", "message": f"Spec '{spec_name}' not found under .workflow/specs/features, bugs, refactor, or docs."}
 
@@ -265,6 +287,14 @@ def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
         shutil.rmtree(archive_dest)
 
     shutil.move(found_src, archive_dest)
+
+    # Reconcile origin namespace folder (restores .gitkeep if it became empty)
+    if src_parent_folder and os.path.exists(src_parent_folder):
+        reconcile_gitkeep(src_parent_folder)
+
+    # Reconcile archive folders (removes .gitkeep since items exist)
+    reconcile_gitkeep(os.path.join(specs_root, "archive"))
+    reconcile_gitkeep(os.path.dirname(archive_dest))
 
     return {
         "status": "ARCHIVED",

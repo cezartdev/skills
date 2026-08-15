@@ -8,6 +8,8 @@ import subprocess
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
+from scaffolder import reconcile_gitkeep
+
 
 def get_workflow_root(target_dir: str = ".") -> str:
     """Returns absolute path to .workflow directory."""
@@ -163,6 +165,8 @@ def compile_scoped_pr_summary(
     with open(pr_file_path, "w", encoding="utf-8") as f:
         f.write(pr_body)
 
+    reconcile_gitkeep(prs_active_dir)
+
     return {
         "status": "COMPILED",
         "title": pr_title,
@@ -239,9 +243,10 @@ def create_curator_pr(
 
 
 def archive_merged_pr(pr_filename: str, target_dir: str = ".") -> Dict[str, Any]:
-    """Moves a merged PR summary from .workflow/prs/active/ into .workflow/prs/archive/<year>/."""
+    """Moves a merged PR summary from .workflow/prs/active/ into .workflow/prs/archive/<year>/ and reconciles .gitkeep."""
     wf_root = get_workflow_root(target_dir)
-    active_path = os.path.join(wf_root, "prs", "active", pr_filename)
+    prs_active_dir = os.path.join(wf_root, "prs", "active")
+    active_path = os.path.join(prs_active_dir, pr_filename)
     if not os.path.exists(active_path):
         return {"status": "ERROR", "message": f"PR file '{pr_filename}' not found in .workflow/prs/active/."}
 
@@ -251,4 +256,9 @@ def archive_merged_pr(pr_filename: str, target_dir: str = ".") -> Dict[str, Any]
     dest_path = os.path.join(archive_dir, pr_filename)
 
     shutil.move(active_path, dest_path)
+
+    reconcile_gitkeep(prs_active_dir)
+    reconcile_gitkeep(os.path.join(wf_root, "prs", "archive"))
+    reconcile_gitkeep(archive_dir)
+
     return {"status": "ARCHIVED", "source": active_path, "destination": dest_path}

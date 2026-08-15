@@ -6,6 +6,8 @@ from typing import Dict, Any, List
 from datetime import datetime
 
 
+from scaffolder import reconcile_gitkeep
+
 ARCHETYPES = ["fix", "refactor", "implement", "doc_sync"]
 
 
@@ -15,13 +17,7 @@ def get_archetype_memory_dir(root_dir: str, archetype: str) -> str:
     wf_root = os.path.join(root_dir, ".workflow") if os.path.basename(root_dir) != ".workflow" else root_dir
     arch_dir = os.path.join(wf_root, "memory", archetype)
     os.makedirs(arch_dir, exist_ok=True)
-    gitkeep = os.path.join(arch_dir, ".gitkeep")
-    if not os.path.exists(gitkeep):
-        try:
-            with open(gitkeep, "w", encoding="utf-8") as f:
-                f.write("")
-        except Exception:
-            pass
+    reconcile_gitkeep(arch_dir)
     return arch_dir
 
 
@@ -32,7 +28,7 @@ def log_decision(
     content: str,
     spec_name: str = ""
 ) -> str:
-    """Writes an episodic decision file (e.g. 01_title.md) in the archetype's memory."""
+    """Writes an episodic decision file (e.g. 01_title.md) in the archetype's memory and removes .gitkeep."""
     arch_dir = get_archetype_memory_dir(root_dir, archetype)
     existing_files = sorted([f for f in os.listdir(arch_dir) if f.endswith(".md") and not f.startswith("00_")])
     next_idx = len(existing_files) + 1
@@ -54,6 +50,8 @@ def log_decision(
 """
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(doc)
+
+    reconcile_gitkeep(arch_dir)
 
     # Check if threshold reached for automatic compaction
     if len(existing_files) + 1 >= 10:
@@ -110,6 +108,8 @@ def compact_archetype_memory(root_dir: str, archetype: str) -> Dict[str, Any]:
     # Prune episodic files (01..10)
     for filename in episodic_files:
         os.remove(os.path.join(arch_dir, filename))
+
+    reconcile_gitkeep(arch_dir)
 
     return {
         "status": "COMPACTED",

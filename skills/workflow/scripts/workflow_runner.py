@@ -8,7 +8,14 @@ import sys
 import subprocess
 from typing import Dict, Any, List, Optional
 
-from scaffolder import scaffold_init, scaffold_new_spec, archive_spec, get_workflow_root, sanitize_identifier
+from scaffolder import (
+    scaffold_init,
+    scaffold_new_spec,
+    archive_spec,
+    get_workflow_root,
+    sanitize_identifier,
+    reconcile_gitkeep,
+)
 from explorer import scan_codebase, generate_master_context
 from drift_detector import check_drift, sync_drift
 from memory_manager import log_decision, compact_archetype_memory, get_memory_status
@@ -390,6 +397,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
             with open(task_path, "w", encoding="utf-8") as f:
                 f.write(content)
         existing_issues = sorted([f for f in os.listdir(issues_dir) if f.endswith(".md")])
+        reconcile_gitkeep(issues_dir)
 
         # Update state.json with parsed issues
         state_file = os.path.join(resolved_path, "state.json")
