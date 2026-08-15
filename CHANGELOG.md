@@ -1,5 +1,17 @@
 # cezartdev-skills
 
+## 1.6.0
+
+### Minor Changes
+
+- [`477fb54`](https://github.com/cezartdev/skills/commit/477fb544fee9a60e95205808c7ff436c12a07040) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement fixed-delay execution model and zero-overlap concurrency locks for background daemons so execution intervals start counting strictly after cycle completion, preventing overlapping agents.
+
+### Patch Changes
+
+- [`544bad0`](https://github.com/cezartdev/skills/commit/544bad0d261453b0dadabfcc8f81f9a89f674566) Thanks [@cezartdev](https://github.com/cezartdev)! - Audit and harden `workflow` skill for cross-platform compatibility across Linux, macOS (Darwin), and Windows: add Windows `tasklist` and `taskkill` process management, robust `safe_rmtree` with read-only unlock handlers, atomic write retry on transient file locks, and fix `WorkflowEngine` class method scoping.
+
+- [`afca071`](https://github.com/cezartdev/skills/commit/afca071d7ab82f286238cf2ffc09552339262b30) Thanks [@cezartdev](https://github.com/cezartdev)! - Normalize `worktree_path` in `daemons.json` and `spec_path` in `state.json` to clean project-relative paths (`.workflow/...`) to preserve user privacy and portability across machines.
+
 ## 1.5.1
 
 ### Patch Changes
