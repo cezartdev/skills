@@ -88,7 +88,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 | Slash Command | CLI Syntax | Description |
 |---|---|---|
 | `/workflow init` | `workflow init [dir]` | Initialize encapsulated `.workflow/` structure & configs |
-| `/workflow explore` | `workflow explore [dir]` | Survey polyglot stack (Python, Rust, Go, Node, Java, .NET) & update context |
+| `/workflow explore` | `workflow explore [dir]` | Survey polyglot stack & extract style preferences (`00_coding_preferences.md`) |
 | `/workflow new` | `workflow new <name> [--archetype <type>]` | Scaffold a new spec under `.workflow/specs/` (default: feat) |
 | `/workflow specify` | `workflow specify <name>` | Interactive 1-by-1 Grilling Session to co-author `spec.md` |
 | `/workflow plan` | `workflow plan <name>` | Decompose refined spec into atomic TDD task issues |

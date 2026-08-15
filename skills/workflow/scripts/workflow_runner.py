@@ -159,7 +159,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 
 def cmd_explore(args: argparse.Namespace) -> int:
-    """Runs codebase explorer scanner and updates .workflow/memory/00_project_context.md."""
+    """Runs codebase explorer scanner and updates .workflow/memory/00_project_context.md and 00_coding_preferences.md."""
     master_file = generate_master_context(args.target_dir)
     scan = scan_codebase(args.target_dir)
 
@@ -180,13 +180,32 @@ def cmd_explore(args: argparse.Namespace) -> int:
     print(f"{'Master Context':<24} │ {master_file}")
     print("=" * 110)
 
+    conv = scan.get("conventions", {})
+    lint = scan.get("linters", {})
+    pref_file = os.path.join(os.path.dirname(master_file), "00_coding_preferences.md")
+
+    print("\n" + "=" * 110)
+    print(f" 🎨 CODEBASE WRITING & STYLE PREFERENCES ({pref_file})")
+    print("=" * 110)
+    print(f"{'CONVENTION':<24} │ DETECTED PREFERENCE")
+    print("-" * 110)
+    print(f"{'Linters & Formatters':<24} │ {lint.get('tools', 'Standard / Unconfigured')}")
+    print(f"{'File Naming Idiom':<24} │ {conv.get('file_naming', 'kebab-case')}")
+    print(f"{'Indentation':<24} │ {conv.get('indentation', '2 spaces')}")
+    print(f"{'Quote Style':<24} │ {conv.get('quotes', 'single quotes')}")
+    print(f"{'Semicolons':<24} │ {conv.get('semicolons', 'always')}")
+    print(f"{'Variables & Functions':<24} │ {conv.get('variable_naming', 'camelCase')}")
+    print(f"{'Module Imports':<24} │ {conv.get('import_style', 'relative paths')}")
+    print(f"{'Type Annotations':<24} │ {conv.get('type_annotations', 'Standard / Typed')}")
+    print("=" * 110)
+
     if not scan.get("has_explicit_test_script", False) and len(scan.get("test_candidates", [])) > 1:
         print("\nℹ️  AI Agent Interactive Question Directive:")
         print(f"   No explicit test script in manifest. Ask developer with ask_question to choose test runner:")
         print(f"   Candidates: {', '.join(scan.get('test_candidates', []))}")
 
     print_next_steps([
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a feature spec for this stack"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a feature spec matching detected conventions"},
         {"cmd": "uv run skills/workflow/scripts/workflow_runner.py drift", "desc": "Check manifest checksums & detect drift"},
     ])
     return 0
@@ -859,7 +878,7 @@ def cmd_list(args: argparse.Namespace) -> int:
     """Displays the concise, fixed command reference table."""
     commands = [
         {"slash": "/workflow init", "syntax": "workflow init [dir]", "desc": "Initialize encapsulated .workflow/ structure & configs"},
-        {"slash": "/workflow explore", "syntax": "workflow explore [dir]", "desc": "Survey polyglot stack (Python, Rust, Go, Node, Java, .NET) & update context"},
+        {"slash": "/workflow explore", "syntax": "workflow explore [dir]", "desc": "Survey polyglot stack & extract style preferences (00_coding_preferences.md)"},
         {"slash": "/workflow new", "syntax": "workflow new <name> [--archetype <type>]", "desc": "Scaffold a new spec under .workflow/specs/ (default: feat)"},
         {"slash": "/workflow specify", "syntax": "workflow specify <name>", "desc": "Interactive 1-by-1 Grilling Session to co-author spec.md"},
         {"slash": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Decompose refined spec into atomic TDD task issues"},

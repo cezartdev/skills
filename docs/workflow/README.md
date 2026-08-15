@@ -44,7 +44,7 @@ uv run skills/workflow/scripts/workflow_runner.py list
 
 ### 2. Polyglot Initialization & Codebase Exploration
 ```bash
-# Auto-detects Python/uv, Rust, Go, Node, Java, or .NET
+# Auto-detects stack, test runners, and generates 00_coding_preferences.md (linters, naming, style)
 uv run skills/workflow/scripts/workflow_runner.py explore
 
 # Initialize .workflow/ module
