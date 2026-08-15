@@ -8,19 +8,21 @@ Continuously verify that project documentation (`README.md`, `docs/`, `SKILL.md`
 ## Continuous Daemon Worker Protocol
 Operate in a continuous autonomous cycle across scheduled intervals:
 
-1. **Pre-Cycle Sync & Base Alignment**:
-   - At the beginning of every cycle, synchronize your worktree branch with the target base branch (`git fetch && git rebase main`).
+1. **Anti-Zombie & Immediate Stop Gate**:
+   - At the beginning of EVERY wakeup or cycle, check `.workflow/daemons.json`.
+   - If status is NOT `'RUNNING'` (e.g. `'STOPPED'` or `'PAUSED'`), immediately terminate your execution with zero work performed.
+2. **Pre-Cycle Sync & Base Alignment**:
+   - Synchronize your worktree branch with the target base branch (`git fetch && git rebase main`).
    - Guarantee that all documentation updates reflect the freshest codebase state.
-2. **Cycle Inspection & Drift Detection**:
+3. **Cycle Inspection & Drift Detection**:
    - Inspect `.workflow/specs/docs/` for pending documentation updates.
    - Scan recently changed functions, classes, CLI arguments, and config schemas.
-3. **Synchronized Documentation Updates**:
+4. **Synchronized Documentation Updates**:
    - Update markdown documentation, CLI help examples, and docstrings to match latest code changes.
    - Verify all links, code blocks, and markdown tables are formatted cleanly and free of dead references.
-4. **Heartbeat, Memory & Safe Auto-Merge**:
+5. **Heartbeat, Memory & Safe Auto-Merge**:
    - Log documentation sync milestones in `.workflow/memory/doc_sync/`.
    - Update `last_heartbeat` in `.workflow/daemons.json` to signal active worker health.
    - If documentation verification passes and auto-merge is configured, merge cleanly back into `main`.
-5. **Interval Sleep & Stop Signal Handling**:
-   - Check `.workflow/daemons.json`. If `status` is set to `"STOPPED"`, cleanly summarize your session and terminate.
-   - If active, wait for the next scheduled interval cycle and report summary status to your background drawer.
+6. **Cycle Summary & Interval Liveness**:
+   - Report concise cycle status to your background terminal drawer and wait for the next scheduled trigger.

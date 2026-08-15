@@ -332,6 +332,10 @@ def stop_daemon(daemon_name: str, target_dir: str = ".", force: bool = False) ->
         "daemon_name": clean_name,
         "conversation_id": conv_id,
         "worktree_purged": True,
+        "cleanup_directive": {
+            "cancel_cron_action": "manage_task(Action='kill', TaskId=<daemon_schedule_task_id>)",
+            "terminate_subagent_action": f"manage_subagents(Action='kill', ConversationIds=['{conv_id}'])" if conv_id else "None",
+        },
     }
 
 
@@ -455,6 +459,17 @@ def run_daemon_cycle(
     
     spec_dir = os.path.abspath(os.path.join(root_dir, spec_dir))
     target_base = get_default_branch(root_dir)
+
+    # 0. Anti-Zombie / Immediate Stop Gate: Check if daemon is STOPPED or PAUSED
+    registry = load_daemon_registry(root_dir)
+    daemon_entry = registry.get("daemons", {}).get(clean_name)
+    if not daemon_entry or daemon_entry.get("status") in ["STOPPED", "PAUSED"]:
+        status_label = daemon_entry.get("status") if daemon_entry else "STOPPED"
+        return {
+            "status": "ABORTED",
+            "daemon_name": clean_name,
+            "reason": f"Daemon '{clean_name}' is currently {status_label}. Execution terminated immediately with zero work performed.",
+        }
 
     # 1. Setup isolated physical worktree
     wt_result = create_worktree(worktree_name, base_branch=target_base, repo_dir=root_dir)

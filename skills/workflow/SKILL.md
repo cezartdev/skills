@@ -34,7 +34,12 @@ metadata:
 >    - Execute `uv run skills/workflow/scripts/workflow_runner.py daemon start <name>`.
 >    - Register the recurring cron trigger using the native `schedule` tool (passing `CronExpression: res.cron_expression`, e.g. `*/2 * * * *` or `*/10 * * * *`, and `Prompt: "Execute recurring daemon cycle for <name> inside .workflow/worktrees/<name>/"`) to guarantee that recurring cycles are continuously triggered every interval without stopping.
 >    - Invoke the native subagent (`invoke_subagent`) passing `TypeName: "self"`, `Role: "<Name> Daemon Specialist"`, and the continuous task prompt targeting `.workflow/worktrees/<name>/`.
-> 4. **Interactive Test Runner Selection**: When `/workflow init` or `/workflow explore` indicates that no explicit test script is defined in project manifests, the AI Agent MUST prompt the developer using `ask_question` in English to pick from the detected ecosystem candidates (e.g. `pnpm test`, `vitest run`, `jest`).
+> 4. **Immediate Daemon Stop & Timer Cancellation**: When triggering `/workflow daemon stop [name|--all]`, the AI Agent MUST:
+>    - Execute `uv run skills/workflow/scripts/workflow_runner.py daemon stop <name>`.
+>    - Check active background tasks via `manage_task(Action="list")` and cancel the scheduled cron timer (`manage_task(Action="kill", TaskId=...)`) immediately.
+>    - Terminate any active subagent conversation for that daemon (`manage_subagents(Action="kill", ConversationIds=[...])`).
+>    - If a scheduled wakeup prompt is received while `.workflow/daemons.json` marks the daemon as `STOPPED` or `PAUSED`, the agent MUST abort immediately without performing any worktree operations, tests, or code changes.
+> 5. **Interactive Test Runner Selection**: When `/workflow init` or `/workflow explore` indicates that no explicit test script is defined in project manifests, the AI Agent MUST prompt the developer using `ask_question` in English to pick from the detected ecosystem candidates (e.g. `pnpm test`, `vitest run`, `jest`).
 
 ---
 

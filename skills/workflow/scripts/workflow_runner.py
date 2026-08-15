@@ -745,6 +745,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
             print("=" * 110)
             print(" 🛑 ALL DAEMONS STOPPED & WORKTREES PURGED (Anti-Zombie Clean)")
             print("=" * 110)
+            print("\nℹ️  AI Agent Stop & Cleanup Directive:")
+            print("   - Cancel all background schedule cron timers with manage_task(Action='kill')")
+            print("   - Terminate all daemon subagents with manage_subagents(Action='kill_all')")
             print_next_steps([
                 {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile completed worker patches into PR summary"},
                 {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon clean", "desc": "Ensure zero orphaned processes or locks remain"},
@@ -756,8 +759,13 @@ def cmd_daemon(args: argparse.Namespace) -> int:
                 return 0
 
             print("=" * 110)
-            print(f" 🛑 DAEMON STOPPED: '{args.name}' (Worktree & lockfiles purged)")
+            print(f" 🛑 DAEMON STOPPED: '{args.name}' (Worktree, process & scheduled timers purged)")
             print("=" * 110)
+            print("\nℹ️  AI Agent Stop & Cleanup Directive:")
+            print(f"   - Check running cron tasks with manage_task(Action='list') and cancel matching schedule task with manage_task(Action='kill', TaskId=...)")
+            conv_id = res.get("conversation_id")
+            if conv_id:
+                print(f"   - Terminate subagent conversation with manage_subagents(Action='kill', ConversationIds=['{conv_id}'])")
             print_next_steps([
                 {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile completed worker patches into PR summary"},
                 {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Verify remaining daemon status"},

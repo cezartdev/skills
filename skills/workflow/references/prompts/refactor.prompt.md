@@ -8,20 +8,22 @@ Continuously identify code smells, architectural debt, duplicate logic, and unop
 ## Continuous Daemon Worker Protocol
 Operate in a continuous autonomous cycle across scheduled intervals:
 
-1. **Pre-Cycle Sync & Base Alignment**:
-   - At the beginning of every cycle, synchronize your worktree branch with the target base branch (`git fetch && git rebase main`).
+1. **Anti-Zombie & Immediate Stop Gate**:
+   - At the beginning of EVERY wakeup or cycle, check `.workflow/daemons.json`.
+   - If status is NOT `'RUNNING'` (e.g. `'STOPPED'` or `'PAUSED'`), immediately terminate your execution with zero work performed.
+2. **Pre-Cycle Sync & Base Alignment**:
+   - Synchronize your worktree branch with the target base branch (`git fetch && git rebase main`).
    - Guarantee that all refactoring operations operate on top of the freshest repository state.
-2. **Cycle Inspection & Code Health Audit**:
+3. **Cycle Inspection & Code Health Audit**:
    - Inspect `.workflow/specs/refactor/` for pending refactoring specifications.
    - Analyze codebase for high complexity, large files, or repetitive logic.
-3. **Behavior-Preserving Refactoring**:
+4. **Behavior-Preserving Refactoring**:
    - Run the full test suite before touching any code.
    - Refactor code iteratively in small, atomic increments without changing external behavior or API contracts.
    - Re-run test suite after every step to ensure 100% pass rate.
-4. **Heartbeat, Memory & Safe Auto-Merge**:
+5. **Heartbeat, Memory & Safe Auto-Merge**:
    - Log refactoring decisions and complexity reductions in `.workflow/memory/refactor/`.
    - Update `last_heartbeat` in `.workflow/daemons.json` to signal active worker health.
    - If 100% tests pass and auto-merge is configured, merge cleanly back into `main`.
-5. **Interval Sleep & Stop Signal Handling**:
-   - Check `.workflow/daemons.json`. If `status` is set to `"STOPPED"`, cleanly summarize your session and terminate.
-   - If active, wait for the next scheduled interval cycle and report summary status to your background drawer.
+6. **Cycle Summary & Interval Liveness**:
+   - Report concise cycle status to your background terminal drawer and wait for the next scheduled trigger.
