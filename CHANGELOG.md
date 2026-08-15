@@ -1,5 +1,13 @@
 # cezartdev-skills
 
+## 1.5.1
+
+### Patch Changes
+
+- [`85fdc5c`](https://github.com/cezartdev/skills/commit/85fdc5c3d6efe2ec993296d62f2f68cb193a6e5e) Thanks [@cezartdev](https://github.com/cezartdev)! - Automatically generate `.gitkeep` placeholder files inside all base `.workflow/` scaffold directories (`specs/`, `memory/`, `prs/`, `issues/`) so Git preserves empty folder structures.
+
+- [`f75bd15`](https://github.com/cezartdev/skills/commit/f75bd15a9a1eeaf59ac2b6d434d87e440858d87c) Thanks [@cezartdev](https://github.com/cezartdev)! - Automatically remove `.gitkeep` files as soon as real files or specifications are created inside `.workflow/` subdirectories, and reconcile placeholders if directories become empty.
+
 ## 1.5.0
 
 ### Minor Changes
