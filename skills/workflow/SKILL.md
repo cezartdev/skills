@@ -48,6 +48,10 @@ metadata:
 >    - Responsibilities description.
 >    - Then execute `uv run skills/workflow/scripts/workflow_runner.py daemon create ...` or `daemon set ...` with atomic updates to `.workflow/workflow.json`.
 > 7. **Multi-Machine Host Affinity**: All daemons register their machine fingerprint (`host: user@hostname`). AI Agents and scripts on other machines MUST respect remote workers and NEVER send local OS kill signals or corrupt worktrees belonging to other team members.
+> 8. **Fixed-Delay & Zero-Overlap Concurrency Lock**: Daemon intervals operate strictly under a **Fixed-Delay** model (i.e. $N$ minutes counting **after the previous execution finishes**, NEVER overlapping concurrent agents):
+>    - Gate 0B rejects overlapping executions if a cycle is actively running (`is_busy: true`).
+>    - Gate 0C enforces cooldown until the full $N$ minutes interval has elapsed since `last_completed_at`.
+>    - Subagents and host agents complete their current cycle, record `last_completed_at`, and schedule the next cycle using `schedule(DurationSeconds=interval_minutes * 60, Prompt="...")`.
 
 ---
 

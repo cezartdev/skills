@@ -118,6 +118,13 @@ uv run skills/workflow/scripts/workflow_runner.py daemon stop --all
 uv run skills/workflow/scripts/workflow_runner.py daemon clean
 ```
 
+> [!NOTE]
+> **Fixed-Delay Interval & Zero-Overlap Concurrency Model**:
+> Daemon intervals (e.g. `--interval 2` minutes) operate strictly under a **Fixed-Delay** execution model:
+> - The interval starts counting **after the previous execution cycle completes**, preventing overlapping agents.
+> - An atomic concurrency lock (`is_busy: true`) prevents concurrent cycles from colliding inside the same `.workflow/worktrees/<name>/`.
+> - If an execution takes 3 minutes and the interval is 2 minutes, the next cycle will run 2 minutes after the 3-minute run finishes (5 minutes from start).
+
 ### 6. Multi-PR Release Curation & GitHub PRs
 ```bash
 # Scoped PR: Compile exclusively bug fixes into .workflow/prs/active/

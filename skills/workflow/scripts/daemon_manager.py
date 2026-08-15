@@ -107,9 +107,17 @@ def reconcile_daemon_registry(target_dir: str = ".") -> Dict[str, Any]:
         if entry_host and entry_host != current_host:
             continue
 
+        # Reconcile stale is_busy execution locks
+        if entry.get("is_busy"):
+            run_pid = entry.get("current_run_pid")
+            if not is_workflow_process(run_pid):
+                entry["is_busy"] = False
+                entry["current_run_pid"] = None
+
         if status in ["RUNNING", "PAUSED"]:
             if not is_workflow_process(pid):
                 entry["status"] = "STOPPED"
+                entry["is_busy"] = False
                 entry["reconciled_at"] = datetime.now().isoformat()
                 entry["recovery_reason"] = "STALE_PROCESS_OR_SYSTEM_REBOOT_RECOVERED"
                 force_purge_worktree(name, repo_dir=target_dir)
@@ -399,7 +407,7 @@ def start_daemon(
     now = datetime.now().isoformat()
     machine = get_machine_identity()
 
-    # 2. Register active daemon in .workflow/daemons.json with multi-machine host tagging
+    # 2. Register active daemon in .workflow/daemons.json with multi-machine host tagging & Fixed-Delay fields
     registry = load_daemon_registry(target_dir)
     registry["daemons"][clean_name] = {
         "name": clean_name,
@@ -409,6 +417,10 @@ def start_daemon(
         "interval_minutes": interval,
         "max_iterations": effective_max_iter,
         "iteration_count": 0,
+        "is_busy": False,
+        "current_run_pid": None,
+        "current_run_started_at": None,
+        "last_completed_at": None,
         "worktree_path": worktree_path,
         "started_at": now,
         "last_heartbeat": now,
@@ -647,65 +659,132 @@ def run_daemon_cycle(
             "reason": f"Daemon '{clean_name}' is currently {status_label}. Execution terminated immediately with zero work performed.",
         }
 
-    # 1. Setup isolated physical worktree
-    wt_result = create_worktree(worktree_name, base_branch=target_base, repo_dir=root_dir)
-    if wt_result["status"] == "ERROR":
-        return {"status": "WORKTREE_ERROR", "details": wt_result}
-
-    wt_path = wt_result["worktree_path"]
-    branch_name = wt_result.get("branch_name", f"workflow/worktree-{clean_name}")
-
-    # 2. Pre-Cycle Sync: Safely rebase worktree onto latest base branch
-    sync_res = sync_worktree_with_base(wt_path, base_branch=target_base, repo_dir=root_dir)
-    if sync_res.get("status") == "CONFLICT":
-        return {
-            "status": "SYNC_CONFLICT",
-            "message": f"Worktree branch has conflicts with latest '{target_base}'. Resolve manually or re-create worktree.",
-            "details": sync_res,
-            "worktree_path": wt_path,
-        }
-
-    # 3. Find pending spec or run test health check
-    target_spec_path = None
-    if os.path.exists(spec_dir):
-        for item in os.listdir(spec_dir):
-            candidate = os.path.join(spec_dir, item)
-            if os.path.isdir(candidate):
-                target_spec_path = candidate
-                break
-
-    if not target_spec_path:
-        return {
-            "status": "IDLE",
-            "message": f"No pending specs found in '{spec_dir}'. Daemon cycle complete with zero work required.",
-            "worktree_path": wt_path,
-        }
-
-    # 4. Execute LangGraph DAG state machine on target spec
-    engine = WorkflowEngine(target_spec_path)
-    dag_result = engine.run_step()
-
-    # 5. Safe Auto-Merge Gate with Dirty Working Tree Protection
-    merge_status = "SKIPPED"
-    if auto_merge and dag_result.get("all_tests_passing") and dag_result.get("spec_verified"):
-        # Check if root repo working tree is dirty
-        status_check = run_git(["status", "--porcelain"], cwd=root_dir)
-        if status_check.stdout.strip():
-            merge_status = "DIRTY_TREE_POSTPONED: Uncommitted changes present on base branch. Auto-merge postponed safely."
+    # 0B. Concurrency Lock & Anti-Overlap Gate: Prevent concurrent cycles on the same worktree
+    if daemon_entry.get("is_busy"):
+        busy_pid = daemon_entry.get("current_run_pid")
+        if is_workflow_process(busy_pid):
+            return {
+                "status": "SKIPPED_ALREADY_BUSY",
+                "daemon_name": clean_name,
+                "reason": f"Daemon '{clean_name}' has an ongoing cycle currently executing (PID: {busy_pid}). Overlap prevented to preserve worktree isolation.",
+            }
         else:
-            merge_cmd = run_git(["merge", "--no-ff", branch_name, "-m", f"chore(workflow): auto-merge daemon '{clean_name}'"], cwd=root_dir)
-            merge_status = "MERGED" if merge_cmd.returncode == 0 else f"MERGE_FAILED: {merge_cmd.stderr.strip()}"
-            if merge_cmd.returncode == 0:
-                remove_worktree(worktree_name, repo_dir=root_dir, force=True)
+            # Stale lock from dead or recycled process
+            daemon_entry["is_busy"] = False
 
-    return {
-        "status": "COMPLETED",
-        "daemon_name": clean_name,
-        "archetype": archetype,
-        "worktree_path": wt_path,
-        "branch_name": branch_name,
-        "dag_step": dag_result.get("dag_step"),
-        "all_tests_passing": dag_result.get("all_tests_passing"),
-        "spec_verified": dag_result.get("spec_verified"),
-        "merge_status": merge_status,
-    }
+    # 0C. Fixed-Delay Cooldown Gate: Enforce delay interval from previous cycle's completion
+    last_completed = daemon_entry.get("last_completed_at")
+    interval_mins = daemon_entry.get("interval_minutes", 10)
+    if last_completed:
+        try:
+            last_dt = datetime.fromisoformat(last_completed)
+            elapsed_seconds = (datetime.now() - last_dt).total_seconds()
+            required_delay = interval_mins * 60
+            if elapsed_seconds < required_delay:
+                remaining = int(required_delay - elapsed_seconds)
+                return {
+                    "status": "SKIPPED_COOLDOWN_ACTIVE",
+                    "daemon_name": clean_name,
+                    "reason": f"Fixed-delay interval of {interval_mins}m has not elapsed yet since previous cycle finished ({remaining}s remaining). Overlap prevented.",
+                    "seconds_remaining": remaining,
+                }
+        except Exception:
+            pass
+
+    # Acquire Execution Concurrency Lock
+    daemon_entry["is_busy"] = True
+    daemon_entry["current_run_started_at"] = datetime.now().isoformat()
+    daemon_entry["current_run_pid"] = os.getpid()
+    save_daemon_registry(registry, root_dir)
+
+    cycle_result: Optional[Dict[str, Any]] = None
+    try:
+        # 1. Setup isolated physical worktree
+        wt_result = create_worktree(worktree_name, base_branch=target_base, repo_dir=root_dir)
+        if wt_result["status"] == "ERROR":
+            cycle_result = {"status": "WORKTREE_ERROR", "details": wt_result}
+            return cycle_result
+
+        wt_path = wt_result["worktree_path"]
+        branch_name = wt_result.get("branch_name", f"workflow/worktree-{clean_name}")
+
+        # 2. Pre-Cycle Sync: Safely rebase worktree onto latest base branch
+        sync_res = sync_worktree_with_base(wt_path, base_branch=target_base, repo_dir=root_dir)
+        if sync_res.get("status") == "CONFLICT":
+            cycle_result = {
+                "status": "SYNC_CONFLICT",
+                "message": f"Worktree branch has conflicts with latest '{target_base}'. Resolve manually or re-create worktree.",
+                "details": sync_res,
+                "worktree_path": wt_path,
+            }
+            return cycle_result
+
+        # 3. Find pending spec or run test health check
+        target_spec_path = None
+        if os.path.exists(spec_dir):
+            for item in os.listdir(spec_dir):
+                candidate = os.path.join(spec_dir, item)
+                if os.path.isdir(candidate):
+                    target_spec_path = candidate
+                    break
+
+        if not target_spec_path:
+            cycle_result = {
+                "status": "IDLE",
+                "message": f"No pending specs found in '{spec_dir}'. Daemon cycle complete with zero work required.",
+                "worktree_path": wt_path,
+            }
+            return cycle_result
+
+        # 4. Execute LangGraph DAG state machine on target spec
+        engine = WorkflowEngine(target_spec_path)
+        dag_result = engine.run_step()
+
+        # 5. Safe Auto-Merge Gate with Dirty Working Tree Protection
+        merge_status = "SKIPPED"
+        if auto_merge and dag_result.get("all_tests_passing") and dag_result.get("spec_verified"):
+            status_check = run_git(["status", "--porcelain"], cwd=root_dir)
+            if status_check.stdout.strip():
+                merge_status = "DIRTY_TREE_POSTPONED: Uncommitted changes present on base branch. Auto-merge postponed safely."
+            else:
+                merge_cmd = run_git(["merge", "--no-ff", branch_name, "-m", f"chore(workflow): auto-merge daemon '{clean_name}'"], cwd=root_dir)
+                merge_status = "MERGED" if merge_cmd.returncode == 0 else f"MERGE_FAILED: {merge_cmd.stderr.strip()}"
+                if merge_cmd.returncode == 0:
+                    remove_worktree(worktree_name, repo_dir=root_dir, force=True)
+
+        cycle_result = {
+            "status": "COMPLETED",
+            "daemon_name": clean_name,
+            "archetype": archetype,
+            "worktree_path": wt_path,
+            "branch_name": branch_name,
+            "dag_step": dag_result.get("dag_step"),
+            "all_tests_passing": dag_result.get("all_tests_passing"),
+            "spec_verified": dag_result.get("spec_verified"),
+            "merge_status": merge_status,
+        }
+        return cycle_result
+    finally:
+        # Release Concurrency Lock & Record Completion Timestamp for Fixed Delay
+        latest_reg = load_daemon_registry(root_dir)
+        if clean_name in latest_reg.get("daemons", {}):
+            entry = latest_reg["daemons"][clean_name]
+            now_iso = datetime.now().isoformat()
+            entry["is_busy"] = False
+            entry["current_run_pid"] = None
+            entry["last_completed_at"] = now_iso
+            entry["last_heartbeat"] = now_iso
+            entry["last_run_at"] = now_iso
+            if cycle_result:
+                entry["last_result"] = cycle_result.get("status", "COMPLETED")
+            entry["iteration_count"] = entry.get("iteration_count", 0) + 1
+
+            # Check Max Iterations Cap
+            max_iter = entry.get("max_iterations")
+            if max_iter and max_iter > 0 and entry["iteration_count"] >= max_iter:
+                entry["status"] = "STOPPED"
+                entry["stopped_at"] = now_iso
+                entry["stopped_reason"] = f"MAX_ITERATIONS_REACHED ({entry['iteration_count']}/{max_iter})"
+                force_purge_worktree(clean_name, repo_dir=root_dir)
+
+            save_daemon_registry(latest_reg, root_dir)
