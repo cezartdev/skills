@@ -15,6 +15,13 @@ def get_archetype_memory_dir(root_dir: str, archetype: str) -> str:
     wf_root = os.path.join(root_dir, ".workflow") if os.path.basename(root_dir) != ".workflow" else root_dir
     arch_dir = os.path.join(wf_root, "memory", archetype)
     os.makedirs(arch_dir, exist_ok=True)
+    gitkeep = os.path.join(arch_dir, ".gitkeep")
+    if not os.path.exists(gitkeep):
+        try:
+            with open(gitkeep, "w", encoding="utf-8") as f:
+                f.write("")
+        except Exception:
+            pass
     return arch_dir
 
 

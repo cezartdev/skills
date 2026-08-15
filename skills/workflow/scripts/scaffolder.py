@@ -43,6 +43,19 @@ def atomic_write_json(file_path: str, data: Dict[str, Any]) -> None:
         raise e
 
 
+def ensure_dir_with_gitkeep(dir_path: str) -> str:
+    """Ensures directory exists and places an empty .gitkeep file so git preserves the directory structure."""
+    os.makedirs(dir_path, exist_ok=True)
+    gitkeep_file = os.path.join(dir_path, ".gitkeep")
+    if not os.path.exists(gitkeep_file):
+        try:
+            with open(gitkeep_file, "w", encoding="utf-8") as f:
+                f.write("")
+        except Exception:
+            pass
+    return dir_path
+
+
 def get_skill_assets_dir() -> str:
     """Returns the absolute path to skills/workflow/assets."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -58,31 +71,30 @@ def get_workflow_root(target_dir: str = ".") -> str:
 
 
 def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) -> Dict[str, Any]:
-    """Initializes encapsulated .workflow structure in target directory."""
+    """Initializes encapsulated .workflow structure in target directory with .gitkeep placeholders."""
     target_dir = os.path.abspath(target_dir)
     wf_root = get_workflow_root(target_dir)
     assets_dir = get_skill_assets_dir()
 
-    # 1. Create .workflow/specs/ namespaces (features, bugs, refactor, docs, archive)
+    # 1. Create .workflow/specs/ namespaces with .gitkeep (features, bugs, refactor, docs, archive)
     specs_dir = os.path.join(wf_root, "specs")
-    os.makedirs(os.path.join(specs_dir, "features"), exist_ok=True)
-    os.makedirs(os.path.join(specs_dir, "bugs"), exist_ok=True)
-    os.makedirs(os.path.join(specs_dir, "refactor"), exist_ok=True)
-    os.makedirs(os.path.join(specs_dir, "docs"), exist_ok=True)
-    os.makedirs(os.path.join(specs_dir, "archive"), exist_ok=True)
+    ensure_dir_with_gitkeep(os.path.join(specs_dir, "features"))
+    ensure_dir_with_gitkeep(os.path.join(specs_dir, "bugs"))
+    ensure_dir_with_gitkeep(os.path.join(specs_dir, "refactor"))
+    ensure_dir_with_gitkeep(os.path.join(specs_dir, "docs"))
+    ensure_dir_with_gitkeep(os.path.join(specs_dir, "archive"))
 
-    # 2. Create hierarchical .workflow/memory/ directories
+    # 2. Create hierarchical .workflow/memory/ directories with .gitkeep
     memory_dir = os.path.join(wf_root, "memory")
-    os.makedirs(memory_dir, exist_ok=True)
-    os.makedirs(os.path.join(memory_dir, "fix"), exist_ok=True)
-    os.makedirs(os.path.join(memory_dir, "refactor"), exist_ok=True)
-    os.makedirs(os.path.join(memory_dir, "implement"), exist_ok=True)
-    os.makedirs(os.path.join(memory_dir, "doc_sync"), exist_ok=True)
+    ensure_dir_with_gitkeep(os.path.join(memory_dir, "fix"))
+    ensure_dir_with_gitkeep(os.path.join(memory_dir, "refactor"))
+    ensure_dir_with_gitkeep(os.path.join(memory_dir, "implement"))
+    ensure_dir_with_gitkeep(os.path.join(memory_dir, "doc_sync"))
 
-    # 3. Create .workflow/prs/ catalog (active, archive)
+    # 3. Create .workflow/prs/ catalog with .gitkeep (active, archive)
     prs_dir = os.path.join(wf_root, "prs")
-    os.makedirs(os.path.join(prs_dir, "active"), exist_ok=True)
-    os.makedirs(os.path.join(prs_dir, "archive"), exist_ok=True)
+    ensure_dir_with_gitkeep(os.path.join(prs_dir, "active"))
+    ensure_dir_with_gitkeep(os.path.join(prs_dir, "archive"))
 
     # 4. Create .workflow/worktrees/ placeholder
     worktrees_dir = os.path.join(wf_root, "worktrees")
@@ -177,7 +189,7 @@ def scaffold_new_spec(
 
     spec_dir = os.path.join(wf_root, "specs", parent_folder, clean_name)
     issues_dir = os.path.join(spec_dir, "issues")
-    os.makedirs(issues_dir, exist_ok=True)
+    ensure_dir_with_gitkeep(issues_dir)
 
     # 1. Create spec.md from assets/spec.template.md
     spec_file = os.path.join(spec_dir, "spec.md")
