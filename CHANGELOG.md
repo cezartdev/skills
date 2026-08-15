@@ -1,5 +1,11 @@
 # cezartdev-skills
 
+## 1.4.1
+
+### Patch Changes
+
+- [`7f6f287`](https://github.com/cezartdev/skills/commit/7f6f2877e79612565ea8e45059e39e08d439d9ca) Thanks [@cezartdev](https://github.com/cezartdev)! - Harden git skill scripts and pattern definitions to eliminate Snyk SAST false-positives on secret scanning regexes and shell arguments.
+
 ## 1.4.0
 
 ### Minor Changes
