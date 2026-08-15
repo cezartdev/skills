@@ -164,36 +164,7 @@ def scaffold_new_spec(
     with open(spec_file, "w", encoding="utf-8") as f:
         f.write(spec_content)
 
-    # 2. Determine test command from workflow.json or polyglot scan
-    config_file = os.path.join(wf_root, "workflow.json")
-    test_cmd = "pytest"
-    if os.path.exists(config_file):
-        try:
-            with open(config_file, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-                test_cmd = cfg.get("test_runner", {}).get("command", "pytest")
-        except Exception:
-            pass
-
-    # 3. Create initial issue 001_initial_task.md from assets/issue.template.md
-    issue_file = os.path.join(issues_dir, "001_initial_task.md")
-    template_issue = os.path.join(assets_dir, "issue.template.md")
-    if os.path.exists(template_issue):
-        with open(template_issue, "r", encoding="utf-8") as f:
-            issue_content = (
-                f.read()
-                .replace("{{ISSUE_ID}}", "001")
-                .replace("{{ISSUE_TITLE}}", "Initial Implementation Task")
-                .replace("{{SPEC_NAME}}", spec_name)
-                .replace("{{TEST_COMMAND}}", test_cmd)
-            )
-    else:
-        issue_content = f"# Issue 001: Initial task for {spec_name}\n"
-
-    with open(issue_file, "w", encoding="utf-8") as f:
-        f.write(issue_content)
-
-    # 4. Create initial state.json
+    # 2. Create initial state.json with clean empty issues list (tasks generated during /workflow plan)
     state_file = os.path.join(spec_dir, "state.json")
     initial_state = {
         "spec_name": spec_name,
@@ -203,17 +174,8 @@ def scaffold_new_spec(
         "worktree_path": None,
         "branch_name": f"workflow/{parent_folder}-{spec_name}",
         "current_issue_index": 0,
-        "issues": [
-            {
-                "issue_id": "001_initial_task",
-                "title": "Initial Implementation Task",
-                "status": "PENDING",
-                "tests_written": [],
-                "files_modified": [],
-                "error_log": None,
-            }
-        ],
-        "dag_step": "INITIALIZED",
+        "issues": [],
+        "dag_step": "NEW_SPEC_INITIALIZED",
         "checkpoint_history": [],
         "quality_gate_passed": False,
         "user_confirmed": False,

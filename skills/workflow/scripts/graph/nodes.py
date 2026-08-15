@@ -60,14 +60,9 @@ def plan_issues_node(state: Dict[str, Any]) -> Dict[str, Any]:
             })
 
     if not issues:
-        issues.append({
-            "issue_id": "001_initial_task",
-            "title": "Initial feature task",
-            "status": "PENDING",
-            "tests_written": [],
-            "files_modified": [],
-            "error_log": None,
-        })
+        dag_step = "REQUIRES_PLANNING"
+    else:
+        dag_step = "ISSUES_PLANNED"
 
     history = state.get("checkpoint_history", [])
     history.append({
@@ -78,7 +73,7 @@ def plan_issues_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         **state,
-        "dag_step": "ISSUES_PLANNED",
+        "dag_step": dag_step,
         "issues": issues,
         "current_issue_index": 0,
         "checkpoint_history": history,
@@ -89,6 +84,13 @@ def test_red_phase_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """Marks the start of the RED phase for the active issue."""
     issues = state.get("issues", [])
     curr_idx = state.get("current_issue_index", 0)
+
+    if not issues:
+        return {
+            **state,
+            "dag_step": "REQUIRES_PLANNING",
+            "error_log": "No task issues found. Run '/workflow plan <spec>' to decompose spec.md into atomic tasks.",
+        }
 
     if curr_idx < len(issues):
         issues[curr_idx]["status"] = "RED_PHASE"

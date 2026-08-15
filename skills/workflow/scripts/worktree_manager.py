@@ -12,8 +12,33 @@ def run_git(args: List[str], cwd: str = ".") -> subprocess.CompletedProcess:
     return subprocess.run(["git"] + args, cwd=cwd, capture_output=True, text=True, check=False)
 
 
+def ensure_git_repository(repo_dir: str = ".") -> Dict[str, Any]:
+    """Ensures target directory is a valid Git repository with at least one commit on HEAD."""
+    repo_dir = os.path.abspath(repo_dir)
+    res = run_git(["rev-parse", "--is-inside-work-tree"], cwd=repo_dir)
+    initialized = False
+    initial_commit_created = False
+
+    if res.returncode != 0:
+        run_git(["init", "-b", "main"], cwd=repo_dir)
+        initialized = True
+
+    head_check = run_git(["rev-parse", "--verify", "HEAD"], cwd=repo_dir)
+    if head_check.returncode != 0:
+        run_git(["commit", "--allow-empty", "-m", "chore: initialize repository"], cwd=repo_dir)
+        initial_commit_created = True
+
+    return {
+        "status": "READY",
+        "initialized": initialized,
+        "initial_commit_created": initial_commit_created,
+    }
+
+
 def list_worktrees(repo_dir: str = ".") -> List[Dict[str, str]]:
     """Lists active git worktrees and parses output into structured dictionary."""
+    repo_dir = os.path.abspath(repo_dir)
+    ensure_git_repository(repo_dir)
     res = run_git(["worktree", "list", "--porcelain"], cwd=repo_dir)
     if res.returncode != 0:
         return []
@@ -50,6 +75,7 @@ def create_worktree(
 ) -> Dict[str, Any]:
     """Creates a physical git worktree under .workflow/worktrees/<name> with an isolated branch."""
     repo_dir = os.path.abspath(repo_dir)
+    ensure_git_repository(repo_dir)
     wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
     worktree_dir = os.path.join(wf_root, "worktrees", name)
     branch_name = f"workflow/worktree-{name}-{int(time.time())}"

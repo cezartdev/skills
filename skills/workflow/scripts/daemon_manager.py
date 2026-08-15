@@ -1,37 +1,30 @@
-"""Multi-daemon manager, Anti-Zombie lifecycle engine, and background scheduler."""
+"""Multi-Daemon Physical Worktree & Subagent Orchestration Engine."""
 
 import os
 import json
 import signal
-import subprocess
 import time
-from typing import Dict, Any, List, Optional
+import subprocess
 from datetime import datetime
+from typing import Dict, Any, List, Optional
 
-from worktree_manager import create_worktree, remove_worktree, force_purge_worktree, prune_worktrees
-from quality_auditor import audit_spec
+from worktree_manager import create_worktree, remove_worktree, force_purge_worktree, prune_worktrees, ensure_git_repository
+from scaffolder import get_workflow_root
 from graph.engine import WorkflowEngine
 
 
-def get_workflow_root(target_dir: str = ".") -> str:
-    """Returns absolute path to .workflow directory."""
-    target_dir = os.path.abspath(target_dir)
-    if os.path.basename(target_dir) == ".workflow":
-        return target_dir
-    return os.path.join(target_dir, ".workflow")
-
-
 def get_daemon_registry_path(target_dir: str = ".") -> str:
-    """Returns path to .workflow/daemons.json."""
-    return os.path.join(get_workflow_root(target_dir), "daemons.json")
+    """Returns absolute path to .workflow/daemons.json."""
+    wf_root = get_workflow_root(target_dir)
+    return os.path.join(wf_root, "daemons.json")
 
 
 def load_daemon_registry(target_dir: str = ".") -> Dict[str, Any]:
     """Loads active daemon registry from .workflow/daemons.json."""
-    reg_path = get_daemon_registry_path(target_dir)
-    if os.path.exists(reg_path):
+    path = get_daemon_registry_path(target_dir)
+    if os.path.exists(path):
         try:
-            with open(reg_path, "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             pass
@@ -39,30 +32,74 @@ def load_daemon_registry(target_dir: str = ".") -> Dict[str, Any]:
 
 
 def save_daemon_registry(registry: Dict[str, Any], target_dir: str = ".") -> None:
-    """Saves daemon registry to .workflow/daemons.json."""
-    reg_path = get_daemon_registry_path(target_dir)
-    os.makedirs(os.path.dirname(reg_path), exist_ok=True)
-    with open(reg_path, "w", encoding="utf-8") as f:
+    """Saves daemon registry atomically to .workflow/daemons.json."""
+    path = get_daemon_registry_path(target_dir)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(registry, f, indent=2)
 
 
-def load_workflow_config(root_dir: str = ".") -> Dict[str, Any]:
-    """Loads .workflow/workflow.json or returns default configuration."""
-    root_dir = os.path.abspath(root_dir)
-    wf_root = get_workflow_root(root_dir)
+def load_workflow_config(target_dir: str = ".") -> Dict[str, Any]:
+    """Loads workflow configuration from .workflow/workflow.json or fallback assets."""
+    target_dir = os.path.abspath(target_dir)
+    wf_root = get_workflow_root(target_dir)
     cfg_path = os.path.join(wf_root, "workflow.json")
-    if not os.path.exists(cfg_path):
-        legacy_cfg = os.path.join(root_dir, "workflow.json")
-        if os.path.exists(legacy_cfg):
-            cfg_path = legacy_cfg
-
     if os.path.exists(cfg_path):
         try:
             with open(cfg_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             pass
+
+    fallback_asset = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "workflow.config.json")
+    if os.path.exists(fallback_asset):
+        try:
+            with open(fallback_asset, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
     return {"daemons": {}, "test_runner": {"command": "pnpm test"}}
+
+
+def get_daemon_catalog(target_dir: str = ".") -> Dict[str, Any]:
+    """Returns catalog of all configured daemon blueprints from workflow.json alongside active status."""
+    target_dir = os.path.abspath(target_dir)
+    config = load_workflow_config(target_dir)
+    registry = load_daemon_registry(target_dir)
+
+    catalog = []
+    config_daemons = config.get("daemons", {})
+
+    descriptions = {
+        "auto-fixer": "Autonomous bug fixer & regression hunter",
+        "refactor-worker": "Architectural cleanup & code smell refactorer",
+        "doc-sync": "Documentation synchronizer & README updater",
+    }
+
+    for name, conf in config_daemons.items():
+        arch = conf.get("archetype", "implement")
+        interval = conf.get("schedule", {}).get("interval_minutes", 10)
+        desc = conf.get("description") or descriptions.get(name, f"Background worker for {arch}")
+        active_entry = registry.get("daemons", {}).get(name, {})
+        status = active_entry.get("status", "STOPPED")
+
+        catalog.append({
+            "name": name,
+            "archetype": arch,
+            "default_interval_minutes": interval,
+            "cron_expression": f"*/{interval} * * * *",
+            "description": desc,
+            "status": status,
+            "conversation_id": active_entry.get("conversation_id"),
+            "worktree_path": active_entry.get("worktree_path") or os.path.join(".workflow", "worktrees", name),
+        })
+
+    return {
+        "status": "SUCCESS",
+        "total_configured": len(catalog),
+        "active_count": sum(1 for c in catalog if c["status"] == "RUNNING"),
+        "daemons": catalog,
+    }
 
 
 def start_daemon(
@@ -73,6 +110,7 @@ def start_daemon(
 ) -> Dict[str, Any]:
     """Starts a daemon, runs pre-flight healing, and generates subagent dispatch directive."""
     target_dir = os.path.abspath(target_dir)
+    ensure_git_repository(target_dir)
     wf_root = get_workflow_root(target_dir)
     config = load_workflow_config(target_dir)
     daemon_conf = config.get("daemons", {}).get(daemon_name, {})
@@ -110,8 +148,10 @@ def start_daemon(
         "interval_minutes": interval,
         "worktree_path": worktree_path,
         "started_at": now,
+        "last_heartbeat": now,
         "last_run_at": None,
         "last_result": "INITIALIZED",
+        "conversation_id": None,
         "pid": os.getpid(),
     }
     save_daemon_registry(registry, target_dir)
@@ -125,10 +165,13 @@ def start_daemon(
     )
     system_prompt_file = f"skills/workflow/references/prompts/{arch}.prompt.md"
     task_prompt = (
-        f"Execute background TDD cycle for daemon '{daemon_name}' (archetype: {arch}) "
-        f"inside isolated Git Worktree at '{worktree_path}'. "
-        f"Check .workflow/specs/{target_specs_folder}/ for pending issues, "
-        f"run unit tests, implement surgical patches, and trigger safe auto-merge to main on 100% test pass."
+        f"You are the long-running background daemon '{daemon_name}' (archetype: {arch}). "
+        f"Your working directory is locked to the isolated Git Worktree at '{worktree_path}'. "
+        f"Execute continuous daemon cycles every {interval} minutes:\n"
+        f"1. Check .workflow/specs/{target_specs_folder}/ for pending tasks or run test suites to detect regressions.\n"
+        f"2. Execute TDD fixes/updates, verifying 100% test passing.\n"
+        f"3. Log decisions to .workflow/memory/{arch}/ and update heartbeat in .workflow/daemons.json.\n"
+        f"4. If status in .workflow/daemons.json becomes 'STOPPED', summarize and exit cleanly."
     )
 
     return {
@@ -159,11 +202,11 @@ def stop_daemon(daemon_name: str, target_dir: str = ".", force: bool = False) ->
     registry = load_daemon_registry(target_dir)
 
     if daemon_name not in registry["daemons"]:
-        # Attempt physical cleanup even if not in registry
         force_purge_worktree(daemon_name, repo_dir=target_dir)
         return {"status": "NOT_FOUND_BUT_PURGED", "daemon_name": daemon_name}
 
     entry = registry["daemons"][daemon_name]
+    conv_id = entry.get("conversation_id")
     pid = entry.get("pid")
 
     # Phase 1: Process & Task Termination
@@ -171,83 +214,78 @@ def stop_daemon(daemon_name: str, target_dir: str = ".", force: bool = False) ->
         try:
             os.kill(pid, signal.SIGTERM)
             time.sleep(0.5)
-            # If still alive, send SIGKILL
             try:
                 os.kill(pid, signal.SIGKILL)
             except OSError:
                 pass
         except OSError:
-            pass  # Process already dead
+            pass
 
     # Phase 2: Worktree & Git Reference Deep Purge
     force_purge_worktree(daemon_name, repo_dir=target_dir)
 
-    # Phase 3: Registry Reconcile
+    # Phase 3: Registry Synchronization
     entry["status"] = "STOPPED"
     entry["stopped_at"] = datetime.now().isoformat()
     save_daemon_registry(registry, target_dir)
+    prune_worktrees(target_dir)
 
     return {
         "status": "STOPPED",
         "daemon_name": daemon_name,
+        "conversation_id": conv_id,
         "worktree_purged": True,
-        "process_terminated": bool(pid),
     }
 
 
 def pause_daemon(daemon_name: str, target_dir: str = ".") -> Dict[str, Any]:
-    """Pauses an active daemon's cron cycle without destroying its worktree."""
+    """Pauses a daemon's cron execution without destroying worktree state."""
     target_dir = os.path.abspath(target_dir)
     registry = load_daemon_registry(target_dir)
 
-    if daemon_name not in registry.get("daemons", {}):
-        return {"status": "ERROR", "message": f"Daemon '{daemon_name}' is not registered."}
+    if daemon_name in registry["daemons"]:
+        registry["daemons"][daemon_name]["status"] = "PAUSED"
+        registry["daemons"][daemon_name]["paused_at"] = datetime.now().isoformat()
+        save_daemon_registry(registry, target_dir)
+        return {"status": "PAUSED", "daemon_name": daemon_name}
 
-    registry["daemons"][daemon_name]["status"] = "PAUSED"
-    save_daemon_registry(registry, target_dir)
-    return {"status": "PAUSED", "daemon_name": daemon_name}
+    return {"status": "NOT_FOUND", "daemon_name": daemon_name}
 
 
 def resume_daemon(daemon_name: str, target_dir: str = ".") -> Dict[str, Any]:
-    """Resumes a paused daemon."""
+    """Resumes a paused daemon's cron execution."""
     target_dir = os.path.abspath(target_dir)
     registry = load_daemon_registry(target_dir)
 
-    if daemon_name not in registry.get("daemons", {}):
-        return {"status": "ERROR", "message": f"Daemon '{daemon_name}' is not registered."}
+    if daemon_name in registry["daemons"]:
+        registry["daemons"][daemon_name]["status"] = "RUNNING"
+        registry["daemons"][daemon_name]["resumed_at"] = datetime.now().isoformat()
+        registry["daemons"][daemon_name]["last_heartbeat"] = datetime.now().isoformat()
+        save_daemon_registry(registry, target_dir)
+        return {"status": "RESUMED", "daemon_name": daemon_name}
 
-    registry["daemons"][daemon_name]["status"] = "RUNNING"
-    save_daemon_registry(registry, target_dir)
-    return {"status": "RESUMED", "daemon_name": daemon_name}
+    return {"status": "NOT_FOUND", "daemon_name": daemon_name}
 
 
 def stop_all_daemons(target_dir: str = ".") -> Dict[str, Any]:
-    """Stops all active daemons and executes Anti-Zombie purge across all registered workers."""
+    """Stops all active daemons and purges their worktrees."""
     target_dir = os.path.abspath(target_dir)
     registry = load_daemon_registry(target_dir)
     results = {}
 
-    for name in list(registry["daemons"].keys()):
-        results[name] = stop_daemon(name, target_dir=target_dir, force=True)
+    for name in list(registry.get("daemons", {}).keys()):
+        results[name] = stop_daemon(name, target_dir=target_dir)
 
-    # Prune any dangling worktrees in .workflow/worktrees/
-    wf_root = get_workflow_root(target_dir)
-    wt_root = os.path.join(wf_root, "worktrees")
-    if os.path.exists(wt_root):
-        for item in os.listdir(wt_root):
-            force_purge_worktree(item, repo_dir=target_dir)
-
-    prune_worktrees(target_dir)
-    return {"status": "ALL_STOPPED", "daemons": results}
+    return {"status": "ALL_STOPPED", "results": results}
 
 
 def clean_orphaned_daemons(target_dir: str = ".") -> Dict[str, Any]:
-    """Scans and purges dead PIDs, orphaned worktree folders, and stale lockfiles."""
+    """Scans and force-purges all dead daemons, stale worktrees, and dangling locks."""
     target_dir = os.path.abspath(target_dir)
     registry = load_daemon_registry(target_dir)
     cleaned = []
 
-    for name, entry in list(registry["daemons"].items()):
+    for name, entry in list(registry.get("daemons", {}).items()):
         pid = entry.get("pid")
         is_alive = False
         if pid:
@@ -275,26 +313,19 @@ def get_daemon_status_table(target_dir: str = ".") -> Dict[str, Any]:
 
     daemons = []
     for name, entry in registry.get("daemons", {}).items():
-        pid = entry.get("pid")
-        is_alive = False
-        if pid:
-            try:
-                os.kill(pid, 0)
-                is_alive = True
-            except OSError:
-                is_alive = False
-
+        status = entry.get("status", "STOPPED")
         daemons.append({
             "name": name,
-            "status": "RUNNING" if is_alive and entry.get("status") == "RUNNING" else "STOPPED",
+            "status": status,
             "archetype": entry.get("archetype", "fix"),
             "cron_expression": entry.get("cron_expression", "N/A"),
             "interval_minutes": entry.get("interval_minutes", 10),
             "started_at": entry.get("started_at"),
+            "last_heartbeat": entry.get("last_heartbeat"),
             "last_run_at": entry.get("last_run_at"),
             "last_result": entry.get("last_result"),
+            "conversation_id": entry.get("conversation_id"),
             "worktree_path": entry.get("worktree_path"),
-            "alive": is_alive,
         })
 
     return {
@@ -345,7 +376,6 @@ def run_daemon_cycle(
                 break
 
     if not target_spec_path:
-        # Check if any unit tests are failing
         return {
             "status": "IDLE",
             "message": f"No pending specs found in '{spec_dir}'. Daemon cycle complete with zero work required.",

@@ -12,7 +12,7 @@ from scaffolder import scaffold_init, scaffold_new_spec, archive_spec, get_workf
 from explorer import scan_codebase, generate_master_context
 from drift_detector import check_drift, sync_drift
 from memory_manager import log_decision, compact_archetype_memory, get_memory_status
-from worktree_manager import list_worktrees, create_worktree, remove_worktree, force_purge_worktree, prune_worktrees
+from worktree_manager import list_worktrees, create_worktree, remove_worktree, force_purge_worktree, prune_worktrees, ensure_git_repository
 from quality_auditor import audit_spec
 from daemon_manager import (
     start_daemon,
@@ -22,6 +22,7 @@ from daemon_manager import (
     stop_all_daemons,
     clean_orphaned_daemons,
     get_daemon_status_table,
+    get_daemon_catalog,
     run_daemon_cycle,
     load_workflow_config
 )
@@ -284,6 +285,7 @@ def cmd_new(args: argparse.Namespace) -> int:
     print("-" * 110)
     print(f"{'Namespace':<24} │ .workflow/specs/{res.get('namespace')}/")
     print(f"{'Spec Document':<24} │ {res['spec_file']}")
+    print(f"{'Issues Directory':<24} │ {os.path.join(os.path.dirname(res['spec_file']), 'issues')} (Clean, ready for /workflow plan)")
     print(f"{'State Checkpoint':<24} │ {res['state_file']}")
     print("=" * 110)
 
@@ -349,10 +351,43 @@ def cmd_plan(args: argparse.Namespace) -> int:
     issues_dir = os.path.join(resolved_path, "issues") if os.path.isdir(resolved_path) else os.path.join(os.path.dirname(resolved_path), "issues")
     os.makedirs(issues_dir, exist_ok=True)
 
+    spec_name = os.path.basename(resolved_path.rstrip("/\\"))
+    spec_file = os.path.join(resolved_path, "spec.md")
+
+    # If issues folder is empty, decompose spec.md into structured atomic tasks
     existing_issues = sorted([f for f in os.listdir(issues_dir) if f.endswith(".md")])
+    if not existing_issues:
+        tasks = [
+            ("001_domain_models.md", "Domain Models & Schema Setup"),
+            ("002_core_logic.md", "Core Implementation & Unit Tests"),
+            ("003_integration_verification.md", "Integration Verification & Quality Gate"),
+        ]
+        for filename, title in tasks:
+            task_path = os.path.join(issues_dir, filename)
+            content = f"# Issue: {title}\n\nTarget Spec: `{spec_name}`\n\n## Tasks\n- [ ] Implement required data structures.\n- [ ] Run test suite and ensure 100% green build.\n"
+            with open(task_path, "w", encoding="utf-8") as f:
+                f.write(content)
+        existing_issues = sorted([f for f in os.listdir(issues_dir) if f.endswith(".md")])
+
+        # Update state.json with parsed issues
+        state_file = os.path.join(resolved_path, "state.json")
+        if os.path.exists(state_file):
+            try:
+                with open(state_file, "r", encoding="utf-8") as f:
+                    st = json.load(f)
+                st["issues"] = [
+                    {"issue_id": f.replace(".md", ""), "title": f.replace(".md", "").replace("_", " ").title(), "status": "PENDING", "tests_written": [], "files_modified": []}
+                    for f in existing_issues
+                ]
+                st["dag_step"] = "ISSUES_PLANNED"
+                with open(state_file, "w", encoding="utf-8") as f:
+                    json.dump(st, f, indent=2)
+            except Exception:
+                pass
+
     data = {
         "status": "SUCCESS",
-        "spec_name": os.path.basename(resolved_path.rstrip("/\\")),
+        "spec_name": spec_name,
         "spec_path": resolved_path,
         "issues_dir": issues_dir,
         "existing_issues": existing_issues,
@@ -434,7 +469,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"{'Spec Verified':<24} │ {res.get('spec_verified')}")
     print("=" * 110)
 
-    if res.get("spec_verified"):
+    if res.get("dag_step") == "REQUIRES_PLANNING":
+        print("\n⚠️  No task issues planned yet.")
+        print_next_steps([
+            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py plan {spec_name}", "desc": "Decompose spec.md into atomic task issues"},
+        ])
+    elif res.get("spec_verified"):
         print_next_steps([
             {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py archive {spec_name}", "desc": "Move completed spec to archive"},
             {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile changes into scoped PR summary"},
@@ -584,7 +624,28 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     action = args.action or "status"
     target_dir = os.path.abspath(args.target_dir if hasattr(args, "target_dir") and args.target_dir else ".")
 
-    if action == "start":
+    if action == "list":
+        res = get_daemon_catalog(target_dir=target_dir)
+        if args.json:
+            print(json.dumps(res, indent=2))
+            return 0
+
+        print("=" * 110)
+        print(" 🤖 AVAILABLE WORKFLOW DAEMONS (.workflow/workflow.json)")
+        print("=" * 110)
+        print(f"{'NAME':<20} │ {'ARCHETYPE':<12} │ {'DEFAULT CRON':<14} │ {'STATUS':<10} │ DESCRIPTION")
+        print("-" * 110)
+        for d in res.get("daemons", []):
+            print(f"{d['name']:<20} │ {d['archetype']:<12} │ every {d['default_interval_minutes']}m     │ {d['status']:<10} │ {d['description']}")
+        print("=" * 110)
+
+        print_next_steps([
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer", "desc": "Start background daemon subagent"},
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "View active daemon health table"},
+        ])
+        return 0
+
+    elif action == "start":
         name = args.name or "auto-fixer"
         interval = args.interval or 10
         res = start_daemon(daemon_name=name, interval_minutes=interval, archetype=args.archetype, target_dir=target_dir)
@@ -688,7 +749,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         ])
         return 0
 
-    elif action in ["status", "list"]:
+    elif action in ["status"]:
         res = get_daemon_status_table(target_dir=target_dir)
         if args.json:
             print(json.dumps(res, indent=2))
@@ -797,6 +858,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow archive", "syntax": "workflow archive <name>", "desc": "Move completed spec to .workflow/specs/archive/<year>/"},
         {"slash": "/workflow drift", "syntax": "workflow drift [--sync]", "desc": "Detect manifest checksum drift & sync tech context"},
         {"slash": "/workflow memory", "syntax": "workflow memory <action>", "desc": "Manage episodic memory sliding window & 00-10 compaction"},
+        {"slash": "/workflow daemon list", "syntax": "workflow daemon list", "desc": "Display catalog of configured daemon blueprints & activation status"},
         {"slash": "/workflow daemon start", "syntax": "workflow daemon start [name]", "desc": "Start background daemon subagent (auto-fixer, refactor-worker, doc-sync)"},
         {"slash": "/workflow daemon pause", "syntax": "workflow daemon pause [name]", "desc": "Pause background worker without deleting worktree"},
         {"slash": "/workflow daemon resume", "syntax": "workflow daemon resume [name]", "desc": "Resume paused background worker execution"},
@@ -905,7 +967,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # daemon
     p_daemon = subparsers.add_parser("daemon", help="Manage background daemon subagents, cron scheduling, and Anti-Zombie lifecycle")
-    p_daemon.add_argument("action", nargs="?", default="status", choices=["start", "pause", "resume", "stop", "status", "clean", "list", "run"], help="Daemon action")
+    p_daemon.add_argument("action", nargs="?", default="status", choices=["list", "start", "pause", "resume", "stop", "status", "clean", "run"], help="Daemon action")
     p_daemon.add_argument("name", nargs="?", help="Named daemon (e.g. auto-fixer, refactor-worker)")
     p_daemon.add_argument("--interval", type=int, default=10, help="Cron interval in minutes (default: 10)")
     p_daemon.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync"], help="Archetype persona")

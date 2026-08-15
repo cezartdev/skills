@@ -94,6 +94,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 | `/workflow archive` | `workflow archive <name>` | Move completed spec to `.workflow/specs/archive/<year>/` |
 | `/workflow drift` | `workflow drift [--sync]` | Detect manifest checksum drift & sync tech context |
 | `/workflow memory` | `workflow memory <action>` | Manage episodic memory sliding window & 00-10 compaction |
+| `/workflow daemon list` | `workflow daemon list` | Display catalog of configured daemon blueprints & activation status |
 | `/workflow daemon start` | `workflow daemon start [name]` | Start background daemon subagent (`auto-fixer`, `refactor-worker`, `doc-sync`) |
 | `/workflow daemon pause` | `workflow daemon pause [name]` | Pause background worker without deleting worktree |
 | `/workflow daemon resume` | `workflow daemon resume [name]` | Resume paused background worker execution |

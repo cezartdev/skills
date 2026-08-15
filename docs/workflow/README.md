@@ -79,6 +79,9 @@ uv run skills/workflow/scripts/workflow_runner.py archive 001-payment-gateway
 
 ### 5. Built-in Base Daemons & Scheduling
 ```bash
+# View catalog of all configured daemon blueprints & activation status
+uv run skills/workflow/scripts/workflow_runner.py daemon list
+
 # 1. Start auto-fixer subagent (archetype: fix, bugs namespace) every 10 minutes
 uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer --interval 10
 
