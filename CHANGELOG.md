@@ -1,5 +1,15 @@
 # cezartdev-skills
 
+## 1.5.0
+
+### Minor Changes
+
+- [`45f4502`](https://github.com/cezartdev/skills/commit/45f45027f42bbc4c4c944ac70dafede8138f2007) Thanks [@cezartdev](https://github.com/cezartdev)! - Add multi-machine host affinity tagging, interactive daemon blueprint creation (`workflow daemon create`), and dynamic schedule/iteration configuration modifier (`workflow daemon set`).
+
+### Patch Changes
+
+- [`7a2e8ef`](https://github.com/cezartdev/skills/commit/7a2e8ef12fe5d4d7d05ec24c0fdd89394c3dc5f3) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement immediate stop gate in daemon cycle execution and direct background schedule timer cancellation on daemon stop.
+
 ## 1.4.1
 
 ### Patch Changes
