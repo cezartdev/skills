@@ -4,6 +4,7 @@ import os
 import json
 from typing import Dict, Any, Optional
 from datetime import datetime
+
 try:
     from .nodes import (
         audit_spec_quality_node,
@@ -22,6 +23,11 @@ except ImportError:
         refactor_phase_node,
         verify_spec_node,
     )
+
+try:
+    from scaffolder import atomic_write_json
+except ImportError:
+    from ..scaffolder import atomic_write_json
 
 
 def create_workflow_graph():
@@ -101,11 +107,6 @@ class WorkflowEngine:
             "memory_logged": False,
             "updated_at": datetime.now().isoformat(),
         }
-
-try:
-    from scaffolder import atomic_write_json
-except ImportError:
-    from ..scaffolder import atomic_write_json
 
     def save_state(self, state: Dict[str, Any]):
         """Persists state atomically to state.json."""

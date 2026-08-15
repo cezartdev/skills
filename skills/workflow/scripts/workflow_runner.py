@@ -480,7 +480,8 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Executes the LangGraph DAG state machine for a spec."""
-    resolved_path = resolve_spec_path(args.spec_dir)
+    target_dir = getattr(args, "target_dir", ".") or "."
+    resolved_path = resolve_spec_path(args.spec_dir, target_dir=target_dir)
     engine = WorkflowEngine(resolved_path)
     res = engine.run_step()
     spec_name = res.get("spec_name", os.path.basename(resolved_path))
@@ -1095,6 +1096,7 @@ def build_parser() -> argparse.ArgumentParser:
     # run
     p_run = subparsers.add_parser("run", help="Execute the LangGraph DAG state machine for a spec")
     p_run.add_argument("spec_dir", help="Path or shorthand name of the spec")
+    p_run.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # archive
     p_arc = subparsers.add_parser("archive", help="Move completed spec folder into .workflow/specs/archive/<year>/")

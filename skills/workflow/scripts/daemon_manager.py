@@ -55,10 +55,34 @@ def get_daemon_registry_path(target_dir: str = ".") -> str:
     return os.path.join(wf_root, "daemons.json")
 
 
+import sys
+
+
 def is_workflow_process(pid: Optional[int]) -> bool:
-    """Verifies whether a PID is genuinely alive AND belongs to a workflow/python process (PID Recycling Defense)."""
+    """Verifies whether a PID is genuinely alive AND belongs to a workflow/python process (PID Recycling Defense).
+    
+    Compatible with Linux (/proc), macOS (ps), and Windows (tasklist).
+    """
     if not pid or pid <= 0:
         return False
+
+    # Check Windows processes via tasklist
+    if sys.platform == "win32":
+        try:
+            res = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if res.returncode == 0 and str(pid) in res.stdout:
+                line = res.stdout.lower()
+                return any(k in line for k in ["python", "uv", "cmd", "powershell", "node", "workflow"])
+            return False
+        except Exception:
+            return False
+
+    # Check POSIX process liveness via signal 0
     try:
         os.kill(pid, 0)
     except OSError:
@@ -74,7 +98,7 @@ def is_workflow_process(pid: Optional[int]) -> bool:
         except Exception:
             return False
 
-    # Fallback for macOS/POSIX using ps
+    # Fallback for macOS (Darwin) / BSD using ps
     try:
         ps_res = subprocess.run(["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True, check=False)
         if ps_res.returncode == 0:
@@ -84,6 +108,30 @@ def is_workflow_process(pid: Optional[int]) -> bool:
         pass
 
     return True
+
+
+def kill_process_tree(pid: int) -> None:
+    """Safely terminates a process tree cross-platform across Linux, macOS, and Windows."""
+    if not pid or pid <= 0 or pid == os.getpid():
+        return
+
+    if sys.platform == "win32":
+        try:
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, check=False)
+        except Exception:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+    else:
+        # Linux / macOS (Darwin)
+        try:
+            os.kill(pid, signal.SIGTERM)
+            time.sleep(0.3)
+            sigkill = getattr(signal, "SIGKILL", signal.SIGTERM)
+            os.kill(pid, sigkill)
+        except OSError:
+            pass
 
 
 def normalize_rel_path(path_str: Optional[str], root_dir: str = ".") -> Optional[str]:
@@ -522,15 +570,7 @@ def stop_daemon(daemon_name: str, target_dir: str = ".", force: bool = False) ->
     current_host = get_machine_identity()["host_tag"]
     entry_host = entry.get("host")
     if (not entry_host or entry_host == current_host) and pid and pid != os.getpid() and is_workflow_process(pid):
-        try:
-            os.kill(pid, signal.SIGTERM)
-            time.sleep(0.5)
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except OSError:
-                pass
-        except OSError:
-            pass
+        kill_process_tree(pid)
 
     # Phase 2: Worktree & Git Reference Deep Purge
     force_purge_worktree(clean_name, repo_dir=target_dir)

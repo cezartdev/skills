@@ -14,6 +14,30 @@ except ImportError:
     from explorer import scan_codebase
 
 
+import stat
+
+
+def _handle_remove_readonly(func, path, exc_info):
+    """Error handler for shutil.rmtree on Windows/POSIX to clear readonly attributes."""
+    try:
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+    except Exception:
+        pass
+
+
+def safe_rmtree(dir_path: str) -> None:
+    """Robust directory removal clearing read-only locks across Linux, macOS, and Windows."""
+    if os.path.exists(dir_path):
+        try:
+            shutil.rmtree(dir_path, onerror=_handle_remove_readonly)
+        except Exception:
+            try:
+                shutil.rmtree(dir_path, ignore_errors=True)
+            except Exception:
+                pass
+
+
 def sanitize_identifier(name: str) -> str:
     """Sanitizes an identifier (spec, daemon, worktree) against path traversal and invalid chars."""
     if not name:
@@ -33,7 +57,16 @@ def atomic_write_json(file_path: str, data: Dict[str, Any]) -> None:
             json.dump(data, f, indent=2)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(temp_path, file_path)
+
+        # Cross-platform atomic replace with retry for Windows file handle locks
+        for attempt in range(3):
+            try:
+                os.replace(temp_path, file_path)
+                break
+            except PermissionError:
+                if attempt == 2:
+                    raise
+                time.sleep(0.05)
     except Exception as e:
         if os.path.exists(temp_path):
             try:
@@ -285,7 +318,7 @@ def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
     os.makedirs(os.path.dirname(archive_dest), exist_ok=True)
 
     if os.path.exists(archive_dest):
-        shutil.rmtree(archive_dest)
+        safe_rmtree(archive_dest)
 
     shutil.move(found_src, archive_dest)
 

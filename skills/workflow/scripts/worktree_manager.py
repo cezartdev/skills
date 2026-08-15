@@ -3,9 +3,31 @@
 import os
 import re
 import shutil
+import stat
 import subprocess
 import time
 from typing import Dict, Any, List, Optional
+
+
+def _handle_remove_readonly(func, path, exc_info):
+    """Error handler for shutil.rmtree on Windows to clear readonly attributes."""
+    try:
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+    except Exception:
+        pass
+
+
+def safe_rmtree(dir_path: str) -> None:
+    """Robust directory removal clearing read-only locks across Linux, macOS, and Windows."""
+    if os.path.exists(dir_path):
+        try:
+            shutil.rmtree(dir_path, onerror=_handle_remove_readonly)
+        except Exception:
+            try:
+                shutil.rmtree(dir_path, ignore_errors=True)
+            except Exception:
+                pass
 
 
 def run_git(args: List[str], cwd: str = ".") -> subprocess.CompletedProcess:
@@ -180,10 +202,7 @@ def force_purge_worktree(name: str, repo_dir: str = ".") -> Dict[str, Any]:
 
     # 2. Check for leftover disk directory and forcefully wipe if necessary
     if os.path.exists(worktree_dir):
-        try:
-            shutil.rmtree(worktree_dir, ignore_errors=True)
-        except Exception:
-            pass
+        safe_rmtree(worktree_dir)
 
     # 3. Clean any stale lockfiles (.git/index.lock or .git/worktrees/<name>/locked)
     git_dir = os.path.join(repo_dir, ".git")
@@ -196,10 +215,7 @@ def force_purge_worktree(name: str, repo_dir: str = ".") -> Dict[str, Any]:
                 pass
         wt_meta = os.path.join(git_dir, "worktrees", clean_name)
         if os.path.exists(wt_meta):
-            try:
-                shutil.rmtree(wt_meta, ignore_errors=True)
-            except Exception:
-                pass
+            safe_rmtree(wt_meta)
 
     prune_worktrees(repo_dir)
     return {"status": "PURGED", "worktree_path": worktree_dir}
