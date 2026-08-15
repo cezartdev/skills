@@ -86,19 +86,45 @@ def is_workflow_process(pid: Optional[int]) -> bool:
     return True
 
 
+def normalize_rel_path(path_str: Optional[str], root_dir: str = ".") -> Optional[str]:
+    """Converts absolute project paths to clean relative paths (e.g. .workflow/worktrees/name)."""
+    if not path_str:
+        return path_str
+    try:
+        abs_root = os.path.abspath(root_dir)
+        abs_path = os.path.abspath(path_str)
+        if abs_path.startswith(abs_root):
+            rel = os.path.relpath(abs_path, abs_root)
+            return rel.replace("\\", "/")
+    except Exception:
+        pass
+    if ".workflow" in path_str:
+        idx = path_str.find(".workflow")
+        return path_str[idx:].replace("\\", "/")
+    return path_str
+
+
 def reconcile_daemon_registry(target_dir: str = ".") -> Dict[str, Any]:
     """Post-Reboot Self-Healing & Zombie State Reconciler with Multi-Machine Host Affinity.
     
     Validates all registered daemons belonging to the current host. If the local machine was rebooted
-    or processes crashed, reconciles stale RUNNING states to STOPPED. Daemons hosted on other machines
-    are respected and not erroneously killed or terminated.
+    or processes crashed, reconciles stale RUNNING states to STOPPED. Normalizes all absolute paths
+    to clean project-relative paths (.workflow/worktrees/name) for developer privacy and portability.
     """
     target_dir = os.path.abspath(target_dir)
     registry = load_daemon_registry(target_dir)
     recovered = []
     current_host = get_machine_identity()["host_tag"]
+    modified = False
 
     for name, entry in list(registry.get("daemons", {}).items()):
+        # Normalize worktree_path to relative path for privacy
+        if "worktree_path" in entry and entry["worktree_path"]:
+            rel_wt = normalize_rel_path(entry["worktree_path"], target_dir)
+            if entry["worktree_path"] != rel_wt:
+                entry["worktree_path"] = rel_wt
+                modified = True
+
         status = entry.get("status")
         pid = entry.get("pid")
         entry_host = entry.get("host")
@@ -113,6 +139,7 @@ def reconcile_daemon_registry(target_dir: str = ".") -> Dict[str, Any]:
             if not is_workflow_process(run_pid):
                 entry["is_busy"] = False
                 entry["current_run_pid"] = None
+                modified = True
 
         if status in ["RUNNING", "PAUSED"]:
             if not is_workflow_process(pid):
@@ -122,10 +149,12 @@ def reconcile_daemon_registry(target_dir: str = ".") -> Dict[str, Any]:
                 entry["recovery_reason"] = "STALE_PROCESS_OR_SYSTEM_REBOOT_RECOVERED"
                 force_purge_worktree(name, repo_dir=target_dir)
                 recovered.append(name)
+                modified = True
 
-    if recovered:
+    if modified:
         save_daemon_registry(registry, target_dir)
-        prune_worktrees(target_dir)
+        if recovered:
+            prune_worktrees(target_dir)
 
     return {
         "status": "RECONCILED",
@@ -403,7 +432,7 @@ def start_daemon(
     # 1. Pre-Flight Self-Healing: purge any prior zombie or stale worktree of this daemon
     force_purge_worktree(clean_name, repo_dir=target_dir)
 
-    worktree_path = os.path.join(wf_root, "worktrees", clean_name)
+    rel_worktree_path = os.path.join(".workflow", "worktrees", clean_name).replace("\\", "/")
     now = datetime.now().isoformat()
     machine = get_machine_identity()
 
@@ -421,7 +450,7 @@ def start_daemon(
         "current_run_pid": None,
         "current_run_started_at": None,
         "last_completed_at": None,
-        "worktree_path": worktree_path,
+        "worktree_path": rel_worktree_path,
         "started_at": now,
         "last_heartbeat": now,
         "last_run_at": None,
@@ -443,7 +472,7 @@ def start_daemon(
     system_prompt_file = f"skills/workflow/references/prompts/{arch}.prompt.md"
     task_prompt = (
         f"You are the long-running background daemon '{clean_name}' (archetype: {arch}). "
-        f"Your working directory is locked to the isolated Git Worktree at '{worktree_path}'. "
+        f"Your working directory is locked to the isolated Git Worktree at '{rel_worktree_path}'. "
         f"Execute continuous daemon cycles every {interval} minutes:\n"
         f"1. Pre-Cycle Sync: Synchronize your worktree branch with latest base branch.\n"
         f"2. Check .workflow/specs/{target_specs_folder}/ for pending tasks or run test suites to detect regressions.\n"
@@ -452,25 +481,26 @@ def start_daemon(
         f"5. If status in .workflow/daemons.json becomes 'STOPPED', summarize and exit cleanly."
     )
 
+    directive = {
+        "action": "INVOKE_SUBAGENT",
+        "role": f"{clean_name.replace('-', ' ').title()} Daemon Specialist",
+        "subagent_role": f"{clean_name.replace('-', ' ').title()} Daemon Specialist",
+        "system_prompt_file": system_prompt_file,
+        "working_directory": rel_worktree_path,
+        "cron_expression": cron_expr,
+        "task_prompt": task_prompt,
+    }
+
     return {
         "status": "STARTED",
         "daemon_name": clean_name,
         "archetype": arch,
         "interval_minutes": interval,
         "cron_expression": cron_expr,
-        "worktree_path": worktree_path,
-        "subagent_directive": {
-            "action": "INVOKE_SUBAGENT",
-            "role": f"{clean_name.title()} Daemon Specialist",
-            "working_directory": worktree_path,
-            "system_prompt_file": system_prompt_file,
-            "schedule": {
-                "type": "recurring_cron",
-                "cron_expression": cron_expr,
-                "interval_minutes": interval,
-            },
-            "task_prompt": task_prompt,
-        },
+        "max_iterations": effective_max_iter,
+        "worktree_path": rel_worktree_path,
+        "dispatch_directive": directive,
+        "subagent_directive": directive,
     }
 
 
@@ -756,7 +786,7 @@ def run_daemon_cycle(
             "status": "COMPLETED",
             "daemon_name": clean_name,
             "archetype": archetype,
-            "worktree_path": wt_path,
+            "worktree_path": normalize_rel_path(wt_path, root_dir),
             "branch_name": branch_name,
             "dag_step": dag_result.get("dag_step"),
             "all_tests_passing": dag_result.get("all_tests_passing"),
