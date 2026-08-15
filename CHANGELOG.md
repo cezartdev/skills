@@ -1,5 +1,15 @@
 # cezartdev-skills
 
+## 1.3.3
+
+### Patch Changes
+
+- [`6affdde`](https://github.com/cezartdev/skills/commit/6affddeb8b5af225354acaa361b24d43f5b6295f) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement pre-cycle base branch synchronization (sync_worktree_with_base) and auto-merge gate across daemon cycles.
+
+- [`a5e2e5e`](https://github.com/cezartdev/skills/commit/a5e2e5e754f4457b51c1476c447638c60acca5f2) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement native subagent daemon continuous loop, git pre-flight auto-init, clean SDD planning, and /workflow daemon list blueprint catalog.
+
+- [`51defeb`](https://github.com/cezartdev/skills/commit/51defeb94c8dda22faaa041602c5382dc60c2611) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement post-reboot self-healing reconciliation, PID recycling defense, atomic JSON writing, path traversal sanitization, and dirty tree auto-merge protection.
+
 ## 1.3.2
 
 ### Patch Changes
