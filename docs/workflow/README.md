@@ -125,7 +125,19 @@ uv run skills/workflow/scripts/workflow_runner.py daemon clean
 > - An atomic concurrency lock (`is_busy: true`) prevents concurrent cycles from colliding inside the same `.workflow/worktrees/<name>/`.
 > - If an execution takes 3 minutes and the interval is 2 minutes, the next cycle will run 2 minutes after the 3-minute run finishes (5 minutes from start).
 
-### 6. Multi-PR Release Curation & GitHub PRs
+### 6. Semantic Git Branching & Worktree Isolation
+When a worktree is created (via `/workflow daemon start`, `/workflow worktree add`, or subagents), a dedicated semantic git branch is generated and checked out automatically:
+- **Features (`implement`)**: `feat/<spec-name>` (e.g., `feat/payment-gateway`, `feat/auth-login`)
+- **Bugs / Fixers (`fix`)**: `fix/<spec-name>` (e.g., `fix/auto-fixer`, `fix/token-expiry`)
+- **Refactoring (`refactor`)**: `refactor/<spec-name>` (e.g., `refactor/refactor-worker`, `refactor/db-pool`)
+- **Documentation (`doc_sync`)**: `docs/<spec-name>` (e.g., `docs/doc-sync`, `docs/api-reference`)
+
+```bash
+# Explicitly create an isolated worktree bound to a semantic spec branch:
+uv run skills/workflow/scripts/workflow_runner.py worktree add my-worker --archetype feat --spec payment-gateway
+```
+
+### 7. Multi-PR Release Curation & GitHub PRs
 ```bash
 # Scoped PR: Compile exclusively bug fixes into .workflow/prs/active/
 uv run skills/workflow/scripts/workflow_runner.py curate --archetype fix

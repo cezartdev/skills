@@ -903,19 +903,18 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("=" * 110)
         print(" 🤖 WORKFLOW DAEMONS STATUS (.workflow/daemons.json)")
         print("=" * 110)
-        print(f"{'DAEMON':<18} │ {'STATUS':<9} │ {'SCHEDULE':<10} │ {'MAX ITER':<10} │ {'HOST':<18} │ {'RESULT':<12} │ WORKTREE")
+        print(f"{'DAEMON':<18} │ {'STATUS':<9} │ {'SCHEDULE':<10} │ {'BRANCH':<22} │ {'HOST':<18} │ WORKTREE")
         print("-" * 110)
         if not res["daemons"]:
-            print(f"{'auto-fixer':<18} │ {'STOPPED':<9} │ {'every 10m':<10} │ {'Unlimited':<10} │ {'-':<18} │ {'N/A':<12} │ .workflow/worktrees/auto-fixer")
-            print(f"{'refactor-worker':<18} │ {'STOPPED':<9} │ {'every 15m':<10} │ {'Unlimited':<10} │ {'-':<18} │ {'N/A':<12} │ .workflow/worktrees/refactor-worker")
-            print(f"{'doc-sync':<18} │ {'STOPPED':<9} │ {'every 30m':<10} │ {'Unlimited':<10} │ {'-':<18} │ {'N/A':<12} │ .workflow/worktrees/doc-sync")
+            print(f"{'auto-fixer':<18} │ {'STOPPED':<9} │ {'every 10m':<10} │ {'fix/auto-fixer':<22} │ {'-':<18} │ .workflow/worktrees/auto-fixer")
+            print(f"{'refactor-worker':<18} │ {'STOPPED':<9} │ {'every 15m':<10} │ {'refactor/worker':<22} │ {'-':<18} │ .workflow/worktrees/refactor-worker")
+            print(f"{'doc-sync':<18} │ {'STOPPED':<9} │ {'every 30m':<10} │ {'docs/doc-sync':<22} │ {'-':<18} │ .workflow/worktrees/doc-sync")
         else:
             for d in res["daemons"]:
                 status_str = d["status"]
-                max_it = str(d.get("max_iterations") or "Unlimited")
+                branch_str = str(d.get("branch_name") or f"{d.get('archetype', 'feat')}/{d['name']}")
                 host_str = str(d.get("host") or "-")
-                res_str = str(d.get("last_result") or "-")
-                print(f"{d['name']:<18} │ {status_str:<9} │ every {d['interval_minutes']}m   │ {max_it:<10} │ {host_str:<18} │ {res_str:<12} │ {d['worktree_path']}")
+                print(f"{d['name']:<18} │ {status_str:<9} │ every {d['interval_minutes']}m   │ {branch_str:<22} │ {host_str:<18} │ {d['worktree_path']}")
         print("=" * 110)
 
         print_next_steps([
@@ -944,6 +943,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("-" * 110)
         print(f"{'Status':<24} │ {res.get('status')}")
         print(f"{'Worktree':<24} │ {res.get('worktree_path')}")
+        print(f"{'Branch':<24} │ {res.get('branch_name')}")
         print(f"{'DAG Step':<24} │ {res.get('dag_step')}")
         print(f"{'Tests Passing':<24} │ {res.get('all_tests_passing')}")
         print(f"{'Merge Status':<24} │ {res.get('merge_status')}")
@@ -959,19 +959,26 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 
 def cmd_worktree(args: argparse.Namespace) -> int:
     """Manages physical git worktree directories under .workflow/worktrees/."""
+    name = args.name or getattr(args, "flag_name", None)
     if args.action == "list":
         wt = list_worktrees(args.target_dir)
         res = {"worktrees": wt}
     elif args.action == "add":
-        if not args.name:
-            print("Error: --name required for worktree add", file=sys.stderr)
+        if not name:
+            print("Error: worktree name required for worktree add", file=sys.stderr)
             return 1
-        res = create_worktree(args.name, repo_dir=args.target_dir)
+        res = create_worktree(
+            name,
+            repo_dir=args.target_dir,
+            branch_name=getattr(args, "branch", None),
+            archetype=getattr(args, "archetype", None),
+            spec_name=getattr(args, "spec", None),
+        )
     elif args.action == "clean":
-        if not args.name:
-            print("Error: --name required for worktree clean", file=sys.stderr)
+        if not name:
+            print("Error: worktree name required for worktree clean", file=sys.stderr)
             return 1
-        res = force_purge_worktree(args.name, repo_dir=args.target_dir)
+        res = force_purge_worktree(name, repo_dir=args.target_dir)
     elif args.action == "prune":
         ok = prune_worktrees(args.target_dir)
         res = {"status": "PRUNED" if ok else "ERROR"}
@@ -1075,7 +1082,7 @@ def build_parser() -> argparse.ArgumentParser:
     # new
     p_new = subparsers.add_parser("new", help="Scaffold a new spec folder under .workflow/specs/features/ (default) or bugs/refactor/docs")
     p_new.add_argument("spec_name", help="Name of the new spec")
-    p_new.add_argument("--archetype", choices=["feat", "feature", "fix", "bug", "refactor", "doc"], default="feat", help="Target archetype (defaults to feat -> .workflow/specs/features/)")
+    p_new.add_argument("--archetype", choices=["feat", "feature", "implement", "fix", "bug", "refactor", "doc", "docs", "doc_sync"], default="feat", help="Target archetype (defaults to feat -> .workflow/specs/features/)")
     p_new.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # specify
@@ -1123,7 +1130,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_daemon.add_argument("name", nargs="?", help="Named daemon (e.g. auto-fixer, refactor-worker)")
     p_daemon.add_argument("--interval", type=int, default=None, help="Cron interval in minutes (defaults to workflow.json setting or 10)")
     p_daemon.add_argument("--max-iterations", type=int, default=None, help="Maximum number of iterations before stopping (0/None for unlimited)")
-    p_daemon.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync"], help="Archetype persona")
+    p_daemon.add_argument("--archetype", choices=["feat", "feature", "implement", "fix", "bug", "refactor", "doc", "docs", "doc_sync"], help="Archetype persona")
     p_daemon.add_argument("--description", help="Human-readable description of daemon responsibilities")
     p_daemon.add_argument("--target-spec-dir", help="Custom directory containing target specs")
     p_daemon.add_argument("--all", action="store_true", help="Apply stop/pause to all running daemons")
@@ -1134,7 +1141,11 @@ def build_parser() -> argparse.ArgumentParser:
     # worktree
     p_wt = subparsers.add_parser("worktree", help="Manage physical git worktrees under .workflow/worktrees/")
     p_wt.add_argument("action", choices=["list", "add", "clean", "prune"], help="Worktree action")
-    p_wt.add_argument("--name", help="Worktree identifier")
+    p_wt.add_argument("name", nargs="?", help="Worktree identifier")
+    p_wt.add_argument("--name", dest="flag_name", help="Worktree identifier (alternative flag)")
+    p_wt.add_argument("--archetype", choices=["feat", "feature", "implement", "fix", "bug", "refactor", "doc", "docs", "doc_sync"], help="Archetype persona for semantic branch prefix")
+    p_wt.add_argument("--spec", help="Spec name to bind the worktree and branch to")
+    p_wt.add_argument("--branch", help="Explicit branch name for the worktree")
     p_wt.add_argument("--force", action="store_true", help="Force remove worktree")
     p_wt.add_argument("target_dir", nargs="?", default=".", help="Target repository directory")
 

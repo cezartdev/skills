@@ -254,13 +254,16 @@ def scaffold_new_spec(
     # 2. Create initial state.json with clean empty issues list (tasks generated during /workflow plan)
     state_file = os.path.join(spec_dir, "state.json")
     rel_spec_dir = os.path.join(".workflow", "specs", parent_folder, clean_name).replace("\\", "/")
+    
+    branch_prefix = "feat" if parent_folder == "features" else ("fix" if parent_folder == "bugs" else ("refactor" if parent_folder == "refactor" else ("docs" if parent_folder == "docs" else "feat")))
+    
     initial_state = {
         "spec_name": clean_name,
         "spec_path": rel_spec_dir,
         "archetype": norm_archetype,
         "daemon_name": None,
         "worktree_path": None,
-        "branch_name": f"workflow/{parent_folder}-{clean_name}",
+        "branch_name": f"{branch_prefix}/{clean_name}",
         "current_issue_index": 0,
         "issues": [],
         "dag_step": "NEW_SPEC_INITIALIZED",

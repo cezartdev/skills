@@ -480,16 +480,27 @@ def start_daemon(
     # 1. Pre-Flight Self-Healing: purge any prior zombie or stale worktree of this daemon
     force_purge_worktree(clean_name, repo_dir=target_dir)
 
+    # 2. Create physical worktree with dedicated semantic branch (e.g. fix/auto-fixer, docs/doc-sync)
+    target_base = get_default_branch(target_dir)
+    wt_result = create_worktree(
+        name=clean_name,
+        base_branch=target_base,
+        repo_dir=target_dir,
+        archetype=arch,
+    )
+    branch_name = wt_result.get("branch_name", f"{arch}/{clean_name}")
+
     rel_worktree_path = os.path.join(".workflow", "worktrees", clean_name).replace("\\", "/")
     now = datetime.now().isoformat()
     machine = get_machine_identity()
 
-    # 2. Register active daemon in .workflow/daemons.json with multi-machine host tagging & Fixed-Delay fields
+    # 3. Register active daemon in .workflow/daemons.json with multi-machine host tagging & Fixed-Delay fields
     registry = load_daemon_registry(target_dir)
     registry["daemons"][clean_name] = {
         "name": clean_name,
         "status": "RUNNING",
         "archetype": arch,
+        "branch_name": branch_name,
         "cron_expression": cron_expr,
         "interval_minutes": interval,
         "max_iterations": effective_max_iter,
@@ -683,6 +694,7 @@ def get_daemon_status_table(target_dir: str = ".") -> Dict[str, Any]:
             "last_result": entry.get("last_result"),
             "conversation_id": entry.get("conversation_id"),
             "worktree_path": entry.get("worktree_path"),
+            "branch_name": entry.get("branch_name", f"{entry.get('archetype', 'feat')}/{name}"),
         })
 
     return {
@@ -724,25 +736,26 @@ def run_daemon_cycle(
     if not daemon_entry or daemon_entry.get("status") in ["STOPPED", "PAUSED"]:
         status_label = daemon_entry.get("status") if daemon_entry else "STOPPED"
         return {
-            "status": "ABORTED",
+            "status": "SKIPPED_INACTIVE",
             "daemon_name": clean_name,
-            "reason": f"Daemon '{clean_name}' is currently {status_label}. Execution terminated immediately with zero work performed.",
+            "daemon_status": daemon_entry.get("status"),
+            "reason": f"Daemon '{clean_name}' is currently {daemon_entry.get('status')}. Cycle skipped safely.",
         }
 
-    # 0B. Concurrency Lock & Anti-Overlap Gate: Prevent concurrent cycles on the same worktree
+    # Gate 0B: Atomic Execution Lock
     if daemon_entry.get("is_busy"):
-        busy_pid = daemon_entry.get("current_run_pid")
-        if is_workflow_process(busy_pid):
+        current_pid = daemon_entry.get("current_run_pid")
+        if current_pid and is_workflow_process(current_pid):
             return {
                 "status": "SKIPPED_ALREADY_BUSY",
                 "daemon_name": clean_name,
-                "reason": f"Daemon '{clean_name}' has an ongoing cycle currently executing (PID: {busy_pid}). Overlap prevented to preserve worktree isolation.",
+                "current_run_pid": current_pid,
+                "reason": f"Daemon '{clean_name}' is currently running an active execution cycle (PID: {current_pid}). Overlapping execution blocked safely.",
             }
         else:
-            # Stale lock from dead or recycled process
             daemon_entry["is_busy"] = False
 
-    # 0C. Fixed-Delay Cooldown Gate: Enforce delay interval from previous cycle's completion
+    # Gate 0C: Fixed-Delay Cooldown Verification
     last_completed = daemon_entry.get("last_completed_at")
     interval_mins = daemon_entry.get("interval_minutes", 10)
     if last_completed:
@@ -769,14 +782,19 @@ def run_daemon_cycle(
 
     cycle_result: Optional[Dict[str, Any]] = None
     try:
-        # 1. Setup isolated physical worktree
-        wt_result = create_worktree(worktree_name, base_branch=target_base, repo_dir=root_dir)
+        # 1. Setup isolated physical worktree with semantic branch
+        wt_result = create_worktree(
+            worktree_name,
+            base_branch=target_base,
+            repo_dir=root_dir,
+            archetype=archetype,
+        )
         if wt_result["status"] == "ERROR":
             cycle_result = {"status": "WORKTREE_ERROR", "details": wt_result}
             return cycle_result
 
         wt_path = wt_result["worktree_path"]
-        branch_name = wt_result.get("branch_name", f"workflow/worktree-{clean_name}")
+        branch_name = wt_result.get("branch_name", f"{archetype}/{clean_name}")
 
         # 2. Pre-Cycle Sync: Safely rebase worktree onto latest base branch
         sync_res = sync_worktree_with_base(wt_path, base_branch=target_base, repo_dir=root_dir)

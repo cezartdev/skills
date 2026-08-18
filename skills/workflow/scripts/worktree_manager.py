@@ -121,12 +121,43 @@ def list_worktrees(repo_dir: str = ".") -> List[Dict[str, str]]:
     return worktrees
 
 
+def generate_branch_name(
+    archetype: Optional[str] = "implement",
+    spec_name: Optional[str] = None,
+    worker_name: Optional[str] = None,
+) -> str:
+    """Generates standardized semantic branch name based on archetype and spec/worker name (e.g. feat/login, fix/auth-bug)."""
+    arch = (archetype or "implement").lower().strip()
+    if arch in ["feat", "feature", "features", "implement"]:
+        prefix = "feat"
+    elif arch in ["fix", "bug", "bugs", "hotfix", "auto-fixer", "fixer"]:
+        prefix = "fix"
+    elif arch in ["refactor", "refactoring", "refactor-worker"]:
+        prefix = "refactor"
+    elif arch in ["doc", "docs", "doc_sync", "documentation", "doc-sync"]:
+        prefix = "docs"
+    else:
+        prefix = re.sub(r"[^a-zA-Z0-9_-]+", "-", arch).strip("-._") or "feat"
+
+    if spec_name:
+        clean_spec = re.sub(r"[^a-zA-Z0-9_-]+", "-", os.path.basename(spec_name.replace("\\", "/"))).strip("-._").lower()
+        return f"{prefix}/{clean_spec}"
+    elif worker_name:
+        clean_worker = re.sub(r"[^a-zA-Z0-9_-]+", "-", os.path.basename(worker_name.replace("\\", "/"))).strip("-._").lower()
+        return f"{prefix}/{clean_worker}"
+    else:
+        return f"{prefix}/worker-{int(time.time())}"
+
+
 def create_worktree(
     name: str,
     base_branch: Optional[str] = None,
-    repo_dir: str = "."
+    repo_dir: str = ".",
+    branch_name: Optional[str] = None,
+    archetype: Optional[str] = None,
+    spec_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Creates a physical git worktree under .workflow/worktrees/<name> with an isolated branch."""
+    """Creates a physical git worktree under .workflow/worktrees/<name> with an isolated semantic branch."""
     repo_dir = os.path.abspath(repo_dir)
     ensure_git_repository(repo_dir)
     
@@ -135,32 +166,57 @@ def create_worktree(
 
     wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
     worktree_dir = os.path.join(wf_root, "worktrees", clean_name)
-    branch_name = f"workflow/worktree-{clean_name}-{int(time.time())}"
+
+    # Resolve semantic branch name (e.g. feat/<spec-name>, fix/<spec-name>, docs/<daemon>)
+    target_branch = branch_name or generate_branch_name(archetype=archetype, spec_name=spec_name, worker_name=clean_name)
 
     # Self-healing prune first
     prune_worktrees(repo_dir)
 
     if os.path.exists(worktree_dir):
+        wt_list = list_worktrees(repo_dir)
+        actual_branch = target_branch
+        for wt in wt_list:
+            if os.path.abspath(wt.get("path", "")) == os.path.abspath(worktree_dir):
+                actual_branch = wt.get("branch", target_branch).replace("refs/heads/", "")
+                break
         return {
             "status": "ALREADY_EXISTS",
             "worktree_path": worktree_dir,
-            "branch_name": branch_name,
+            "branch_name": actual_branch,
+            "base_branch": target_base,
         }
 
     os.makedirs(os.path.dirname(worktree_dir), exist_ok=True)
-    res = run_git(["worktree", "add", "-b", branch_name, worktree_dir, target_base], cwd=repo_dir)
+
+    # Check if branch already exists in local git
+    branch_check = run_git(["rev-parse", "--verify", f"refs/heads/{target_branch}"], cwd=repo_dir)
+    if branch_check.returncode == 0:
+        existing_wts = list_worktrees(repo_dir)
+        is_checked_out = any(wt.get("branch", "").replace("refs/heads/", "") == target_branch for wt in existing_wts)
+        if not is_checked_out:
+            res = run_git(["worktree", "add", worktree_dir, target_branch], cwd=repo_dir)
+        else:
+            target_branch = f"{target_branch}-{int(time.time())}"
+            res = run_git(["worktree", "add", "-b", target_branch, worktree_dir, target_base], cwd=repo_dir)
+    else:
+        res = run_git(["worktree", "add", "-b", target_branch, worktree_dir, target_base], cwd=repo_dir)
+        if res.returncode != 0:
+            target_branch = f"{target_branch}-{int(time.time())}"
+            res = run_git(["worktree", "add", "-b", target_branch, worktree_dir, target_base], cwd=repo_dir)
 
     if res.returncode != 0:
         return {
             "status": "ERROR",
             "error": res.stderr.strip(),
             "worktree_path": worktree_dir,
+            "branch_name": target_branch,
         }
 
     return {
         "status": "CREATED",
         "worktree_path": worktree_dir,
-        "branch_name": branch_name,
+        "branch_name": target_branch,
         "base_branch": target_base,
     }
 

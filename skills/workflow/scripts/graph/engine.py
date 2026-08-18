@@ -94,7 +94,7 @@ class WorkflowEngine:
             "archetype": "implement",
             "daemon_name": None,
             "worktree_path": None,
-            "branch_name": f"workflow/{spec_name}",
+            "branch_name": f"feat/{spec_name}",
             "current_issue_index": 0,
             "issues": [],
             "dag_step": "INITIALIZED",

@@ -52,6 +52,12 @@ metadata:
 >    - Gate 0B rejects overlapping executions if a cycle is actively running (`is_busy: true`).
 >    - Gate 0C enforces cooldown until the full $N$ minutes interval has elapsed since `last_completed_at`.
 >    - Subagents and host agents complete their current cycle, record `last_completed_at`, and schedule the next cycle using `schedule(DurationSeconds=interval_minutes * 60, Prompt="...")`.
+> 9. **Semantic Git Branch Creation with Worktrees**: Whenever a physical worktree is created for a subagent or developer, a dedicated semantic git branch MUST be created and checked out automatically based on the archetype and spec name:
+>    - Feature / Implementation: `feat/<spec-name>` (or `feat/<worker-name>`)
+>    - Bug / Auto-Fixer: `fix/<spec-name>` (or `fix/<worker-name>`)
+>    - Refactor / Architecture: `refactor/<spec-name>` (or `refactor/<worker-name>`)
+>    - Documentation / Doc-Sync: `docs/<spec-name>` (or `docs/<worker-name>`)
+>    This guarantees that every subagent operates within physical disk isolation on a conventional git branch without polluting or colliding with the default branch.
 
 ---
 
