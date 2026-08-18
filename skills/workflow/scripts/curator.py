@@ -9,6 +9,12 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from scaffolder import reconcile_gitkeep
+from worktree_manager import (
+    create_worktree,
+    run_git,
+    get_default_branch,
+    ensure_git_repository,
+)
 
 
 def get_workflow_root(target_dir: str = ".") -> str:
@@ -178,28 +184,102 @@ def compile_scoped_pr_summary(
     }
 
 
+def integrate_worker_branches(
+    target_dir: str = ".",
+    spec_name: Optional[str] = None
+) -> Dict[str, Any]:
+    """Unifies and logically merges all worker branches (<spec>-fix-worker, <spec>-refactor-worker, <spec>-doc-worker)
+    into a dedicated integration branch (<spec>-curator-worker) inside .workflow/worktrees/<spec>/curator-worker/.
+    """
+    target_dir = os.path.abspath(target_dir)
+    ensure_git_repository(target_dir)
+
+    if spec_name:
+        clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
+        curator_worker_name = "curator-worker"
+        curator_branch = f"{clean_spec}-{curator_worker_name}"
+        target_base = clean_spec if run_git(["rev-parse", "--verify", f"refs/heads/{clean_spec}"], cwd=target_dir).returncode == 0 else get_default_branch(target_dir)
+    else:
+        clean_spec = None
+        curator_worker_name = "curator-worker"
+        curator_branch = "curator-worker"
+        target_base = get_default_branch(target_dir)
+
+    # 1. Create or ensure curator worktree
+    wt_result = create_worktree(
+        name=curator_worker_name,
+        base_branch=target_base,
+        repo_dir=target_dir,
+        branch_name=curator_branch,
+        spec_name=clean_spec,
+        worker_name=curator_worker_name,
+    )
+
+    if wt_result.get("status") == "ERROR":
+        return {"status": "ERROR", "error": wt_result.get("error"), "details": wt_result}
+
+    curator_wt_path = wt_result["worktree_path"]
+
+    # 2. Discover local candidate worker branches to integrate
+    branch_res = run_git(["branch", "--list"], cwd=target_dir)
+    local_branches = [b.strip().replace("*", "").strip() for b in branch_res.stdout.splitlines() if b.strip()]
+
+    if clean_spec:
+        # Find branches like user-login-fix-worker, user-login-refactor-worker, user-login-doc-worker
+        worker_prefix = f"{clean_spec}-"
+        target_worker_branches = [
+            b for b in local_branches
+            if b.startswith(worker_prefix) and b != curator_branch and any(w in b for w in ["fix-worker", "refactor-worker", "doc-worker", "worker"])
+        ]
+    else:
+        target_worker_branches = [
+            b for b in local_branches
+            if b in ["fix-worker", "refactor-worker", "doc-worker"]
+        ]
+
+    merged_branches = []
+    failed_branches = []
+
+    for wb in target_worker_branches:
+        merge_res = run_git(["merge", "--no-ff", wb, "-m", f"chore(curator): integrate worker branch '{wb}' into '{curator_branch}'"], cwd=curator_wt_path)
+        if merge_res.returncode == 0:
+            merged_branches.append(wb)
+        else:
+            if "Already up to date" in merge_res.stdout:
+                merged_branches.append(wb)
+            else:
+                failed_branches.append({"branch": wb, "error": merge_res.stderr.strip() or merge_res.stdout.strip()})
+                run_git(["merge", "--abort"], cwd=curator_wt_path)
+
+    return {
+        "status": "SUCCESS",
+        "spec_name": clean_spec,
+        "curator_branch": curator_branch,
+        "target_base": target_base,
+        "worktree_path": curator_wt_path,
+        "merged_branches": merged_branches,
+        "failed_branches": failed_branches,
+    }
+
+
 def create_curator_pr(
     target_dir: str = ".",
     archetype: Optional[str] = None,
     spec_name: Optional[str] = None,
-    target_branch: str = "main",
+    target_branch: Optional[str] = None,
     create_pr: bool = False
 ) -> Dict[str, Any]:
-    """Compiles scoped PR summary and either opens GitHub PR (via gh) or prepares a release branch."""
+    """Compiles scoped PR summary, unifies worker branches in curator-worker worktree, and suggests/opens PR."""
     target_dir = os.path.abspath(target_dir)
-    summary = compile_scoped_pr_summary(target_dir, archetype=archetype, spec_name=spec_name)
 
-    if summary["total_changes"] == 0:
-        return {
-            "status": "NO_CHANGES",
-            "message": f"No new memory decisions found for scope '{archetype or spec_name or 'all'}'. Everything is up to date.",
-            "title": summary.get("title", f"Workflow PR Summary: {archetype or spec_name or 'All Changes'}"),
-            "pr_file": summary.get("pr_file", os.path.join(target_dir, ".workflow", "prs", "active")),
-            "file_slug": summary.get("file_slug", "PR_summary.md"),
-            "total_changes": 0,
-            "counts": summary.get("counts", {}),
-            "summary": summary,
-        }
+    # 1. Unify and merge worker branches into curator branch
+    integration = integrate_worker_branches(target_dir=target_dir, spec_name=spec_name)
+
+    curator_branch = integration.get("curator_branch", "curator-worker")
+    effective_target_base = target_branch or integration.get("target_base") or (spec_name if spec_name else get_default_branch(target_dir))
+
+    # 2. Compile scoped PR summary
+    summary = compile_scoped_pr_summary(target_dir, archetype=archetype, spec_name=spec_name)
 
     # Check if GitHub CLI is available
     gh_available = False
@@ -216,8 +296,13 @@ def create_curator_pr(
         "file_slug": summary["file_slug"],
         "total_changes": summary["total_changes"],
         "counts": summary["counts"],
+        "head_branch": curator_branch,
+        "base_branch": effective_target_base,
+        "integration": integration,
         "gh_available": gh_available,
         "pr_url": None,
+        "suggested_gh_command": f"gh pr create --head {curator_branch} --base {effective_target_base} --title \"{summary['title']}\" --body-file \"{summary['pr_file']}\"",
+        "suggested_git_merge": f"git checkout {effective_target_base} && git merge --no-ff {curator_branch}",
     }
 
     if create_pr and gh_available:
@@ -226,7 +311,8 @@ def create_curator_pr(
                 "gh", "pr", "create",
                 "--title", summary["title"],
                 "--body", summary["body"],
-                "--base", target_branch
+                "--head", curator_branch,
+                "--base", effective_target_base
             ]
             pr_res = subprocess.run(cmd, cwd=target_dir, capture_output=True, text=True, check=False)
             if pr_res.returncode == 0:

@@ -170,11 +170,16 @@ def generate_branch_name(
     spec_name: Optional[str] = None,
     worker_name: Optional[str] = None,
 ) -> str:
-    """Generates branch name matching the spec functionality (e.g. user-login) or worker name."""
-    if spec_name:
-        return re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.replace("\\", "/"))).strip("-._").lower()
-    elif worker_name:
-        return re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(worker_name.replace("\\", "/"))).strip("-._").lower()
+    """Generates branch name matching the spec functionality (e.g. user-login) or worker branch (e.g. user-login-fix-worker)."""
+    clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.replace("\\", "/"))).strip("-._").lower() if spec_name else None
+    clean_worker = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(worker_name.replace("\\", "/"))).strip("-._").lower() if worker_name else None
+
+    if clean_spec and clean_worker and clean_worker != clean_spec:
+        return f"{clean_spec}-{clean_worker}"
+    elif clean_spec:
+        return clean_spec
+    elif clean_worker:
+        return clean_worker
     else:
         return f"task-{int(time.time())}"
 
@@ -191,7 +196,6 @@ def create_worktree(
     """Creates a physical git worktree under .workflow/worktrees/<branch_name>/<worker_name> with its isolated branch."""
     repo_dir = os.path.abspath(repo_dir)
     ensure_git_repository(repo_dir)
-    target_base = base_branch or get_default_branch(repo_dir)
     wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
 
     # 1. Resolve spec/branch and worker name
@@ -204,8 +208,10 @@ def create_worktree(
         effective_worker = parts[1]
 
     if effective_spec:
-        clean_branch_dir = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(effective_spec.rstrip("/\\"))).strip("-._").lower()
+        clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(effective_spec.rstrip("/\\"))).strip("-._").lower()
+        clean_branch_dir = clean_spec
     else:
+        clean_spec = None
         clean_branch_dir = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(effective_worker.rstrip("/\\"))).strip("-._").lower()
 
     clean_worker = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(effective_worker.rstrip("/\\"))).strip("-._").lower() or "worker"
@@ -213,8 +219,28 @@ def create_worktree(
     # Strict hierarchical directory: .workflow/worktrees/<branch>/<worker>
     worktree_dir = os.path.join(wf_root, "worktrees", clean_branch_dir, clean_worker)
 
-    # Branch name: branch_name or clean_branch_dir (e.g. "user-login")
-    target_branch = branch_name or clean_branch_dir
+    # Branch name: branch_name or <spec>-<worker> or <spec>
+    if branch_name:
+        target_branch = branch_name
+    elif clean_spec and clean_worker and clean_worker != clean_spec:
+        target_branch = f"{clean_spec}-{clean_worker}"
+    elif clean_spec:
+        target_branch = clean_spec
+    else:
+        target_branch = clean_worker
+
+    # Resolve target base branch: if working on a spec and base_branch not explicitly specified,
+    # rebase/branch off the spec branch (e.g. user-login) if it exists, else default repo branch (main).
+    if base_branch:
+        target_base = base_branch
+    elif clean_spec:
+        spec_ref = run_git(["rev-parse", "--verify", f"refs/heads/{clean_spec}"], cwd=repo_dir)
+        if spec_ref.returncode == 0:
+            target_base = clean_spec
+        else:
+            target_base = get_default_branch(repo_dir)
+    else:
+        target_base = get_default_branch(repo_dir)
 
     # Self-healing prune first
     prune_worktrees(repo_dir)

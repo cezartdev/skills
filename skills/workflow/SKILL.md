@@ -52,10 +52,12 @@ metadata:
 >    - Gate 0B rejects overlapping executions if a cycle is actively running (`is_busy: true`).
 >    - Gate 0C enforces cooldown until the full $N$ minutes interval has elapsed since `last_completed_at`.
 >    - Subagents and host agents complete their current cycle, record `last_completed_at`, and schedule the next cycle using `schedule(DurationSeconds=interval_minutes * 60, Prompt="...")`.
-> 9. **Strict Hierarchical Worktrees (`.workflow/worktrees/<branch-name>/<worker-name>/`)**: Every physical worktree is **strictly dependent on and scoped to a specification branch and its assigned worker subagent**:
->    - **Branch Name**: Strictly matches the functionality or spec (e.g. `user-login`, `payment-gateway`, `auth-crash`).
->    - **Worktree Directory**: Follows the strict nested format `.workflow/worktrees/<branch-name>/<worker-name>/` (e.g. `.workflow/worktrees/user-login/fix-worker/`, `.workflow/worktrees/user-login/refactor-worker/`, `.workflow/worktrees/user-login/doc-worker/`).
->    - This guarantees that multiple subagents (`fix-worker`, `refactor-worker`, `doc-worker`) can collaborate on the exact same feature branch in dedicated, isolated directories without collision.
+> 9. **Strict Hierarchical Worktrees & Worker Branch Scoping (`.workflow/worktrees/<spec>/<worker>/`)**: Every physical worktree is **strictly dependent on and scoped to a specification and its assigned subagent**:
+>    - **Feature / Developer Branch**: Primary implementation takes place directly on `<spec-name>` (e.g. `user-login`).
+>    - **Worker Branches**: Autonomous subagents operate on dedicated worker branches `<spec-name>-<worker-name>` (e.g. `user-login-fix-worker`, `user-login-refactor-worker`, `user-login-doc-worker`, `user-login-curator-worker`).
+>    - **Worktree Directory**: Nested format `.workflow/worktrees/<spec-name>/<worker-name>/` (e.g. `.workflow/worktrees/user-login/fix-worker/`, `.workflow/worktrees/user-login/curator-worker/`).
+>    - **Auto-Merge Scope**: Automatic merges rebase and target the spec's associated branch (`<spec-name>`), never solely `main`.
+>    - **Curator Unification & PR**: The Curator (`workflow curate --spec <spec>`) runs in `.workflow/worktrees/<spec>/curator-worker/` on branch `<spec>-curator-worker`, unifies and orders all worker contributions, executes test gates, and suggests a Pull Request to merge `<spec>-curator-worker` into `<spec-name>`.
 > 10. **Interactive Grilling for Branch Selection**: When creating a spec, worktree, or daemon interactively, the AI Agent MUST initiate a question round using `ask_question` allowing the developer to confirm or select their preferred branch name format (`<name>`, `feat/<name>`, `fix/<name>`, `refactor/<name>`, `docs/<name>`, or custom), ensuring alignment before disk operations occur.
 
 ---

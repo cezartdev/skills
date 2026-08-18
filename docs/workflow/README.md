@@ -125,33 +125,35 @@ uv run skills/workflow/scripts/workflow_runner.py daemon clean
 > - An atomic concurrency lock (`is_busy: true`) prevents concurrent cycles from colliding inside the same `.workflow/worktrees/<name>/`.
 > - If an execution takes 3 minutes and the interval is 2 minutes, the next cycle will run 2 minutes after the 3-minute run finishes (5 minutes from start).
 
-### 6. Strict Hierarchical Worktrees (`.workflow/worktrees/<branch>/<worker>/`)
-Every physical worktree is **strictly dependent on and scoped to a specification branch and its assigned worker subagent**:
-- **Branch Name**: Strictly matches the feature or spec (e.g., `user-login`, `payment-gateway`).
-- **Worktree Directory**: Follows the nested format `.workflow/worktrees/<branch-name>/<worker-name>/`:
-  - `fix-worker`: `.workflow/worktrees/user-login/fix-worker/`
-  - `refactor-worker`: `.workflow/worktrees/user-login/refactor-worker/`
-  - `doc-worker`: `.workflow/worktrees/user-login/doc-worker/`
+### 6. Strict Hierarchical Worktrees & Subagent Branch Scoping
+Every physical worktree is **strictly dependent on and scoped to a specification and its designated subagent**:
+- **Feature / Developer Branch**: Primary implementation takes place directly on `<spec-name>` (e.g., `user-login`).
+- **Worker Branches**: Dedicated subagent branches named `<spec-name>-<worker-name>`:
+  - `fix-worker`: `.workflow/worktrees/user-login/fix-worker/` (Branch: `user-login-fix-worker`)
+  - `refactor-worker`: `.workflow/worktrees/user-login/refactor-worker/` (Branch: `user-login-refactor-worker`)
+  - `doc-worker`: `.workflow/worktrees/user-login/doc-worker/` (Branch: `user-login-doc-worker`)
+  - `curator-worker`: `.workflow/worktrees/user-login/curator-worker/` (Branch: `user-login-curator-worker`)
+- **Auto-Merge Scope**: Auto-merge operations target the spec's associated branch (`user-login`), never solely `main`.
 
 ```bash
-# Create an isolated worktree for a specific worker bound to a feature branch:
+# Create an isolated worktree for fix-worker bound to a feature branch:
 uv run skills/workflow/scripts/workflow_runner.py worktree add fix-worker --spec user-login
-# => Worktree: .workflow/worktrees/user-login/fix-worker/ (Branch: user-login)
+# => Worktree: .workflow/worktrees/user-login/fix-worker/ (Branch: user-login-fix-worker)
 ```
 
-### 7. Multi-PR Release Curation & GitHub PRs
+### 7. Multi-PR Release Curation & Subagent Unification
+The Curator (`workflow curate`) unifies and logically orders all worker contributions (`user-login-fix-worker`, `user-login-refactor-worker`, `user-login-doc-worker`) into `user-login-curator-worker` inside `.workflow/worktrees/user-login/curator-worker/`, verifies tests, and suggests opening a PR into the base feature branch (`user-login`):
+
 ```bash
+# Feature Spec PR: Unify worker branches and compile PR targeting the feature branch
+uv run skills/workflow/scripts/workflow_runner.py curate --spec user-login
+
 # Scoped PR: Compile exclusively bug fixes into .workflow/prs/active/
 uv run skills/workflow/scripts/workflow_runner.py curate --archetype fix
 
-# Scoped PR: Compile architectural refactorings
-uv run skills/workflow/scripts/workflow_runner.py curate --archetype refactor
-
-# Feature PR: Compile a specific spec delivery
-uv run skills/workflow/scripts/workflow_runner.py curate --spec 001-payment-gateway
-
-# Master Batch PR: Open directly on GitHub via gh CLI
-uv run skills/workflow/scripts/workflow_runner.py curate --create-pr --target-branch main
+# Master Release PR: Open directly on GitHub via gh CLI
+uv run skills/workflow/scripts/workflow_runner.py curate --spec user-login --create-pr
+```
 
 # Archive a merged PR record
 uv run skills/workflow/scripts/workflow_runner.py curate --archive PR_fix_rollup_20260814.md

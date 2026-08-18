@@ -606,10 +606,12 @@ def cmd_chat(args: argparse.Namespace) -> int:
 def cmd_curate(args: argparse.Namespace) -> int:
     """Executes the Curator Subagent: manages multi-PR catalog and compiles scoped PR summaries."""
     target_dir = os.path.abspath(args.target_dir if hasattr(args, "target_dir") and args.target_dir else ".")
-    target_branch = args.target_branch if hasattr(args, "target_branch") and args.target_branch else "main"
+    spec_name = getattr(args, "spec", None)
+    target_branch = getattr(args, "target_branch", None)
+    if not target_branch:
+        target_branch = spec_name if spec_name else "main"
     create_pr = getattr(args, "create_pr", False)
     archetype = getattr(args, "archetype", None)
-    spec_name = getattr(args, "spec", None)
 
     if getattr(args, "archive", None):
         res = archive_merged_pr(args.archive, target_dir=target_dir)
@@ -639,22 +641,31 @@ def cmd_curate(args: argparse.Namespace) -> int:
         return 0
 
     file_slug = res.get("file_slug") or "PR_summary.md"
+    head_branch = res.get("head_branch", "curator-worker")
+    base_branch = res.get("base_branch", "main")
     print("=" * 110)
     print(f" 🚀 WORKFLOW CURATOR SUMMARY (.workflow/prs/active/{file_slug})")
     print("=" * 110)
-    print(f"{'ARCHETYPE / SCOPE':<24} │ {'ITEMS':<16} │ INTEGRATION VERIFICATION")
+    print(f"{'PROPERTY':<24} │ VALUE")
     print("-" * 110)
-    counts = res.get("counts", {})
-    for k, v in counts.items():
-        print(f"{k.capitalize():<24} │ {v} decisions      │ 100% Tests Pass")
-    print(f"{'Total Integrated':<24} │ {res.get('total_changes', 0)} changes      │ Verified & Ready for PR")
+    print(f"{'Integration Branch':<24} │ {head_branch}")
+    print(f"{'Target Base Branch':<24} │ {base_branch}")
+    print(f"{'PR Document':<24} │ {res.get('pr_file')}")
+    print(f"{'Total Integrated':<24} │ {res.get('total_changes', 0)} changes verified")
+    integration = res.get("integration", {})
+    if integration.get("merged_branches"):
+        print(f"{'Merged Worker Branches':<24} │ {', '.join(integration['merged_branches'])}")
     print("=" * 110)
 
     if res.get("status") == "PR_CREATED":
         print(f"\n✅ Pull Request Opened: {res.get('pr_url')}")
+    else:
+        print("\n💡 Suggested PR & Integration Commands:")
+        print(f"   👉 GitHub PR: {res.get('suggested_gh_command')}")
+        print(f"   👉 Git Merge: {res.get('suggested_git_merge')}")
 
     print_next_steps([
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate --create-pr", "desc": "Open pull request directly on GitHub via gh CLI"},
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py curate --spec {spec_name or '<spec>'} --create-pr", "desc": "Open pull request directly on GitHub via gh CLI"},
         {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py curate --archive {file_slug}", "desc": "Archive merged PR summary to history"},
     ])
     return 0
@@ -1138,7 +1149,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_curate.add_argument("--spec", help="Scope PR to a specific specification name")
     p_curate.add_argument("--archive", help="Archive a merged PR filename into .workflow/prs/archive/<year>/")
     p_curate.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
-    p_curate.add_argument("--target-branch", default="main", help="Target merge branch (default: main)")
+    p_curate.add_argument("--target-branch", default=None, help="Target merge branch (defaults to spec branch or main)")
     p_curate.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # daemon
