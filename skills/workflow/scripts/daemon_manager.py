@@ -431,12 +431,13 @@ def start_daemon(
     interval_minutes: Optional[int] = None,
     max_iterations: Optional[int] = None,
     archetype: Optional[str] = None,
+    spec_name: Optional[str] = None,
     target_dir: str = "."
 ) -> Dict[str, Any]:
-    """Starts a daemon, runs pre-flight healing, and generates subagent dispatch directive."""
+    """Starts a persistent background daemon, creates its hierarchical worktree and branch, and records host affinity."""
     target_dir = os.path.abspath(target_dir)
     ensure_git_repository(target_dir)
-    reconcile_daemon_registry(target_dir)
+
     clean_name = sanitize_identifier(daemon_name)
 
     wf_root = get_workflow_root(target_dir)
@@ -478,19 +479,19 @@ def start_daemon(
     cron_expr = f"*/{interval} * * * *"
 
     # 1. Pre-Flight Self-Healing: purge any prior zombie or stale worktree of this daemon
-    force_purge_worktree(clean_name, repo_dir=target_dir)
+    force_purge_worktree(clean_name, spec_name=spec_name, repo_dir=target_dir)
 
-    # 2. Create physical worktree with dedicated semantic branch (e.g. fix/fix-worker, docs/doc-worker)
+    # 2. Create physical worktree with dedicated hierarchical branch (e.g. .workflow/worktrees/user-login/fix-worker)
     target_base = get_default_branch(target_dir)
     wt_result = create_worktree(
         name=clean_name,
         base_branch=target_base,
         repo_dir=target_dir,
         archetype=arch,
+        spec_name=spec_name,
     )
-    branch_name = wt_result.get("branch_name", f"{arch}/{clean_name}")
-
-    rel_worktree_path = os.path.join(".workflow", "worktrees", clean_name).replace("\\", "/")
+    branch_name = wt_result.get("branch_name", clean_name)
+    rel_worktree_path = normalize_rel_path(wt_result.get("worktree_path"), target_dir) or os.path.join(".workflow", "worktrees", branch_name, clean_name).replace("\\", "/")
     now = datetime.now().isoformat()
     machine = get_machine_identity()
 
@@ -782,19 +783,21 @@ def run_daemon_cycle(
 
     cycle_result: Optional[Dict[str, Any]] = None
     try:
-        # 1. Setup isolated physical worktree with semantic branch
+        # 1. Setup isolated physical worktree with hierarchical branch
+        spec_clean = os.path.basename(spec_dir.rstrip("/\\")) if spec_dir else None
         wt_result = create_worktree(
             worktree_name,
             base_branch=target_base,
             repo_dir=root_dir,
             archetype=archetype,
+            spec_name=spec_clean,
         )
         if wt_result["status"] == "ERROR":
             cycle_result = {"status": "WORKTREE_ERROR", "details": wt_result}
             return cycle_result
 
         wt_path = wt_result["worktree_path"]
-        branch_name = wt_result.get("branch_name", f"{archetype}/{clean_name}")
+        branch_name = wt_result.get("branch_name", clean_name)
 
         # 2. Pre-Cycle Sync: Safely rebase worktree onto latest base branch
         sync_res = sync_worktree_with_base(wt_path, base_branch=target_base, repo_dir=root_dir)

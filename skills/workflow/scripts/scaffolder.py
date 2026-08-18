@@ -263,7 +263,7 @@ def scaffold_new_spec(
         "archetype": norm_archetype,
         "daemon_name": None,
         "worktree_path": None,
-        "branch_name": f"{branch_prefix}/{clean_name}",
+        "branch_name": clean_name,
         "current_issue_index": 0,
         "issues": [],
         "dag_step": "NEW_SPEC_INITIALIZED",

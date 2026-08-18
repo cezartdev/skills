@@ -52,13 +52,11 @@ metadata:
 >    - Gate 0B rejects overlapping executions if a cycle is actively running (`is_busy: true`).
 >    - Gate 0C enforces cooldown until the full $N$ minutes interval has elapsed since `last_completed_at`.
 >    - Subagents and host agents complete their current cycle, record `last_completed_at`, and schedule the next cycle using `schedule(DurationSeconds=interval_minutes * 60, Prompt="...")`.
-> 9. **Spec-Dependent Worktrees & Semantic Git Branching**: Every physical worktree in `.workflow/worktrees/` is **strictly dependent on and scoped to a specification** (`specs/features/`, `specs/bugs/`, `specs/refactor/`, `specs/docs/`). Whenever a worktree is created for a subagent (`fix-worker`, `refactor-worker`, `doc-worker`) or developer, a dedicated semantic git branch is generated and checked out automatically based on the archetype and spec name:
->    - Feature / Implementation: `feat/<spec-name>` (or `feat/<worker-name>`)
->    - Bug / Auto-Fixer: `fix/<spec-name>` (or `fix/<worker-name>`)
->    - Refactor / Architecture: `refactor/<spec-name>` (or `refactor/<worker-name>`)
->    - Documentation / Doc-Sync: `docs/<spec-name>` (or `docs/<worker-name>`)
->    This guarantees that every subagent operates within physical disk isolation on a conventional git branch without polluting or colliding with the default branch.
-> 10. **Interactive Grilling for Branch Selection**: When creating a spec, worktree, or daemon interactively, the AI Agent MUST initiate a question round using `ask_question` allowing the developer to confirm or select their preferred branch name format (`feat/<name>`, `fix/<name>`, `refactor/<name>`, `docs/<name>`, or custom), ensuring alignment before disk operations occur.
+> 9. **Strict Hierarchical Worktrees (`.workflow/worktrees/<branch-name>/<worker-name>/`)**: Every physical worktree is **strictly dependent on and scoped to a specification branch and its assigned worker subagent**:
+>    - **Branch Name**: Strictly matches the functionality or spec (e.g. `user-login`, `payment-gateway`, `auth-crash`).
+>    - **Worktree Directory**: Follows the strict nested format `.workflow/worktrees/<branch-name>/<worker-name>/` (e.g. `.workflow/worktrees/user-login/fix-worker/`, `.workflow/worktrees/user-login/refactor-worker/`, `.workflow/worktrees/user-login/doc-worker/`).
+>    - This guarantees that multiple subagents (`fix-worker`, `refactor-worker`, `doc-worker`) can collaborate on the exact same feature branch in dedicated, isolated directories without collision.
+> 10. **Interactive Grilling for Branch Selection**: When creating a spec, worktree, or daemon interactively, the AI Agent MUST initiate a question round using `ask_question` allowing the developer to confirm or select their preferred branch name format (`<name>`, `feat/<name>`, `fix/<name>`, `refactor/<name>`, `docs/<name>`, or custom), ensuring alignment before disk operations occur.
 
 ---
 

@@ -121,32 +121,62 @@ def list_worktrees(repo_dir: str = ".") -> List[Dict[str, str]]:
     return worktrees
 
 
+def resolve_worktree_path(
+    name: str,
+    spec_name: Optional[str] = None,
+    worker_name: Optional[str] = None,
+    repo_dir: str = ".",
+) -> str:
+    """Resolves hierarchical worktree directory path: .workflow/worktrees/<branch_name>/<worker_name>."""
+    repo_dir = os.path.abspath(repo_dir)
+    wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
+
+    if os.path.isabs(name) and os.path.exists(name):
+        return name
+
+    name_clean = name.replace("\\", "/").strip("/")
+    if name_clean.startswith(".workflow/worktrees/"):
+        return os.path.join(repo_dir, name_clean)
+
+    if spec_name:
+        clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
+        clean_worker = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename((worker_name or name).rstrip("/\\"))).strip("-._").lower() or "worker"
+        return os.path.join(wf_root, "worktrees", clean_spec, clean_worker)
+
+    if "/" in name_clean:
+        parts = [re.sub(r"[^a-zA-Z0-9_.-]+", "-", p).strip("-._").lower() for p in name_clean.split("/") if p]
+        return os.path.join(wf_root, "worktrees", *parts)
+
+    clean_target = re.sub(r"[^a-zA-Z0-9_.-]+", "-", name_clean).strip("-._").lower()
+
+    # Search if hierarchical worktree exists under .workflow/worktrees/*/<clean_target>
+    base_wt_dir = os.path.join(wf_root, "worktrees")
+    if os.path.exists(base_wt_dir):
+        for root, dirs, files in os.walk(base_wt_dir):
+            if os.path.basename(root) == clean_target and root != base_wt_dir:
+                return root
+
+    # Check flat path for backward compatibility
+    flat_path = os.path.join(base_wt_dir, clean_target)
+    if os.path.exists(flat_path):
+        return flat_path
+
+    # Default hierarchical path: worktrees/<target>/<target>
+    return os.path.join(base_wt_dir, clean_target, clean_target)
+
+
 def generate_branch_name(
     archetype: Optional[str] = "implement",
     spec_name: Optional[str] = None,
     worker_name: Optional[str] = None,
 ) -> str:
-    """Generates standardized semantic branch name based on archetype and spec/worker name (e.g. feat/login, fix/auth-bug)."""
-    arch = (archetype or "implement").lower().strip()
-    if arch in ["feat", "feature", "features", "implement", "feat-worker"]:
-        prefix = "feat"
-    elif arch in ["fix", "bug", "bugs", "hotfix", "auto-fixer", "fixer", "fix-worker"]:
-        prefix = "fix"
-    elif arch in ["refactor", "refactoring", "refactor-worker"]:
-        prefix = "refactor"
-    elif arch in ["doc", "docs", "doc_sync", "documentation", "doc-sync", "doc-worker"]:
-        prefix = "docs"
-    else:
-        prefix = re.sub(r"[^a-zA-Z0-9_-]+", "-", arch).strip("-._") or "feat"
-
+    """Generates branch name matching the spec functionality (e.g. user-login) or worker name."""
     if spec_name:
-        clean_spec = re.sub(r"[^a-zA-Z0-9_-]+", "-", os.path.basename(spec_name.replace("\\", "/"))).strip("-._").lower()
-        return f"{prefix}/{clean_spec}"
+        return re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.replace("\\", "/"))).strip("-._").lower()
     elif worker_name:
-        clean_worker = re.sub(r"[^a-zA-Z0-9_-]+", "-", os.path.basename(worker_name.replace("\\", "/"))).strip("-._").lower()
-        return f"{prefix}/{clean_worker}"
+        return re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(worker_name.replace("\\", "/"))).strip("-._").lower()
     else:
-        return f"{prefix}/worker-{int(time.time())}"
+        return f"task-{int(time.time())}"
 
 
 def create_worktree(
@@ -156,19 +186,35 @@ def create_worktree(
     branch_name: Optional[str] = None,
     archetype: Optional[str] = None,
     spec_name: Optional[str] = None,
+    worker_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Creates a physical git worktree under .workflow/worktrees/<name> with an isolated semantic branch."""
+    """Creates a physical git worktree under .workflow/worktrees/<branch_name>/<worker_name> with its isolated branch."""
     repo_dir = os.path.abspath(repo_dir)
     ensure_git_repository(repo_dir)
-    
-    clean_name = re.sub(r"[^a-zA-Z0-9_-]+", "-", os.path.basename(name.replace("\\", "/"))).strip("-._").lower() or "unnamed"
     target_base = base_branch or get_default_branch(repo_dir)
-
     wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
-    worktree_dir = os.path.join(wf_root, "worktrees", clean_name)
 
-    # Resolve semantic branch name (e.g. feat/<spec-name>, fix/<spec-name>, docs/<daemon>)
-    target_branch = branch_name or generate_branch_name(archetype=archetype, spec_name=spec_name, worker_name=clean_name)
+    # 1. Resolve spec/branch and worker name
+    effective_spec = spec_name
+    effective_worker = worker_name or name
+
+    if "/" in name.replace("\\", "/"):
+        parts = name.replace("\\", "/").split("/", 1)
+        effective_spec = effective_spec or parts[0]
+        effective_worker = parts[1]
+
+    if effective_spec:
+        clean_branch_dir = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(effective_spec.rstrip("/\\"))).strip("-._").lower()
+    else:
+        clean_branch_dir = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(effective_worker.rstrip("/\\"))).strip("-._").lower()
+
+    clean_worker = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(effective_worker.rstrip("/\\"))).strip("-._").lower() or "worker"
+
+    # Strict hierarchical directory: .workflow/worktrees/<branch>/<worker>
+    worktree_dir = os.path.join(wf_root, "worktrees", clean_branch_dir, clean_worker)
+
+    # Branch name: branch_name or clean_branch_dir (e.g. "user-login")
+    target_branch = branch_name or clean_branch_dir
 
     # Self-healing prune first
     prune_worktrees(repo_dir)
@@ -197,12 +243,28 @@ def create_worktree(
         if not is_checked_out:
             res = run_git(["worktree", "add", worktree_dir, target_branch], cwd=repo_dir)
         else:
-            target_branch = f"{target_branch}-{int(time.time())}"
-            res = run_git(["worktree", "add", "-b", target_branch, worktree_dir, target_base], cwd=repo_dir)
+            # Scope branch with hyphen by worker name if main feature branch is currently checked out by another worker
+            if not target_branch.endswith(f"-{clean_worker}"):
+                candidate_branch = f"{target_branch}-{clean_worker}"
+            else:
+                candidate_branch = f"{target_branch}-{int(time.time() * 1000)}"
+
+            cand_check = run_git(["rev-parse", "--verify", f"refs/heads/{candidate_branch}"], cwd=repo_dir)
+            if cand_check.returncode == 0:
+                is_cand_checked_out = any(wt.get("branch", "").replace("refs/heads/", "") == candidate_branch for wt in existing_wts)
+                if not is_cand_checked_out:
+                    res = run_git(["worktree", "add", worktree_dir, candidate_branch], cwd=repo_dir)
+                    target_branch = candidate_branch
+                else:
+                    target_branch = f"{candidate_branch}-{int(time.time() * 1000)}"
+                    res = run_git(["worktree", "add", "-b", target_branch, worktree_dir, target_base], cwd=repo_dir)
+            else:
+                target_branch = candidate_branch
+                res = run_git(["worktree", "add", "-b", target_branch, worktree_dir, target_base], cwd=repo_dir)
     else:
         res = run_git(["worktree", "add", "-b", target_branch, worktree_dir, target_base], cwd=repo_dir)
         if res.returncode != 0:
-            target_branch = f"{target_branch}-{int(time.time())}"
+            target_branch = f"{target_branch}-{int(time.time() * 1000)}"
             res = run_git(["worktree", "add", "-b", target_branch, worktree_dir, target_base], cwd=repo_dir)
 
     if res.returncode != 0:
@@ -221,16 +283,15 @@ def create_worktree(
     }
 
 
-def remove_worktree(name: str, repo_dir: str = ".", force: bool = False) -> Dict[str, Any]:
+def remove_worktree(
+    name: str,
+    spec_name: Optional[str] = None,
+    repo_dir: str = ".",
+    force: bool = False
+) -> Dict[str, Any]:
     """Removes a physical worktree and cleans up git references."""
     repo_dir = os.path.abspath(repo_dir)
-    clean_name = re.sub(r"[^a-zA-Z0-9_-]+", "-", os.path.basename(name.replace("\\", "/"))).strip("-._").lower()
-    wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
-    worktree_dir = os.path.join(wf_root, "worktrees", clean_name)
-    if not os.path.exists(worktree_dir):
-        legacy_dir = os.path.join(repo_dir, ".worktrees", clean_name)
-        if os.path.exists(legacy_dir):
-            worktree_dir = legacy_dir
+    worktree_dir = resolve_worktree_path(name, spec_name=spec_name, repo_dir=repo_dir)
 
     args = ["worktree", "remove", worktree_dir]
     if force:
@@ -240,17 +301,27 @@ def remove_worktree(name: str, repo_dir: str = ".", force: bool = False) -> Dict
     prune_worktrees(repo_dir)
 
     if res.returncode != 0 and os.path.exists(worktree_dir):
-        return {"status": "ERROR", "error": res.stderr.strip()}
+        return {"status": "ERROR", "error": res.stderr.strip(), "worktree_path": worktree_dir}
+
+    # Clean empty parent branch directory if left behind
+    parent = os.path.dirname(worktree_dir)
+    if os.path.exists(parent) and not os.listdir(parent):
+        try:
+            os.rmdir(parent)
+        except Exception:
+            pass
 
     return {"status": "REMOVED", "worktree_path": worktree_dir}
 
 
-def force_purge_worktree(name: str, repo_dir: str = ".") -> Dict[str, Any]:
+def force_purge_worktree(
+    name: str,
+    spec_name: Optional[str] = None,
+    repo_dir: str = "."
+) -> Dict[str, Any]:
     """Anti-Zombie Deep Purge: forces removal of worktree, lockfiles, and git references."""
     repo_dir = os.path.abspath(repo_dir)
-    clean_name = re.sub(r"[^a-zA-Z0-9_-]+", "-", os.path.basename(name.replace("\\", "/"))).strip("-._").lower()
-    wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
-    worktree_dir = os.path.join(wf_root, "worktrees", clean_name)
+    worktree_dir = resolve_worktree_path(name, spec_name=spec_name, repo_dir=repo_dir)
 
     # 1. Attempt standard git worktree remove with --force
     run_git(["worktree", "remove", "--force", worktree_dir], cwd=repo_dir)
@@ -259,6 +330,14 @@ def force_purge_worktree(name: str, repo_dir: str = ".") -> Dict[str, Any]:
     # 2. Check for leftover disk directory and forcefully wipe if necessary
     if os.path.exists(worktree_dir):
         safe_rmtree(worktree_dir)
+
+    # Clean empty parent directory under worktrees/
+    parent = os.path.dirname(worktree_dir)
+    if os.path.exists(parent) and not os.listdir(parent):
+        try:
+            os.rmdir(parent)
+        except Exception:
+            pass
 
     # 3. Clean any stale lockfiles (.git/index.lock or .git/worktrees/<name>/locked)
     git_dir = os.path.join(repo_dir, ".git")
@@ -269,6 +348,7 @@ def force_purge_worktree(name: str, repo_dir: str = ".") -> Dict[str, Any]:
                 os.remove(main_index_lock)
             except Exception:
                 pass
+        clean_name = os.path.basename(worktree_dir)
         wt_meta = os.path.join(git_dir, "worktrees", clean_name)
         if os.path.exists(wt_meta):
             safe_rmtree(wt_meta)

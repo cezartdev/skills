@@ -320,12 +320,13 @@ def cmd_new(args: argparse.Namespace) -> int:
     print(f"{'Spec Document':<24} │ {res['spec_file']}")
     print(f"{'Issues Directory':<24} │ {os.path.join(os.path.dirname(res['spec_file']), 'issues')} (Clean, ready for /workflow plan)")
     print(f"{'State Checkpoint':<24} │ {res['state_file']}")
-    print(f"{'Semantic Branch':<24} │ {prefix}/{spec_clean}")
+    print(f"{'Default Branch':<24} │ {spec_clean}")
+    print(f"{'Hierarchical Worktree':<24} │ .workflow/worktrees/{spec_clean}/<worker-name>")
     print("=" * 110)
 
     print("\nℹ️  AI Agent Interactive Grilling & Branch Selection Directive:")
     print(f"   Ask developer with ask_question to confirm or customize the target git branch:")
-    print(f"   Candidates: (Recommended) {prefix}/{spec_clean} | fix/{spec_clean} | refactor/{spec_clean} | docs/{spec_clean}")
+    print(f"   Candidates: (Recommended) {spec_clean} | feat/{spec_clean} | fix/{spec_clean} | refactor/{spec_clean} | docs/{spec_clean}")
 
     print_next_steps([
         {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py specify {args.spec_name}", "desc": "Interactive Grilling Session to co-author spec"},
@@ -793,7 +794,8 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         name = args.name or "fix-worker"
         interval = getattr(args, "interval", None)
         max_iter = getattr(args, "max_iterations", None)
-        res = start_daemon(daemon_name=name, interval_minutes=interval, max_iterations=max_iter, archetype=args.archetype, target_dir=target_dir)
+        spec_target = getattr(args, "spec", None)
+        res = start_daemon(daemon_name=name, interval_minutes=interval, max_iterations=max_iter, archetype=args.archetype, spec_name=spec_target, target_dir=target_dir)
         if args.json:
             print(json.dumps(res, indent=2))
             return 0
@@ -915,13 +917,13 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print(f"{'DAEMON':<18} │ {'STATUS':<9} │ {'SCHEDULE':<10} │ {'BRANCH':<22} │ {'HOST':<18} │ WORKTREE")
         print("-" * 110)
         if not res["daemons"]:
-            print(f"{'fix-worker':<18} │ {'STOPPED':<9} │ {'every 10m':<10} │ {'fix/fix-worker':<22} │ {'-':<18} │ .workflow/worktrees/fix-worker")
-            print(f"{'refactor-worker':<18} │ {'STOPPED':<9} │ {'every 15m':<10} │ {'refactor/worker':<22} │ {'-':<18} │ .workflow/worktrees/refactor-worker")
-            print(f"{'doc-worker':<18} │ {'STOPPED':<9} │ {'every 30m':<10} │ {'docs/doc-worker':<22} │ {'-':<18} │ .workflow/worktrees/doc-worker")
+            print(f"{'fix-worker':<18} │ {'STOPPED':<9} │ {'every 10m':<10} │ {'fix-worker':<22} │ {'-':<18} │ .workflow/worktrees/general/fix-worker")
+            print(f"{'refactor-worker':<18} │ {'STOPPED':<9} │ {'every 15m':<10} │ {'refactor-worker':<22} │ {'-':<18} │ .workflow/worktrees/general/refactor-worker")
+            print(f"{'doc-worker':<18} │ {'STOPPED':<9} │ {'every 30m':<10} │ {'doc-worker':<22} │ {'-':<18} │ .workflow/worktrees/general/doc-worker")
         else:
             for d in res["daemons"]:
                 status_str = d["status"]
-                branch_str = str(d.get("branch_name") or f"{d.get('archetype', 'feat')}/{d['name']}")
+                branch_str = str(d.get("branch_name") or d["name"])
                 host_str = str(d.get("host") or "-")
                 print(f"{d['name']:<18} │ {status_str:<9} │ every {d['interval_minutes']}m   │ {branch_str:<22} │ {host_str:<18} │ {d['worktree_path']}")
         print("=" * 110)
@@ -1146,6 +1148,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_daemon.add_argument("--interval", type=int, default=None, help="Cron interval in minutes (defaults to workflow.json setting or 10)")
     p_daemon.add_argument("--max-iterations", type=int, default=None, help="Maximum number of iterations before stopping (0/None for unlimited)")
     p_daemon.add_argument("--archetype", choices=["feat", "feature", "implement", "fix", "bug", "refactor", "doc", "docs", "doc_sync"], help="Archetype persona")
+    p_daemon.add_argument("--spec", help="Target specification name to bind branch and hierarchical worktree (e.g. user-login)")
     p_daemon.add_argument("--description", help="Human-readable description of daemon responsibilities")
     p_daemon.add_argument("--target-spec-dir", help="Custom directory containing target specs")
     p_daemon.add_argument("--all", action="store_true", help="Apply stop/pause to all running daemons")

@@ -125,17 +125,18 @@ uv run skills/workflow/scripts/workflow_runner.py daemon clean
 > - An atomic concurrency lock (`is_busy: true`) prevents concurrent cycles from colliding inside the same `.workflow/worktrees/<name>/`.
 > - If an execution takes 3 minutes and the interval is 2 minutes, the next cycle will run 2 minutes after the 3-minute run finishes (5 minutes from start).
 
-### 6. Spec-Dependent Worktrees & Semantic Git Branching
-Every physical worktree in `.workflow/worktrees/` is **strictly dependent on and scoped to a specification** (`specs/features/`, `specs/bugs/`, `specs/refactor/`, `specs/docs/`).
-When a worktree is created (via `/workflow daemon start`, `/workflow worktree add`, or subagents `fix-worker`, `refactor-worker`, `doc-worker`), a dedicated semantic git branch is generated and checked out automatically:
-- **Features (`implement`)**: `feat/<spec-name>` (e.g., `feat/payment-gateway`, `feat/auth-login`)
-- **Bugs / Fixers (`fix`)**: `fix/<spec-name>` (e.g., `fix/fix-worker`, `fix/token-expiry`)
-- **Refactoring (`refactor`)**: `refactor/<spec-name>` (e.g., `refactor/refactor-worker`, `refactor/db-pool`)
-- **Documentation (`doc_sync`)**: `docs/<spec-name>` (e.g., `docs/doc-worker`, `docs/api-reference`)
+### 6. Strict Hierarchical Worktrees (`.workflow/worktrees/<branch>/<worker>/`)
+Every physical worktree is **strictly dependent on and scoped to a specification branch and its assigned worker subagent**:
+- **Branch Name**: Strictly matches the feature or spec (e.g., `user-login`, `payment-gateway`).
+- **Worktree Directory**: Follows the nested format `.workflow/worktrees/<branch-name>/<worker-name>/`:
+  - `fix-worker`: `.workflow/worktrees/user-login/fix-worker/`
+  - `refactor-worker`: `.workflow/worktrees/user-login/refactor-worker/`
+  - `doc-worker`: `.workflow/worktrees/user-login/doc-worker/`
 
 ```bash
-# Explicitly create an isolated worktree bound to a semantic spec branch:
-uv run skills/workflow/scripts/workflow_runner.py worktree add my-worker --archetype feat --spec payment-gateway
+# Create an isolated worktree for a specific worker bound to a feature branch:
+uv run skills/workflow/scripts/workflow_runner.py worktree add fix-worker --spec user-login
+# => Worktree: .workflow/worktrees/user-login/fix-worker/ (Branch: user-login)
 ```
 
 ### 7. Multi-PR Release Curation & GitHub PRs
