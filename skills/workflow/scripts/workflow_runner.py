@@ -162,7 +162,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     print_next_steps([
         {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Survey polyglot stack & update context"},
         {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold your first feature specification"},
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer", "desc": "Start background auto-fixer daemon"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start fix-worker", "desc": "Start background fix-worker daemon"},
     ])
     return 0
 
@@ -307,6 +307,10 @@ def cmd_new(args: argparse.Namespace) -> int:
         print(json.dumps(res, indent=2))
         return 0
 
+    spec_clean = res.get("spec_name", args.spec_name)
+    ns = res.get("namespace", "features")
+    prefix = "feat" if ns == "features" else ("fix" if ns == "bugs" else ("refactor" if ns == "refactor" else ("docs" if ns == "docs" else "feat")))
+
     print("=" * 110)
     print(f" ✨ SPECIFICATION SCAFFOLDED: '{args.spec_name}'")
     print("=" * 110)
@@ -316,7 +320,12 @@ def cmd_new(args: argparse.Namespace) -> int:
     print(f"{'Spec Document':<24} │ {res['spec_file']}")
     print(f"{'Issues Directory':<24} │ {os.path.join(os.path.dirname(res['spec_file']), 'issues')} (Clean, ready for /workflow plan)")
     print(f"{'State Checkpoint':<24} │ {res['state_file']}")
+    print(f"{'Semantic Branch':<24} │ {prefix}/{spec_clean}")
     print("=" * 110)
+
+    print("\nℹ️  AI Agent Interactive Grilling & Branch Selection Directive:")
+    print(f"   Ask developer with ask_question to confirm or customize the target git branch:")
+    print(f"   Candidates: (Recommended) {prefix}/{spec_clean} | fix/{spec_clean} | refactor/{spec_clean} | docs/{spec_clean}")
 
     print_next_steps([
         {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py specify {args.spec_name}", "desc": "Interactive Grilling Session to co-author spec"},
@@ -683,7 +692,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print_next_steps([
             {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon create <name>", "desc": "Create a new custom daemon blueprint"},
             {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon set <name> --interval <m>", "desc": "Configure daemon schedule or iterations"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer", "desc": "Start background daemon subagent"},
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start fix-worker", "desc": "Start background daemon subagent"},
             {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "View active daemon health table"},
         ])
         return 0
@@ -735,7 +744,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 
     elif action in ["set", "edit", "config"]:
         if not getattr(args, "name", None):
-            print("Error: Daemon name is required for daemon set. Example: workflow daemon set auto-fixer --interval 5 --max-iterations 10", file=sys.stderr)
+            print("Error: Daemon name is required for daemon set. Example: workflow daemon set fix-worker --interval 5 --max-iterations 10", file=sys.stderr)
             return 1
 
         name = args.name
@@ -781,7 +790,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         return 0
 
     elif action == "start":
-        name = args.name or "auto-fixer"
+        name = args.name or "fix-worker"
         interval = getattr(args, "interval", None)
         max_iter = getattr(args, "max_iterations", None)
         res = start_daemon(daemon_name=name, interval_minutes=interval, max_iterations=max_iter, archetype=args.archetype, target_dir=target_dir)
@@ -813,7 +822,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         return 0
 
     elif action == "pause":
-        name = args.name or "auto-fixer"
+        name = args.name or "fix-worker"
         res = pause_daemon(name, target_dir=target_dir)
         if args.json:
             print(json.dumps(res, indent=2))
@@ -829,7 +838,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         return 0
 
     elif action == "resume":
-        name = args.name or "auto-fixer"
+        name = args.name or "fix-worker"
         res = resume_daemon(name, target_dir=target_dir)
         if args.json:
             print(json.dumps(res, indent=2))
@@ -906,9 +915,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print(f"{'DAEMON':<18} │ {'STATUS':<9} │ {'SCHEDULE':<10} │ {'BRANCH':<22} │ {'HOST':<18} │ WORKTREE")
         print("-" * 110)
         if not res["daemons"]:
-            print(f"{'auto-fixer':<18} │ {'STOPPED':<9} │ {'every 10m':<10} │ {'fix/auto-fixer':<22} │ {'-':<18} │ .workflow/worktrees/auto-fixer")
+            print(f"{'fix-worker':<18} │ {'STOPPED':<9} │ {'every 10m':<10} │ {'fix/fix-worker':<22} │ {'-':<18} │ .workflow/worktrees/fix-worker")
             print(f"{'refactor-worker':<18} │ {'STOPPED':<9} │ {'every 15m':<10} │ {'refactor/worker':<22} │ {'-':<18} │ .workflow/worktrees/refactor-worker")
-            print(f"{'doc-sync':<18} │ {'STOPPED':<9} │ {'every 30m':<10} │ {'docs/doc-sync':<22} │ {'-':<18} │ .workflow/worktrees/doc-sync")
+            print(f"{'doc-worker':<18} │ {'STOPPED':<9} │ {'every 30m':<10} │ {'docs/doc-worker':<22} │ {'-':<18} │ .workflow/worktrees/doc-worker")
         else:
             for d in res["daemons"]:
                 status_str = d["status"]
@@ -918,14 +927,14 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("=" * 110)
 
         print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer", "desc": "Launch auto-fixer background worker"},
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start fix-worker", "desc": "Launch fix-worker background worker"},
             {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon create <name>", "desc": "Create a new custom daemon blueprint"},
             {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon pause --all", "desc": "Freeze all workers for release curation"},
         ])
         return 0
 
     elif action == "run":
-        name = args.name or "auto-fixer"
+        name = args.name or "fix-worker"
         res = run_daemon_cycle(
             daemon_name=name,
             archetype=args.archetype,
@@ -995,6 +1004,12 @@ def cmd_worktree(args: argparse.Namespace) -> int:
     print(f"Result: {json.dumps(res, indent=2)}")
     print("=" * 110)
 
+    if args.action == "add":
+        print("\nℹ️  AI Agent Worktree & Spec Isolation Directive:")
+        print("   Worktrees in .workflow/worktrees/ are strictly scoped to specifications.")
+        print(f"   Created physical worktree '{res.get('worktree_path')}' on branch '{res.get('branch_name')}'.")
+        print("   Subagents dispatched to this worktree MUST execute exclusively within this isolated directory.")
+
     print_next_steps([
         {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Check active daemon worktrees"},
     ])
@@ -1017,7 +1032,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow daemon list", "syntax": "workflow daemon list", "desc": "Display catalog of configured daemon blueprints & multi-machine status"},
         {"slash": "/workflow daemon create", "syntax": "workflow daemon create <name> [--archetype <type>]", "desc": "Create a new daemon blueprint in workflow.json"},
         {"slash": "/workflow daemon set", "syntax": "workflow daemon set <name> [--interval <m>]", "desc": "Modify daemon schedule interval or max iterations"},
-        {"slash": "/workflow daemon start", "syntax": "workflow daemon start [name]", "desc": "Start background daemon subagent (auto-fixer, refactor-worker, doc-sync)"},
+        {"slash": "/workflow daemon start", "syntax": "workflow daemon start [name]", "desc": "Start background daemon subagent (fix-worker, refactor-worker, doc-worker)"},
         {"slash": "/workflow daemon pause", "syntax": "workflow daemon pause [name]", "desc": "Pause background worker without deleting worktree"},
         {"slash": "/workflow daemon resume", "syntax": "workflow daemon resume [name]", "desc": "Resume paused background worker execution"},
         {"slash": "/workflow daemon stop", "syntax": "workflow daemon stop [name|--all]", "desc": "Terminate background worker & execute Anti-Zombie purge"},
@@ -1127,7 +1142,7 @@ def build_parser() -> argparse.ArgumentParser:
     # daemon
     p_daemon = subparsers.add_parser("daemon", help="Manage background daemon subagents, cron scheduling, and Anti-Zombie lifecycle")
     p_daemon.add_argument("action", nargs="?", default="status", choices=["list", "create", "add", "set", "edit", "config", "start", "pause", "resume", "stop", "status", "clean", "run"], help="Daemon action")
-    p_daemon.add_argument("name", nargs="?", help="Named daemon (e.g. auto-fixer, refactor-worker)")
+    p_daemon.add_argument("name", nargs="?", help="Named daemon (e.g. fix-worker, refactor-worker, doc-worker)")
     p_daemon.add_argument("--interval", type=int, default=None, help="Cron interval in minutes (defaults to workflow.json setting or 10)")
     p_daemon.add_argument("--max-iterations", type=int, default=None, help="Maximum number of iterations before stopping (0/None for unlimited)")
     p_daemon.add_argument("--archetype", choices=["feat", "feature", "implement", "fix", "bug", "refactor", "doc", "docs", "doc_sync"], help="Archetype persona")

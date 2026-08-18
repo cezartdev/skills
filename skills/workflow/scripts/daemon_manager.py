@@ -384,9 +384,9 @@ def get_daemon_catalog(target_dir: str = ".") -> Dict[str, Any]:
     config_daemons = config.get("daemons", {})
 
     descriptions = {
-        "auto-fixer": "Autonomous bug fixer & regression hunter",
+        "fix-worker": "Autonomous bug fixer & regression hunter",
         "refactor-worker": "Architectural cleanup & code smell refactorer",
-        "doc-sync": "Documentation synchronizer & README updater",
+        "doc-worker": "Documentation synchronizer & README updater",
     }
 
     for name, conf in config_daemons.items():
@@ -480,7 +480,7 @@ def start_daemon(
     # 1. Pre-Flight Self-Healing: purge any prior zombie or stale worktree of this daemon
     force_purge_worktree(clean_name, repo_dir=target_dir)
 
-    # 2. Create physical worktree with dedicated semantic branch (e.g. fix/auto-fixer, docs/doc-sync)
+    # 2. Create physical worktree with dedicated semantic branch (e.g. fix/fix-worker, docs/doc-worker)
     target_base = get_default_branch(target_dir)
     wt_result = create_worktree(
         name=clean_name,

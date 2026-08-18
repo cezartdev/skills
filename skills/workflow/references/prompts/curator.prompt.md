@@ -20,7 +20,7 @@ Consolidate, review, and synthesize all recent work performed across archetypes 
 3. **Multi-PR Catalog & Changelog Generation**:
    - Write `.workflow/prs/active/PR_<scope>_<timestamp>.md` containing:
      - **Executive Summary**: High-level overview of batch improvements.
-     - **Bug Fixes Table**: ID, affected files, summary, and root causes resolved by `auto-fixer`.
+     - **Bug Fixes Table**: ID, affected files, summary, and root causes resolved by `fix-worker`.
      - **Refactoring & Code Quality**: Architecture improvements and modularity enhancements by `refactor-worker`.
      - **Feature Deliveries**: Specs completed, acceptance criteria passed, and data schemas added.
      - **Deterministic Verification**: Checkbox confirmations for test passes and security gates.

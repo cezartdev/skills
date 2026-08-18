@@ -52,12 +52,13 @@ metadata:
 >    - Gate 0B rejects overlapping executions if a cycle is actively running (`is_busy: true`).
 >    - Gate 0C enforces cooldown until the full $N$ minutes interval has elapsed since `last_completed_at`.
 >    - Subagents and host agents complete their current cycle, record `last_completed_at`, and schedule the next cycle using `schedule(DurationSeconds=interval_minutes * 60, Prompt="...")`.
-> 9. **Semantic Git Branch Creation with Worktrees**: Whenever a physical worktree is created for a subagent or developer, a dedicated semantic git branch MUST be created and checked out automatically based on the archetype and spec name:
+> 9. **Spec-Dependent Worktrees & Semantic Git Branching**: Every physical worktree in `.workflow/worktrees/` is **strictly dependent on and scoped to a specification** (`specs/features/`, `specs/bugs/`, `specs/refactor/`, `specs/docs/`). Whenever a worktree is created for a subagent (`fix-worker`, `refactor-worker`, `doc-worker`) or developer, a dedicated semantic git branch is generated and checked out automatically based on the archetype and spec name:
 >    - Feature / Implementation: `feat/<spec-name>` (or `feat/<worker-name>`)
 >    - Bug / Auto-Fixer: `fix/<spec-name>` (or `fix/<worker-name>`)
 >    - Refactor / Architecture: `refactor/<spec-name>` (or `refactor/<worker-name>`)
 >    - Documentation / Doc-Sync: `docs/<spec-name>` (or `docs/<worker-name>`)
 >    This guarantees that every subagent operates within physical disk isolation on a conventional git branch without polluting or colliding with the default branch.
+> 10. **Interactive Grilling for Branch Selection**: When creating a spec, worktree, or daemon interactively, the AI Agent MUST initiate a question round using `ask_question` allowing the developer to confirm or select their preferred branch name format (`feat/<name>`, `fix/<name>`, `refactor/<name>`, `docs/<name>`, or custom), ensuring alignment before disk operations occur.
 
 ---
 
@@ -88,10 +89,10 @@ skills/workflow/
 │   ├── ARCHITECTURE.md               # In-depth technical architecture guide
 │   └── prompts/                      # Dedicated archetype system prompts
 │       ├── explorer.prompt.md        # Codebase discovery scout prompt
-│       ├── fix.prompt.md             # BugFix & Auto-Heal prompt
-│       ├── refactor.prompt.md        # Architecture & code health prompt
-│       ├── implement.prompt.md       # Feature builder prompt
-│       ├── doc_sync.prompt.md        # Documentation synchronizer prompt
+│       ├── fix.prompt.md             # BugFix & Auto-Heal prompt (fix-worker)
+│       ├── refactor.prompt.md        # Architecture & code health prompt (refactor-worker)
+│       ├── implement.prompt.md       # Feature builder prompt (feat-worker)
+│       ├── doc_sync.prompt.md        # Documentation synchronizer prompt (doc-worker)
 │       ├── specify.prompt.md         # Spec Scribe & Socratic Co-Author prompt (Spec-Kit style)
 │       ├── chat.prompt.md            # Macro project advisor & brainstorming prompt
 │       └── curator.prompt.md         # Multi-PR Release Curator prompt
@@ -123,7 +124,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 | `/workflow daemon list` | `workflow daemon list` | Display catalog of configured daemon blueprints & multi-machine status |
 | `/workflow daemon create` | `workflow daemon create <name>` | Create a new daemon blueprint in `workflow.json` via interactive Grilling |
 | `/workflow daemon set` | `workflow daemon set <name> [--interval <m>]` | Modify daemon schedule interval, max iterations, or archetype |
-| `/workflow daemon start` | `workflow daemon start [name]` | Start background daemon subagent (`auto-fixer`, `refactor-worker`, `doc-sync`) |
+| `/workflow daemon start` | `workflow daemon start [name]` | Start background daemon subagent (`fix-worker`, `refactor-worker`, `doc-worker`) |
 | `/workflow daemon pause` | `workflow daemon pause [name]` | Pause background worker without deleting worktree |
 | `/workflow daemon resume` | `workflow daemon resume [name]` | Resume paused background worker execution |
 | `/workflow daemon stop` | `workflow daemon stop [name\|--all]` | Terminate background worker & execute Anti-Zombie purge |
@@ -143,13 +144,13 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 1. Survey Stack:
    Run '/workflow explore' to detect Python, Rust, Go, Node, Java, or .NET test runners.
 2. Scaffold Spec (SDD):
-   Run '/workflow new <name> [--archetype feat|bug|refactor]' under '.workflow/specs/'.
-3. Socratic Co-Authoring (Spec-Kit Style):
-   Run '/workflow specify <name>' to refine data schemas, error handling, and acceptance criteria.
+   Run '/workflow new <name> [--archetype feat|bug|refactor|doc]' under '.workflow/specs/'.
+3. Socratic Co-Authoring & Branch Selection (Spec-Kit Style):
+   Run '/workflow specify <name>' and confirm branch name via grilling session before planning.
 4. Deterministic TDD Execution:
    Run '/workflow run <name>'. Python strictly validates exit codes (RED != 0, GREEN == 0).
 5. Background Daemons:
-   Run '/workflow daemon start auto-fixer --interval 10' for isolated worktree auto-healing.
+   Run '/workflow daemon start fix-worker --interval 10' for isolated worktree auto-healing.
 6. Multi-PR Release Curation:
    Pause workers with '/workflow daemon pause --all' and run '/workflow curate --archetype fix' or '/workflow curate --all --create-pr' to generate scoped pull requests in '.workflow/prs/active/'.
 ```

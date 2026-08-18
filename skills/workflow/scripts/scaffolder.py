@@ -170,9 +170,9 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
                 "version": "1.0.0",
                 "test_runner": {"command": test_cmd},
                 "daemons": {
-                    "auto-fixer": {"archetype": "fix", "schedule": {"interval_minutes": 10}},
+                    "fix-worker": {"archetype": "fix", "schedule": {"interval_minutes": 10}},
                     "refactor-worker": {"archetype": "refactor", "schedule": {"interval_minutes": 15}},
-                    "doc-sync": {"archetype": "doc_sync", "schedule": {"interval_minutes": 30}}
+                    "doc-worker": {"archetype": "doc_sync", "schedule": {"interval_minutes": 30}}
                 }
             })
         config_created = True

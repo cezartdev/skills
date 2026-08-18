@@ -92,26 +92,26 @@ uv run skills/workflow/scripts/workflow_runner.py daemon create security-auditor
 # Modify an existing daemon blueprint's schedule or iterations dynamically
 uv run skills/workflow/scripts/workflow_runner.py daemon set security-auditor --interval 3 --max-iterations 50
 
-# 1. Start auto-fixer subagent (archetype: fix, bugs namespace) every 10 minutes
-uv run skills/workflow/scripts/workflow_runner.py daemon start auto-fixer --interval 10
+# 1. Start fix-worker subagent (archetype: fix, bugs namespace) every 10 minutes
+uv run skills/workflow/scripts/workflow_runner.py daemon start fix-worker --interval 10
 
 # 2. Start refactor-worker subagent (archetype: refactor, refactor namespace) every 15 minutes
 uv run skills/workflow/scripts/workflow_runner.py daemon start refactor-worker --interval 15
 
-# 3. Start doc-sync subagent (archetype: doc_sync, docs namespace) every 30 minutes
-uv run skills/workflow/scripts/workflow_runner.py daemon start doc-sync --interval 30
+# 3. Start doc-worker subagent (archetype: doc_sync, docs namespace) every 30 minutes
+uv run skills/workflow/scripts/workflow_runner.py daemon start doc-worker --interval 30
 
 # Pause daemon cron execution without destroying worktree
-uv run skills/workflow/scripts/workflow_runner.py daemon pause auto-fixer
+uv run skills/workflow/scripts/workflow_runner.py daemon pause fix-worker
 
 # Resume daemon cron execution
-uv run skills/workflow/scripts/workflow_runner.py daemon resume auto-fixer
+uv run skills/workflow/scripts/workflow_runner.py daemon resume fix-worker
 
 # View active daemon status table, multi-machine host affinity (user@hostname) & health metrics
 uv run skills/workflow/scripts/workflow_runner.py daemon status
 
 # Stop a specific daemon or all daemons with Anti-Zombie purge
-uv run skills/workflow/scripts/workflow_runner.py daemon stop auto-fixer
+uv run skills/workflow/scripts/workflow_runner.py daemon stop fix-worker
 uv run skills/workflow/scripts/workflow_runner.py daemon stop --all
 
 # Clean dead PIDs and stale worktree locks
@@ -125,12 +125,13 @@ uv run skills/workflow/scripts/workflow_runner.py daemon clean
 > - An atomic concurrency lock (`is_busy: true`) prevents concurrent cycles from colliding inside the same `.workflow/worktrees/<name>/`.
 > - If an execution takes 3 minutes and the interval is 2 minutes, the next cycle will run 2 minutes after the 3-minute run finishes (5 minutes from start).
 
-### 6. Semantic Git Branching & Worktree Isolation
-When a worktree is created (via `/workflow daemon start`, `/workflow worktree add`, or subagents), a dedicated semantic git branch is generated and checked out automatically:
+### 6. Spec-Dependent Worktrees & Semantic Git Branching
+Every physical worktree in `.workflow/worktrees/` is **strictly dependent on and scoped to a specification** (`specs/features/`, `specs/bugs/`, `specs/refactor/`, `specs/docs/`).
+When a worktree is created (via `/workflow daemon start`, `/workflow worktree add`, or subagents `fix-worker`, `refactor-worker`, `doc-worker`), a dedicated semantic git branch is generated and checked out automatically:
 - **Features (`implement`)**: `feat/<spec-name>` (e.g., `feat/payment-gateway`, `feat/auth-login`)
-- **Bugs / Fixers (`fix`)**: `fix/<spec-name>` (e.g., `fix/auto-fixer`, `fix/token-expiry`)
+- **Bugs / Fixers (`fix`)**: `fix/<spec-name>` (e.g., `fix/fix-worker`, `fix/token-expiry`)
 - **Refactoring (`refactor`)**: `refactor/<spec-name>` (e.g., `refactor/refactor-worker`, `refactor/db-pool`)
-- **Documentation (`doc_sync`)**: `docs/<spec-name>` (e.g., `docs/doc-sync`, `docs/api-reference`)
+- **Documentation (`doc_sync`)**: `docs/<spec-name>` (e.g., `docs/doc-worker`, `docs/api-reference`)
 
 ```bash
 # Explicitly create an isolated worktree bound to a semantic spec branch:

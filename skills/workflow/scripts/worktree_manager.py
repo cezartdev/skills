@@ -128,13 +128,13 @@ def generate_branch_name(
 ) -> str:
     """Generates standardized semantic branch name based on archetype and spec/worker name (e.g. feat/login, fix/auth-bug)."""
     arch = (archetype or "implement").lower().strip()
-    if arch in ["feat", "feature", "features", "implement"]:
+    if arch in ["feat", "feature", "features", "implement", "feat-worker"]:
         prefix = "feat"
-    elif arch in ["fix", "bug", "bugs", "hotfix", "auto-fixer", "fixer"]:
+    elif arch in ["fix", "bug", "bugs", "hotfix", "auto-fixer", "fixer", "fix-worker"]:
         prefix = "fix"
     elif arch in ["refactor", "refactoring", "refactor-worker"]:
         prefix = "refactor"
-    elif arch in ["doc", "docs", "doc_sync", "documentation", "doc-sync"]:
+    elif arch in ["doc", "docs", "doc_sync", "documentation", "doc-sync", "doc-worker"]:
         prefix = "docs"
     else:
         prefix = re.sub(r"[^a-zA-Z0-9_-]+", "-", arch).strip("-._") or "feat"
