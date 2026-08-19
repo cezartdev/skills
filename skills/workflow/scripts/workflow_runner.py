@@ -40,7 +40,7 @@ from daemon_manager import (
     create_daemon_blueprint,
     update_daemon_config,
 )
-from curator import compile_scoped_pr_summary, create_curator_pr, archive_merged_pr
+from curator import compile_scoped_pr_summary, create_curator_pr, archive_merged_pr, generate_specify_adr
 from orchestrator import prepare_subagent_dispatch, generate_subagent_directive, get_archetype_prompt
 from pipeline import PipelineRunner
 from graph.engine import WorkflowEngine
@@ -379,12 +379,21 @@ def cmd_new(args: argparse.Namespace) -> int:
 
 
 def cmd_specify(args: argparse.Namespace) -> int:
-    """Interactive Spec Co-Authoring & Debate Session (GitHub Spec-Kit style)."""
+    """Interactive Spec Co-Authoring & Debate Session (GitHub Spec-Kit style) with ADR generation."""
     resolved_path = resolve_spec_path(args.spec_name, target_dir=args.target_dir)
     audit = audit_spec(resolved_path)
 
     spec_file = audit.get("spec_file", resolved_path)
     spec_name = os.path.basename(resolved_path.rstrip("/\\"))
+
+    adr_res = None
+    if getattr(args, "generate_adr", False) or audit.get("passed", False):
+        adr_res = generate_specify_adr(
+            spec_name=spec_name,
+            target_dir=args.target_dir,
+            decisions_summary=getattr(args, "decisions", None),
+            context=getattr(args, "context", None),
+        )
 
     questions = []
     if not audit["checks"].get("architecture"):
@@ -405,6 +414,7 @@ def cmd_specify(args: argparse.Namespace) -> int:
         "checks": audit["checks"],
         "recommendations": audit.get("recommendations", []),
         "debate_questions": questions,
+        "adr": adr_res,
     }
 
     if args.json:
@@ -414,8 +424,10 @@ def cmd_specify(args: argparse.Namespace) -> int:
     print("=" * 110)
     print(f" 📝 SPECIFY SESSION: {spec_name} (Current Quality Score: {audit['score']}/100)")
     print("=" * 110)
-    print(f"Target Document: {spec_file}\n")
-    print("Architectural Co-Authoring Prompts:")
+    print(f"Target Document: {spec_file}")
+    if adr_res and adr_res.get("adr_file"):
+        print(f"Architectural Record: {adr_res['adr_file']} (Status: Accepted)")
+    print("\nArchitectural Co-Authoring Prompts:")
     for idx, q in enumerate(questions, 1):
         print(f"  {idx}. {q}")
     print("=" * 110)
@@ -1207,8 +1219,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # specify
-    p_spec = subparsers.add_parser("specify", help="Socratic debate & interactive interview to co-author spec.md (Spec-Kit style)")
+    p_spec = subparsers.add_parser("specify", help="Socratic debate & interactive interview to co-author spec.md (Spec-Kit style) and generate ADR")
     p_spec.add_argument("spec_name", help="Name or path of the spec to refine")
+    p_spec.add_argument("--generate-adr", action="store_true", help="Explicitly generate or refresh specification ADR in .workflow/specs/<spec>/adrs/")
+    p_spec.add_argument("--decisions", help="Summary of architectural decisions agreed upon during grilling")
+    p_spec.add_argument("--context", help="Context or problem statement for the ADR")
     p_spec.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # plan

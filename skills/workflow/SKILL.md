@@ -29,7 +29,7 @@ metadata:
 > [!IMPORTANT]
 > **MANDATORY AGENT EXECUTION DIRECTIVES**:
 > 1. **Tool Invocation**: AI Agents MUST ALWAYS invoke workflow commands using `uv run` (e.g. `uv run skills/workflow/scripts/workflow_runner.py <subcommand>` or `uv run .agents/skills/workflow/scripts/workflow_runner.py <subcommand>`). NEVER invoke `python3` or `python` directly.
-> 2. **Specify Grilling Session**: When triggering `/workflow specify <name>`, the AI Agent MUST conduct an interactive 1-by-1 Grilling Session using the interactive question tool (e.g., `ask_question`), asking questions sequentially with multiple-choice recommendations and updating `spec.md` in-place after each answer.
+> 2. **Specify Grilling Session & ADR Generation**: When triggering `/workflow specify <name>`, the AI Agent MUST conduct an interactive 1-by-1 Grilling Session using the interactive question tool (e.g., `ask_question`), asking questions sequentially with multiple-choice recommendations, updating `spec.md` in-place after each answer, and generating an Architectural Decision Record (ADR) in `.workflow/specs/<name>/adrs/ADR_<timestamp>_specification_design.md` capturing all agreed-upon architectural choices.
 > 3. **Deterministic Sequential Subagent Pipeline**: When triggering `/workflow run <spec>`, the AI Agent MUST:
 >    - Execute the deterministic 4-stage sequential pipeline in `.workflow/worktrees/<spec>/worker/` on branch `<spec>-worker`:
 >      1. **Stage 1 (Fix-Worker)**: Stabilize codebase and guarantee 100% green tests.
@@ -112,7 +112,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 | `/workflow init` | `workflow init [dir]` | Initialize encapsulated `.workflow/` structure & configs |
 | `/workflow explore` | `workflow explore [dir]` | Survey polyglot stack & extract style preferences (`coding_preferences.md`) |
 | `/workflow new` | `workflow new <spec>` | Scaffold a new feature spec directly under `.workflow/specs/<spec>/` |
-| `/workflow specify` | `workflow specify <spec>` | Interactive 1-by-1 Grilling Session to co-author `spec.md` |
+| `/workflow specify` | `workflow specify <spec> [--generate-adr]` | Interactive 1-by-1 Grilling Session to co-author `spec.md` & generate ADR |
 | `/workflow plan` | `workflow plan <spec>` | Decompose refined spec into atomic TDD task issues |
 | `/workflow check` | `workflow check <spec>` | Audit spec against deterministic Quality Gate (100/100) |
 | `/workflow run` | `workflow run <spec> [--schedule <m>]` | **Primary Engine**: Run 4-stage sequential pipeline (Fix -> Refactor -> Doc -> Curator) |
@@ -138,7 +138,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 2. Scaffold Spec (SDD):
    Run '/workflow new <name>' directly under '.workflow/specs/<name>/'.
 3. Socratic Co-Authoring & Branch Selection (Spec-Kit Style):
-   Run '/workflow specify <name>' and confirm branch name via grilling session before planning.
+   Run '/workflow specify <name>' to co-author spec and generate ADR under '.workflow/specs/<name>/adrs/'.
 4. Deterministic TDD Execution:
    Run '/workflow run <name>'. Python strictly validates exit codes (RED != 0, GREEN == 0).
 5. Background Daemons:

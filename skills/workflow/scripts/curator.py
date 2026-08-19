@@ -282,6 +282,88 @@ def generate_spec_adr(
     }
 
 
+def generate_specify_adr(
+    spec_name: str,
+    target_dir: str = ".",
+    decisions_summary: Optional[str] = None,
+    context: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Generates an Architectural Decision Record (ADR) capturing specification design choices."""
+    target_dir = os.path.abspath(target_dir)
+    wf_root = get_workflow_root(target_dir)
+    clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
+
+    # Find spec directory directly under specs/
+    spec_dir = os.path.join(wf_root, "specs", clean_spec)
+    if not os.path.exists(spec_dir):
+        for ns in ["features", "bugs", "refactor", "docs"]:
+            candidate = os.path.join(wf_root, "specs", ns, clean_spec)
+            if os.path.exists(candidate):
+                spec_dir = candidate
+                break
+
+    os.makedirs(spec_dir, exist_ok=True)
+    adrs_dir = os.path.join(spec_dir, "adrs")
+    os.makedirs(adrs_dir, exist_ok=True)
+
+    spec_file = os.path.join(spec_dir, "spec.md")
+    spec_content = ""
+    if os.path.exists(spec_file):
+        try:
+            with open(spec_file, "r", encoding="utf-8") as f:
+                spec_content = f.read()
+        except Exception:
+            pass
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    timestamp_slug = datetime.now().strftime("%Y%m%d_%H%M%S")
+    adr_filename = f"ADR_{timestamp_slug}_specification_design.md"
+    adr_path = os.path.join(adrs_dir, adr_filename)
+
+    # Extract overview, architecture, and edge cases from spec if available
+    overview_match = re.search(r"## (?:1\.\s*)?Overview[^\n]*\n(.*?)(?=\n## |\Z)", spec_content, re.DOTALL)
+    overview_text = overview_match.group(1).strip() if overview_match else f"Specification requirements and functional design for `{clean_spec}`."
+
+    arch_match = re.search(r"## (?:3\.\s*)?Technical Architecture[^\n]*\n(.*?)(?=\n## |\Z)", spec_content, re.DOTALL)
+    arch_text = arch_match.group(1).strip() if arch_match else "Architecture and data contracts established in spec.md."
+
+    lines = [
+        f"# ADR: Specification & Architectural Design for `{clean_spec}`",
+        "",
+        "- **Status**: Accepted",
+        f"- **Date**: `{today}`",
+        f"- **Specification**: `{clean_spec}`",
+        "- **Origin**: Socratic Specification Grilling Session (`/workflow specify`)",
+        "",
+        "## 📋 Context & Problem Statement",
+        context or overview_text,
+        "",
+        "## 💡 Decision Drivers & Chosen Architecture",
+        decisions_summary or arch_text,
+        "",
+        "## 🛡️ Edge Cases & Error Handling Strategy",
+        "Boundary conditions, error matrices, and validation rules co-authored in `spec.md`.",
+        "",
+        "## 🏁 Consequences & Next Steps",
+        "- Acceptance criteria established and verified via deterministic Quality Gate.",
+        f"- Proceed to `/workflow plan {clean_spec}` for atomic TDD task decomposition.",
+    ]
+
+    adr_content = "\n".join(lines) + "\n"
+    with open(adr_path, "w", encoding="utf-8") as f:
+        f.write(adr_content)
+
+    reconcile_gitkeep(adrs_dir)
+
+    return {
+        "status": "CREATED",
+        "spec_name": clean_spec,
+        "adr_file": adr_path,
+        "filename": adr_filename,
+        "content": adr_content,
+    }
+
+
 def integrate_worker_branches(
     target_dir: str = ".",
     spec_name: Optional[str] = None

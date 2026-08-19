@@ -76,8 +76,11 @@ uv run skills/workflow/scripts/workflow_runner.py chat
 # Scaffold new feature spec directly under .workflow/specs/<spec>/
 uv run skills/workflow/scripts/workflow_runner.py new user-login
 
-# Interactive Grilling Session & Socratic co-authoring (Matt Pocock / Spec-Kit style)
+# Interactive Grilling Session & Socratic co-authoring (Matt Pocock / Spec-Kit style) + ADR generation:
 uv run skills/workflow/scripts/workflow_runner.py specify user-login
+
+# Or explicitly generate/refresh specification ADR:
+uv run skills/workflow/scripts/workflow_runner.py specify user-login --generate-adr
 
 # Decompose into atomic TDD task issues
 uv run skills/workflow/scripts/workflow_runner.py plan user-login

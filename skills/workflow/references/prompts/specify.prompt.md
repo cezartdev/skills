@@ -28,8 +28,9 @@ When invoked on `/workflow specify <spec-name>`:
      - **Question 3 (Error Handling & Edge Cases)** $\rightarrow$ Updates Section 4 (Edge Cases & Error Matrix).
      - **Question 4 (Acceptance Criteria)** $\rightarrow$ Updates Section 5 (Acceptance Criteria Checkboxes).
 
-4. **Quality Gate Verification & Completion**:
-   - After the loop completes, run `uv run skills/workflow/scripts/workflow_runner.py check <spec_name>` (or `.agents/...`) to verify that the score reaches 100/100.
+4. **Quality Gate Verification & Specification ADR Generation**:
+   - After the grilling loop completes, run `uv run skills/workflow/scripts/workflow_runner.py check <spec_name>` (or `.agents/...`) to verify that the score reaches 100/100.
+   - Run `uv run skills/workflow/scripts/workflow_runner.py specify <spec_name> --generate-adr` to generate the formal Architectural Decision Record (ADR) in `.workflow/specs/<spec_name>/adrs/ADR_<timestamp>_specification_design.md` documenting the agreed-upon design, data schemas, and error strategies.
    - Report success and advise the user to proceed to `/workflow plan <spec_name>`.
 
 ---
