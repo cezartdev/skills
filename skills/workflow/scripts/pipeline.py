@@ -22,6 +22,8 @@ from worktree_manager import (
     force_purge_worktree,
     run_git,
     get_default_branch,
+    get_current_branch,
+    is_protected_branch,
     ensure_git_repository,
     sync_worktree_with_base,
 )
@@ -37,30 +39,31 @@ from graph.pipeline_graph import create_pipeline_graph
 
 
 class PipelineRunner:
-    """Deterministic orchestrator for sequential subagent pipelines."""
+    """Orchestrates the deterministic 4-stage subagent pipeline for specifications."""
 
     def __init__(self, target_dir: str = "."):
         self.target_dir = os.path.abspath(target_dir)
         self.wf_root = get_workflow_root(self.target_dir)
-        ensure_git_repository(self.target_dir)
 
     def resolve_spec(self, spec_name: str) -> Dict[str, Any]:
-        """Resolves target specification directory and namespace across features, bugs, refactor, and docs."""
-        clean_name = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
+        """Resolves spec file location across features, bugs, refactor, and docs namespaces."""
+        clean_name = re.sub(r"[^a-zA-Z0-9_.-]+", "-", spec_name).strip("-._").lower()
         specs_root = os.path.join(self.wf_root, "specs")
-
-        for ns in ["features", "bugs", "refactor", "docs"]:
-            cand = os.path.join(specs_root, ns, clean_name)
-            if os.path.exists(cand):
+        
+        namespaces = ["features", "bugs", "refactor", "docs"]
+        for ns in namespaces:
+            candidate_dir = os.path.join(specs_root, ns, clean_name)
+            candidate_spec = os.path.join(candidate_dir, "spec.md")
+            if os.path.exists(candidate_spec):
                 return {
                     "found": True,
                     "spec_name": clean_name,
                     "namespace": ns,
-                    "spec_dir": cand,
-                    "spec_file": os.path.join(cand, "spec.md"),
+                    "spec_dir": candidate_dir,
+                    "spec_file": candidate_spec,
                 }
-
-        # Fallback to features
+        
+        # Fallback default feature path
         default_dir = os.path.join(specs_root, "features", clean_name)
         return {
             "found": False,
@@ -71,13 +74,22 @@ class PipelineRunner:
         }
 
     def run_stage_sync(self, spec_name: str) -> Dict[str, Any]:
-        """Stage 0: Prepares isolated worktree and rebase staging branch <spec>-worker onto <spec>."""
+        """Stage 0: Prepares isolated worktree, detects protected branches, and rebases staging branch."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         worker_branch = f"{clean_spec}-worker"
 
-        # Check if local spec branch exists, else default to main
+        curr_branch = get_current_branch(self.target_dir)
+        protected_active = is_protected_branch(curr_branch)
+
+        # Check if local spec branch exists, else branch off from main
         spec_ref = run_git(["rev-parse", "--verify", f"refs/heads/{clean_spec}"], cwd=self.target_dir)
-        target_base = clean_spec if spec_ref.returncode == 0 else get_default_branch(self.target_dir)
+        if spec_ref.returncode != 0 and protected_active:
+            run_git(["branch", clean_spec, curr_branch], cwd=self.target_dir)
+            target_base = clean_spec
+        elif spec_ref.returncode == 0:
+            target_base = clean_spec
+        else:
+            target_base = curr_branch if not protected_active else get_default_branch(self.target_dir)
 
         wt_res = create_worktree(
             name="worker",
@@ -96,6 +108,8 @@ class PipelineRunner:
             "spec_name": clean_spec,
             "staging_branch": worker_branch,
             "target_base": target_base,
+            "current_branch": curr_branch,
+            "on_protected_branch": protected_active,
             "worktree_path": wt_path,
             "sync_details": sync_res,
         }
@@ -312,6 +326,8 @@ class PipelineRunner:
             "namespace": spec_info["namespace"],
             "staging_branch": graph_res.get("staging_branch", f"{clean_spec}-worker"),
             "target_base": graph_res.get("target_base", "main"),
+            "current_branch": graph_res.get("current_branch", "main"),
+            "on_protected_branch": graph_res.get("on_protected_branch", False),
             "worktree_path": normalize_rel_path(wt_path, self.target_dir),
             "elapsed_seconds": elapsed,
             "stages": stages,

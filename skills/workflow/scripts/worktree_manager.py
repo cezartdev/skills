@@ -64,6 +64,23 @@ def get_default_branch(repo_dir: str = ".") -> str:
     return "main"
 
 
+PROTECTED_BRANCHES = {"main", "master", "trunk", "production", "release"}
+
+
+def get_current_branch(repo_dir: str = ".") -> str:
+    """Returns the name of the currently checked-out git branch."""
+    repo_dir = os.path.abspath(repo_dir)
+    res = run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_dir)
+    if res.returncode == 0 and res.stdout.strip():
+        return res.stdout.strip()
+    return "main"
+
+
+def is_protected_branch(branch_name: str) -> bool:
+    """Returns True if the branch is a protected production/default branch."""
+    return branch_name.lower().strip() in PROTECTED_BRANCHES
+
+
 def ensure_git_repository(repo_dir: str = ".") -> Dict[str, Any]:
     """Ensures target directory is a valid Git repository with at least one commit on HEAD."""
     repo_dir = os.path.abspath(repo_dir)

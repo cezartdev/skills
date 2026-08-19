@@ -15,12 +15,12 @@ from datetime import datetime
 try:
     from commit_validator import safe_atomic_commit, scan_pre_commit_security
     from curator import compile_scoped_pr_summary, generate_spec_adr
-    from worktree_manager import create_worktree, sync_worktree_with_base, run_git, get_default_branch
+    from worktree_manager import create_worktree, sync_worktree_with_base, run_git, get_default_branch, get_current_branch, is_protected_branch
     from scaffolder import get_workflow_root
 except ImportError:
     from ..commit_validator import safe_atomic_commit, scan_pre_commit_security
     from ..curator import compile_scoped_pr_summary, generate_spec_adr
-    from ..worktree_manager import create_worktree, sync_worktree_with_base, run_git, get_default_branch
+    from ..worktree_manager import create_worktree, sync_worktree_with_base, run_git, get_default_branch, get_current_branch, is_protected_branch
     from ..scaffolder import get_workflow_root
 
 
@@ -55,14 +55,25 @@ def get_configured_test_command(target_dir: str) -> str:
 # ==============================================================================
 
 def node_sync_worktree(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Node 0: Deterministic worktree preparation and rebase."""
+    """Node 0: Deterministic worktree preparation, protected branch detection, and rebase."""
     target_dir = state["target_dir"]
     spec_name = state["spec_name"]
     clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", spec_name).strip("-._").lower()
     worker_branch = f"{clean_spec}-worker"
 
+    curr_branch = get_current_branch(target_dir)
+    protected_active = is_protected_branch(curr_branch)
+
     spec_ref = run_git(["rev-parse", "--verify", f"refs/heads/{clean_spec}"], cwd=target_dir)
-    target_base = clean_spec if spec_ref.returncode == 0 else get_default_branch(target_dir)
+    
+    # If on protected branch (main/master) and spec branch doesn't exist, create spec branch from main
+    if spec_ref.returncode != 0 and protected_active:
+        run_git(["branch", clean_spec, curr_branch], cwd=target_dir)
+        target_base = clean_spec
+    elif spec_ref.returncode == 0:
+        target_base = clean_spec
+    else:
+        target_base = curr_branch if not protected_active else get_default_branch(target_dir)
 
     wt_res = create_worktree(
         name="worker",
@@ -82,6 +93,8 @@ def node_sync_worktree(state: Dict[str, Any]) -> Dict[str, Any]:
         "worktree_path": wt_path,
         "staging_branch": worker_branch,
         "target_base": target_base,
+        "current_branch": curr_branch,
+        "on_protected_branch": protected_active,
         "sync_status": "SUCCESS",
         "sync_details": sync_res,
         "step": "WORKTREE_SYNCED",

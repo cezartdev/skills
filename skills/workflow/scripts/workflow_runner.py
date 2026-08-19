@@ -582,6 +582,19 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"   👉 GitHub PR: {res.get('suggested_gh_command')}")
     print(f"   👉 Git Merge: {res.get('suggested_git_merge')}")
 
+    if res.get("on_protected_branch"):
+        curr_b = res.get("current_branch", "main")
+        print("\n" + "=" * 110)
+        print(f" ⚠️  PROTECTED BRANCH GATE ACTIVE: '{curr_b}'")
+        print("=" * 110)
+        print(f" 🔒 Direct commits and pushes to '{curr_b}' are deterministically blocked.")
+        print(f" 🌿 Worktree base automatically routed to feature branch '{res['target_base']}'.")
+        print("=" * 110)
+        print("\nℹ️  AI Agent Interactive Grilling Directive:")
+        print(f"   Current active branch is protected ('{curr_b}'). You MUST prompt developer using ask_question")
+        print(f"   to confirm target feature branch before pushing or opening PRs to protect {curr_b}:")
+        print(f"   Candidates: (Recommended) {res['target_base']} | feat/{res['target_base']} | fix/{res['target_base']}")
+
     if res.get("scheduled_interval"):
         print(f"\n⏰ Opt-In Recurring Daemon Registered: Runs every {res['scheduled_interval']}m (Fixed-Delay)")
         print(f"   To stop: uv run skills/workflow/scripts/workflow_runner.py stop {res['spec_name']}")
