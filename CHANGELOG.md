@@ -1,5 +1,11 @@
 # cezartdev-skills
 
+## 1.9.0
+
+### Minor Changes
+
+- [`e58e579`](https://github.com/cezartdev/skills/commit/e58e579c1c07be6ab9f0f18ada4b8acee4c701ab) Thanks [@cezartdev](https://github.com/cezartdev)! - Flatten `.workflow/specs/` directory layout by eliminating `bugs/`, `docs/`, `refactor/`, and `features/` namespaces; specifications now live directly in `.workflow/specs/<spec>/` as agnostic feature containers with co-located ADRs.
+
 ## 1.8.0
 
 ### Minor Changes
