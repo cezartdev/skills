@@ -246,7 +246,7 @@ def detect_codebase_conventions(root_dir: str = ".") -> Dict[str, Any]:
 
 
 def generate_coding_preferences(root_dir: str = ".") -> str:
-    """Generates and updates .workflow/memory/00_coding_preferences.md."""
+    """Generates and updates .workflow/memory/coding_preferences.md."""
     root_dir = os.path.abspath(root_dir)
     wf_root = os.path.join(root_dir, ".workflow") if os.path.basename(root_dir) != ".workflow" else root_dir
     memory_dir = os.path.join(wf_root, "memory")
@@ -254,7 +254,13 @@ def generate_coding_preferences(root_dir: str = ".") -> str:
 
     linters = detect_linters_and_formatters(root_dir)
     conventions = detect_codebase_conventions(root_dir)
-    pref_file = os.path.join(memory_dir, "00_coding_preferences.md")
+    pref_file = os.path.join(memory_dir, "coding_preferences.md")
+    legacy_pref = os.path.join(memory_dir, "00_coding_preferences.md")
+    if os.path.exists(legacy_pref):
+        try:
+            os.remove(legacy_pref)
+        except Exception:
+            pass
 
     config_lines = "\n".join([f"- **{k}**: `{v}`" for k, v in linters["configs"].items()]) if linters["configs"] else "- *No explicit linter configs found; inferred from codebase.*"
 
@@ -492,15 +498,21 @@ def scan_codebase(root_dir: str = ".") -> Dict[str, Any]:
 
 
 def generate_master_context(root_dir: str = ".") -> str:
-    """Scans repository and creates/updates .workflow/memory/00_project_context.md and 00_coding_preferences.md."""
+    """Scans repository and creates/updates .workflow/memory/project_context.md and coding_preferences.md."""
     root_dir = os.path.abspath(root_dir)
     wf_root = os.path.join(root_dir, ".workflow") if os.path.basename(root_dir) != ".workflow" else root_dir
     scan = scan_codebase(root_dir)
     memory_dir = os.path.join(wf_root, "memory")
     os.makedirs(memory_dir, exist_ok=True)
-    master_file = os.path.join(memory_dir, "00_project_context.md")
+    master_file = os.path.join(memory_dir, "project_context.md")
+    legacy_master = os.path.join(memory_dir, "00_project_context.md")
+    if os.path.exists(legacy_master):
+        try:
+            os.remove(legacy_master)
+        except Exception:
+            pass
 
-    # Generate or refresh 00_coding_preferences.md
+    # Generate or refresh coding_preferences.md
     pref_file = generate_coding_preferences(root_dir)
 
     manifest_lines = [f"{k}: `{v}`" for k, v in scan["manifest_hashes"].items()]
@@ -511,7 +523,7 @@ def generate_master_context(root_dir: str = ".") -> str:
 **Project Name**: `{scan['project_name']}`  
 **Last Updated**: `{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`  
 **Manifest Fingerprints**: {manifest_str}  
-**Coding Preferences**: [00_coding_preferences.md](./00_coding_preferences.md)
+**Coding Preferences**: [coding_preferences.md](./coding_preferences.md)
 
 ---
 

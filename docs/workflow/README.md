@@ -44,19 +44,32 @@ uv run skills/workflow/scripts/workflow_runner.py list
 
 ### 2. Polyglot Initialization & Codebase Exploration
 ```bash
-# Auto-detects stack, test runners, and generates 00_coding_preferences.md (linters, naming, style)
+# Auto-detects stack, test runners, and generates coding_preferences.md and project_context.md
 uv run skills/workflow/scripts/workflow_runner.py explore
 
 # Initialize .workflow/ module
 uv run skills/workflow/scripts/workflow_runner.py init
 ```
 
-### 3. Freeform Brainstorming
+### 3. Streamlined Project Memory & Indexed Docs
+```bash
+# View memory catalog (coding_preferences.md, project_context.md, and docs/)
+uv run skills/workflow/scripts/workflow_runner.py memory list
+
+# Add a new indexed guideline / documentation note into .workflow/memory/docs/
+uv run skills/workflow/scripts/workflow_runner.py memory add auth-rules --content "JWT tokens expire in 15m; use refresh tokens in HttpOnly cookies."
+# => Creates: .workflow/memory/docs/01_auth_rules.md
+
+# View a recorded memory note
+uv run skills/workflow/scripts/workflow_runner.py memory show 01
+```
+
+### 4. Freeform Brainstorming
 ```bash
 uv run skills/workflow/scripts/workflow_runner.py chat
 ```
 
-### 4. Spec-Driven Development (SDD) & Sequential Pipeline
+### 5. Spec-Driven Development (SDD) & Sequential Pipeline
 ```bash
 # Scaffold new feature spec (defaults to feat)
 uv run skills/workflow/scripts/workflow_runner.py new user-login

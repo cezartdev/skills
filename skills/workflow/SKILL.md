@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: Deterministic state-machine workflow runner, Spec-Driven Development (SDD), Test-Driven Development (TDD), hierarchical markdown memory with 00-10 compaction, polyglot codebase exploration with tech drift detection, Anti-Zombie multi-daemon physical Git Worktree isolation, and multi-PR Release Curator.
+description: Deterministic state-machine workflow runner, Spec-Driven Development (SDD), Test-Driven Development (TDD), streamlined project memory (coding preferences, project context, indexed docs), codebase exploration with tech drift detection, Anti-Zombie multi-daemon physical Git Worktree isolation, and multi-PR Release Curator.
 compatibility: Requires Python 3.10+, Git, and Astral uv. Works across Linux, Windows (PowerShell/CMD), and macOS. Supports Python, Rust, Go, TypeScript/JavaScript, Java, and .NET.
 metadata:
   author: cezartdev
@@ -109,7 +109,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 | Slash Command | CLI Syntax | Description |
 |---|---|---|
 | `/workflow init` | `workflow init [dir]` | Initialize encapsulated `.workflow/` structure & configs |
-| `/workflow explore` | `workflow explore [dir]` | Survey polyglot stack & extract style preferences (`00_coding_preferences.md`) |
+| `/workflow explore` | `workflow explore [dir]` | Survey polyglot stack & extract style preferences (`coding_preferences.md`) |
 | `/workflow new` | `workflow new <spec> [--archetype <type>]` | Scaffold a new spec under `.workflow/specs/` (default: feat) |
 | `/workflow specify` | `workflow specify <spec>` | Interactive 1-by-1 Grilling Session to co-author `spec.md` |
 | `/workflow plan` | `workflow plan <spec>` | Decompose refined spec into atomic TDD task issues |
@@ -121,7 +121,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 | `/workflow clean` | `workflow clean` | Deep Anti-Zombie cleanup of orphaned worktrees, locks & dead PIDs |
 | `/workflow archive` | `workflow archive <spec>` | Move completed spec to `.workflow/specs/archive/<year>/` |
 | `/workflow drift` | `workflow drift [--sync]` | Detect manifest checksum drift & sync tech context |
-| `/workflow memory` | `workflow memory <action>` | Manage episodic memory sliding window & 00-10 compaction |
+| `/workflow memory` | `workflow memory [list|add|show]` | Manage coding preferences, project context & indexed docs |
 | `/workflow chat` | `workflow chat [spec]` | Macro architecture brainstorming & scoped spec debate |
 | `/workflow check-env` | `workflow check-env` | Diagnostic check of Python $\ge 3.10$, Git, uv, and dependencies |
 | `/workflow list` | `workflow list` | Display this concise command reference table |

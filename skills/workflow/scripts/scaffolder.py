@@ -132,12 +132,10 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
     ensure_dir_with_gitkeep(os.path.join(specs_dir, "docs"))
     ensure_dir_with_gitkeep(os.path.join(specs_dir, "archive"))
 
-    # 2. Create hierarchical .workflow/memory/ directories with .gitkeep
+    # 2. Create clean .workflow/memory/ directory with docs/ subfolder
     memory_dir = os.path.join(wf_root, "memory")
-    ensure_dir_with_gitkeep(os.path.join(memory_dir, "fix"))
-    ensure_dir_with_gitkeep(os.path.join(memory_dir, "refactor"))
-    ensure_dir_with_gitkeep(os.path.join(memory_dir, "implement"))
-    ensure_dir_with_gitkeep(os.path.join(memory_dir, "doc_sync"))
+    os.makedirs(memory_dir, exist_ok=True)
+    ensure_dir_with_gitkeep(os.path.join(memory_dir, "docs"))
 
     # 3. Create .workflow/prs/ catalog with .gitkeep (active, archive)
     prs_dir = os.path.join(wf_root, "prs")

@@ -18,7 +18,11 @@ from scaffolder import (
 )
 from explorer import scan_codebase, generate_master_context
 from drift_detector import check_drift, sync_drift
-from memory_manager import log_decision, compact_archetype_memory, get_memory_status
+from memory_manager import (
+    add_memory_doc,
+    list_memory_catalog,
+    read_memory_doc,
+)
 from worktree_manager import list_worktrees, create_worktree, remove_worktree, force_purge_worktree, prune_worktrees, ensure_git_repository
 from quality_auditor import audit_spec
 from daemon_manager import (
@@ -43,11 +47,13 @@ from graph.engine import WorkflowEngine
 
 
 def print_next_steps(suggestions: List[Dict[str, str]]) -> None:
-    """Prints context-aware suggested next commands in a compact, token-efficient table."""
+    """Renders actionable subsequent CLI commands in a styled border box."""
+    if not suggestions:
+        return
     print("\n💡 SUGGESTED NEXT STEPS")
     print("-" * 110)
     for s in suggestions:
-        print(f"  👉 {s['cmd']:<54} │ {s['desc']}")
+        print(f"  👉 {s['cmd']:<70} │ {s['desc']}")
     print("=" * 110)
 
 
@@ -75,229 +81,265 @@ def resolve_spec_path(spec_arg: str, target_dir: str = ".") -> str:
 
 
 def cmd_check_env(args: argparse.Namespace) -> int:
-    """Verifies runtime environment: Python version, Git setup, uv, and dependencies."""
-    py_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-    py_ok = sys.version_info >= (3, 10)
+    """Performs cross-platform diagnostic check of Python >=3.10, Git, uv, and dependencies."""
+    py_ver = sys.version_info
+    py_ok = (py_ver.major == 3 and py_ver.minor >= 10)
+    
+    git_ok = False
+    git_ver = "Not found"
+    try:
+        res = subprocess.run(["git", "--version"], capture_output=True, text=True, check=False)
+        if res.returncode == 0:
+            git_ok = True
+            git_ver = res.stdout.strip()
+    except Exception:
+        pass
 
-    git_res = subprocess.run(["git", "--version"], capture_output=True, text=True, check=False)
-    git_ok = git_res.returncode == 0
-    git_ver = git_res.stdout.strip() if git_ok else "Not installed"
+    uv_ok = False
+    uv_ver = "Not found"
+    try:
+        res = subprocess.run(["uv", "--version"], capture_output=True, text=True, check=False)
+        if res.returncode == 0:
+            uv_ok = True
+            uv_ver = res.stdout.strip()
+    except Exception:
+        pass
 
-    uv_res = subprocess.run(["uv", "--version"], capture_output=True, text=True, check=False)
-    uv_ok = uv_res.returncode == 0
-    uv_ver = uv_res.stdout.strip() if uv_ok else "Not installed"
-
+    langgraph_ok = False
     try:
         import langgraph
-        langgraph_ver = getattr(langgraph, "__version__", "Installed")
-        lg_ok = True
+        langgraph_ok = True
     except ImportError:
-        langgraph_ver = "Not installed (pure-Python fallback available)"
-        lg_ok = False
+        pass
 
-    data = {
-        "status": "PASS" if py_ok and git_ok else "FAIL",
-        "python": {"version": py_version, "compatible": py_ok, "required": ">=3.10"},
-        "git": {"version": git_ver, "available": git_ok},
-        "uv": {"version": uv_ver, "available": uv_ok},
-        "langgraph": {"version": langgraph_ver, "available": lg_ok},
+    all_passed = py_ok and git_ok and uv_ok
+
+    report = {
+        "status": "PASS" if all_passed else "FAIL",
+        "python": {
+            "version": f"{py_ver.major}.{py_ver.minor}.{py_ver.micro}",
+            "passed": py_ok,
+            "required": ">=3.10",
+        },
+        "git": {
+            "version": git_ver,
+            "passed": git_ok,
+        },
+        "uv": {
+            "version": uv_ver,
+            "passed": uv_ok,
+        },
+        "langgraph_installed": langgraph_ok,
     }
 
     if args.json:
-        print(json.dumps(data, indent=2))
-        return 0 if py_ok and git_ok else 1
+        print(json.dumps(report, indent=2))
+        return 0 if all_passed else 1
 
     print("=" * 110)
-    print(" ⚡ WORKFLOW ENVIRONMENT DIAGNOSTIC")
+    print(" 🛠️  WORKFLOW RUNTIME DIAGNOSTIC REPORT")
     print("=" * 110)
-    print(f"{'COMPONENT':<24} │ {'STATUS':<12} │ DETAILS")
+    print(f"{'COMPONENT':<20} │ {'STATUS':<10} │ {'VERSION':<30} │ DETAILS")
     print("-" * 110)
-    print(f"{'Python':<24} │ {'PASS' if py_ok else 'FAIL':<12} │ Version {py_version} (Required >=3.10)")
-    print(f"{'Git':<24} │ {'PASS' if git_ok else 'FAIL':<12} │ {git_ver}")
-    print(f"{'Astral uv':<24} │ {'PASS' if uv_ok else 'OPTIONAL':<12} │ {uv_ver}")
-    print(f"{'LangGraph':<24} │ {'PASS' if lg_ok else 'FALLBACK':<12} │ {langgraph_ver}")
+    print(f"{'Python':<20} │ {'[PASS]' if py_ok else '[FAIL]':<10} │ {report['python']['version']:<30} │ Required >= 3.10")
+    print(f"{'Git':<20} │ {'[PASS]' if git_ok else '[FAIL]':<10} │ {git_ver:<30} │ Standard version control")
+    print(f"{'Astral uv':<20} │ {'[PASS]' if uv_ok else '[FAIL]':<10} │ {uv_ver:<30} │ Fast Python package manager")
+    print(f"{'LangGraph':<20} │ {'[PASS]' if langgraph_ok else '[INFO]':<10} │ {'Installed' if langgraph_ok else 'Fallback Active':<30} │ Deterministic State Graph Engine")
+    print("=" * 110)
+    print(f"OVERALL SYSTEM STATUS: {report['status']}")
     print("=" * 110)
 
-    print_next_steps([
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py init", "desc": "Initialize encapsulated .workflow/ structure"},
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Survey polyglot tech stack & test runners"},
-    ])
-    return 0 if py_ok and git_ok else 1
+    return 0 if all_passed else 1
 
 
 def cmd_init(args: argparse.Namespace) -> int:
-    """Scaffolds encapsulated .workflow directory structure in target repository."""
-    scan = scan_codebase(args.target_dir)
-    selected_test_runner = args.test_runner or scan.get("test_runner", "pytest")
-
-    result = scaffold_init(args.target_dir, test_runner_cmd=selected_test_runner)
-    master_file = generate_master_context(args.target_dir)
-    result["master_memory"] = master_file
-    result["test_runner"] = selected_test_runner
-    result["detected_candidates"] = scan.get("test_candidates", [])
-    result["has_explicit_test_script"] = scan.get("has_explicit_test_script", False)
-
+    """Initializes encapsulated .workflow/ structure in target directory."""
+    res = scaffold_init(target_dir=args.target_dir, test_runner_cmd=args.test_runner)
     if args.json:
-        print(json.dumps(result, indent=2))
+        print(json.dumps(res, indent=2))
         return 0
 
     print("=" * 110)
-    print(f" ✅ WORKFLOW MODULE INITIALIZED ({result['target_dir']})")
+    print(f" ✅ WORKFLOW MODULE INITIALIZED ({args.target_dir})")
     print("=" * 110)
     print(f"{'PROPERTY':<24} │ VALUE")
     print("-" * 110)
-    print(f"{'Workflow Root':<24} │ {result['workflow_dir']}")
-    print(f"{'Configuration':<24} │ {result['config_file']}")
-    print(f"{'Test Runner':<24} │ {selected_test_runner}")
-    print(f"{'Specs Directory':<24} │ {result['specs_dir']} (features, bugs, refactor, docs, archive)")
-    print(f"{'Memory Catalog':<24} │ {result['memory_dir']} (fix, refactor, implement, doc_sync)")
-    print(f"{'PRs Catalog':<24} │ {result['prs_dir']} (active, archive)")
-    print(f"{'Master Context':<24} │ {master_file}")
+    print(f"{'Workflow Root':<24} │ {res['workflow_dir']}")
+    print(f"{'Configuration':<24} │ {res['config_file']}")
+    print(f"{'Test Runner':<24} │ {res['test_runner']}")
+    print(f"{'Specs Directory':<24} │ {res['specs_dir']} (features, bugs, refactor, docs, archive)")
+    print(f"{'Memory Catalog':<24} │ {res['memory_dir']} (coding_preferences.md, project_context.md, docs/)")
+    print(f"{'PRs Catalog':<24} │ {res['prs_dir']} (active, archive)")
     print("=" * 110)
 
-    if not scan.get("has_explicit_test_script", False) and len(scan.get("test_candidates", [])) > 1:
-        print("\nℹ️  AI Agent Interactive Question Directive:")
-        print(f"   No explicit test script in manifest. Ask developer with ask_question to choose test runner:")
-        print(f"   Candidates: {', '.join(scan.get('test_candidates', []))}")
+    print("\nℹ️  AI Agent Interactive Question Directive:")
+    print("   No explicit test script in manifest. Ask developer with ask_question to choose test runner:")
+    print("   Candidates: pytest, cargo test, go test ./..., pnpm test")
 
     print_next_steps([
         {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Survey polyglot stack & update context"},
         {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold your first feature specification"},
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start fix-worker", "desc": "Start background fix-worker daemon"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py run <spec-name>", "desc": "Run 4-stage sequential subagent pipeline"},
     ])
     return 0
 
 
 def cmd_explore(args: argparse.Namespace) -> int:
-    """Runs codebase explorer scanner and updates .workflow/memory/00_project_context.md and 00_coding_preferences.md."""
-    master_file = generate_master_context(args.target_dir)
+    """Scans codebase polyglot stack and generates master context in .workflow/memory/."""
+    master_path = generate_master_context(args.target_dir)
     scan = scan_codebase(args.target_dir)
 
     if args.json:
-        print(json.dumps({"status": "SUCCESS", "master_file": master_file, "scan": scan}, indent=2))
+        print(json.dumps(scan, indent=2))
         return 0
 
     print("=" * 110)
-    print(f" 🔍 CODEBASE TECH STACK SURVEY ({scan['project_name']})")
+    print(f" 🔭 CODEBASE EXPLORATION COMPLETE: '{scan['project_name']}'")
     print("=" * 110)
     print(f"{'PROPERTY':<24} │ VALUE")
     print("-" * 110)
-    print(f"{'Languages':<24} │ {scan['languages']}")
+    print(f"{'Primary Language':<24} │ {scan['languages']}")
     print(f"{'Frameworks':<24} │ {scan['frameworks']}")
     print(f"{'Package Manager':<24} │ {scan['package_manager']}")
-    print(f"{'Primary Test Runner':<24} │ {scan['test_runner']}")
-    print(f"{'Test Candidates':<24} │ {', '.join(scan.get('test_candidates', []))}")
-    print(f"{'Master Context':<24} │ {master_file}")
+    print(f"{'Test Runner':<24} │ {scan['test_runner']}")
+    print(f"{'Linters / Tools':<24} │ {scan['linters']['tools']}")
+    print(f"{'Master Context':<24} │ {master_path}")
     print("=" * 110)
-
-    conv = scan.get("conventions", {})
-    lint = scan.get("linters", {})
-    pref_file = os.path.join(os.path.dirname(master_file), "00_coding_preferences.md")
-
-    print("\n" + "=" * 110)
-    print(f" 🎨 CODEBASE WRITING & STYLE PREFERENCES ({pref_file})")
-    print("=" * 110)
-    print(f"{'CONVENTION':<24} │ DETECTED PREFERENCE")
-    print("-" * 110)
-    print(f"{'Linters & Formatters':<24} │ {lint.get('tools', 'Standard / Unconfigured')}")
-    print(f"{'File Naming Idiom':<24} │ {conv.get('file_naming', 'kebab-case')}")
-    print(f"{'Indentation':<24} │ {conv.get('indentation', '2 spaces')}")
-    print(f"{'Quote Style':<24} │ {conv.get('quotes', 'single quotes')}")
-    print(f"{'Semicolons':<24} │ {conv.get('semicolons', 'always')}")
-    print(f"{'Variables & Functions':<24} │ {conv.get('variable_naming', 'camelCase')}")
-    print(f"{'Module Imports':<24} │ {conv.get('import_style', 'relative paths')}")
-    print(f"{'Type Annotations':<24} │ {conv.get('type_annotations', 'Standard / Typed')}")
-    print("=" * 110)
-
-    if not scan.get("has_explicit_test_script", False) and len(scan.get("test_candidates", [])) > 1:
-        print("\nℹ️  AI Agent Interactive Question Directive:")
-        print(f"   No explicit test script in manifest. Ask developer with ask_question to choose test runner:")
-        print(f"   Candidates: {', '.join(scan.get('test_candidates', []))}")
 
     print_next_steps([
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a feature spec matching detected conventions"},
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py drift", "desc": "Check manifest checksums & detect drift"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py memory list", "desc": "Inspect generated coding preferences & project context"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a new feature specification"},
     ])
     return 0
 
 
 def cmd_drift(args: argparse.Namespace) -> int:
-    """Checks or syncs tech drift and manifest anomalies."""
+    """Detects or synchronizes tech drift and manifest changes."""
     if args.sync:
         res = sync_drift(args.target_dir)
-    else:
-        drift, info = check_drift(args.target_dir)
-        res = {"status": "SUCCESS", "drift_detected": drift, "info": info}
+        if args.json:
+            print(json.dumps(res, indent=2))
+            return 0
+        print("=" * 110)
+        print(" 🔄 TECH DRIFT SYNCHRONIZED")
+        print("=" * 110)
+        print(f"Status: {res['status']} | {res['message']}")
+        print("=" * 110)
+        return 0
 
+    drift_detected, info = check_drift(args.target_dir)
     if args.json:
-        print(json.dumps(res, indent=2))
+        print(json.dumps(info, indent=2))
         return 0
 
     print("=" * 110)
-    print(" 🛡️ TECH DRIFT & MANIFEST INTEGRITY (.workflow/)")
+    print(" 📡 TECH DRIFT AUDIT REPORT")
     print("=" * 110)
-    print(f"{'MANIFEST FILE':<24} │ {'CHECKSUM':<16} │ STATUS")
-    print("-" * 110)
+    print(f"Drift Detected: {'YES (Action Required)' if drift_detected else 'NO (Synchronized)'}")
+    if drift_detected:
+        print("-" * 110)
+        for manifest, reason in info.get("details", {}).items():
+            print(f"  ⚠️  {manifest}: {reason}")
+    print("=" * 110)
 
-    if args.sync:
-        print(f"{'Manifest Hash Sync':<24} │ {'UPDATED':<16} │ {res.get('message', 'Synchronized')}")
-        print("=" * 110)
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Inspect updated master context"},
-        ])
-    else:
-        status_label = "DRIFT DETECTED" if res.get("drift_detected") else "SYNCHRONIZED"
-        details = res.get("info", {}).get("details", "All manifest hashes match 00_project_context.md")
-        print(f"{'Project Stack':<24} │ {status_label:<16} │ {details}")
-        print("=" * 110)
-
-        if res.get("drift_detected"):
-            print_next_steps([
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py drift --sync", "desc": "Re-survey and synchronize context"},
-            ])
-        else:
-            print_next_steps([
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a new feature spec"},
-            ])
+    print_next_steps([
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py drift --sync", "desc": "Reconcile drift and update project context"},
+    ])
     return 0
 
 
 def cmd_memory(args: argparse.Namespace) -> int:
-    """Manages hierarchical memory namespaces under .workflow/memory/."""
-    if args.action == "status":
-        res = get_memory_status(args.target_dir)
-    elif args.action == "compact":
-        archetype = args.archetype or "fix"
-        res = compact_archetype_memory(args.target_dir, archetype)
-    elif args.action == "log":
-        if not args.message:
-            print("Error: --message required for logging decision", file=sys.stderr)
-            return 1
-        archetype = args.archetype or "implement"
-        file_path = log_decision(args.target_dir, archetype, args.message, args.content or args.message)
-        res = {"status": "LOGGED", "file": file_path, "archetype": archetype}
-    else:
-        res = {"status": "ERROR", "message": "Unknown memory action"}
+    """Manages project memory: coding_preferences.md, project_context.md, and docs/*.md."""
+    action = getattr(args, "action", "list") or "list"
+    target_dir = getattr(args, "target_dir", ".") or "."
 
-    if args.json:
-        print(json.dumps(res, indent=2))
+    # Handle directory argument when action is list/status and title is passed as target_dir
+    if action in ["status", "list"] and getattr(args, "title", None):
+        if os.path.isdir(args.title) or args.title.startswith("/") or args.title.startswith("."):
+            target_dir = args.title
+            args.title = None
+
+    target_dir = os.path.abspath(target_dir)
+
+    if action in ["list", "status"]:
+        res = list_memory_catalog(target_dir)
+        if args.json:
+            print(json.dumps(res, indent=2))
+            return 0
+
+        print("=" * 110)
+        print(" 🧠 WORKFLOW MEMORY CATALOG (.workflow/memory/)")
+        print("=" * 110)
+        print(f"{'ARTIFACT':<26} │ {'STATUS':<12} │ PATH")
+        print("-" * 110)
+        p_status = "Present" if res["coding_preferences"]["exists"] else "Missing"
+        print(f"{'coding_preferences.md':<26} │ {p_status:<12} │ {res['coding_preferences']['path']}")
+        c_status = "Present" if res["project_context"]["exists"] else "Missing"
+        print(f"{'project_context.md':<26} │ {c_status:<12} │ {res['project_context']['path']}")
+        print("=" * 110)
+
+        docs = res.get("docs", [])
+        if docs:
+            print("\n 📚 DOCUMENTATION NOTES (.workflow/memory/docs/)")
+            print("=" * 110)
+            print(f"{'INDEX':<8} │ {'FILENAME':<30} │ TITLE")
+            print("-" * 110)
+            for d in docs:
+                print(f"{d['index']:<8} │ {d['filename']:<30} │ {d['title']}")
+            print("=" * 110)
+        else:
+            print("\nℹ️  No custom memory documentation notes found under .workflow/memory/docs/.")
+
+        print_next_steps([
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py memory add <title> --content \"...\"", "desc": "Add indexed note to memory/docs/"},
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Re-survey stack and update project context"},
+        ])
         return 0
 
-    print("=" * 110)
-    print(" 🧠 WORKFLOW EPISODIC MEMORY STATUS (.workflow/memory/)")
-    print("=" * 110)
-    if args.action == "status":
-        print(f"{'NAMESPACE':<20} │ {'EPISODIC FILES':<18} │ {'NEEDS COMPACTION':<18} │ CONTEXT")
-        print("-" * 110)
-        for ns, data in res.get("namespaces", {}).items():
-            print(f"{ns:<20} │ {data.get('episodic_count', 0)} files          │ {str(data.get('needs_compaction')):<18} │ {'Present' if data.get('has_context') else 'Empty'}")
-    else:
-        print(f"Memory Operation: {res.get('status')} | Archetype: {res.get('archetype', 'N/A')}")
-    print("=" * 110)
+    elif action in ["add", "log"]:
+        title = getattr(args, "title", None) or getattr(args, "message", None)
+        if not title:
+            print("Error: Document title is required. Example: workflow memory add auth-rules --content 'JWT guidelines'", file=sys.stderr)
+            return 1
 
-    print_next_steps([
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile episodic memory into scoped PR"},
-    ])
+        content = getattr(args, "content", None) or title
+        res = add_memory_doc(title=title, content=content, target_dir=target_dir)
+
+        if args.json:
+            print(json.dumps(res, indent=2))
+            return 0
+
+        print("=" * 110)
+        print(f" 📝 MEMORY NOTE RECORDED: '{res['filename']}'")
+        print("=" * 110)
+        print(f"{'Index':<12} │ {res['index']:02d}")
+        print(f"{'Title':<12} │ {res['title']}")
+        print(f"{'File Path':<12} │ {res['path']}")
+        print("=" * 110)
+        print_next_steps([
+            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py memory show {res['index']:02d}", "desc": "View recorded memory note"},
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py memory list", "desc": "View full memory catalog"},
+        ])
+        return 0
+
+    elif action in ["show", "view", "read"]:
+        identifier = getattr(args, "title", None) or getattr(args, "message", None) or "project_context"
+        res = read_memory_doc(identifier, target_dir=target_dir)
+        if not res:
+            print(f"Error: Memory document '{identifier}' not found.", file=sys.stderr)
+            return 1
+
+        if args.json:
+            print(json.dumps(res, indent=2))
+            return 0
+
+        print("=" * 110)
+        print(f" 📄 MEMORY DOCUMENT: {res['filename']}")
+        print("=" * 110)
+        print(res["content"].strip())
+        print("=" * 110)
+        return 0
+
     return 0
 
 
@@ -1081,20 +1123,14 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow specify", "syntax": "workflow specify <name>", "desc": "Interactive 1-by-1 Grilling Session to co-author spec.md"},
         {"slash": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Decompose refined spec into atomic TDD task issues"},
         {"slash": "/workflow check", "syntax": "workflow check <name>", "desc": "Audit spec against deterministic Quality Gate (100/100)"},
-        {"slash": "/workflow run", "syntax": "workflow run <name>", "desc": "Execute deterministic LangGraph TDD DAG (Red -> Green -> Refactor)"},
+        {"slash": "/workflow run", "syntax": "workflow run <spec> [--schedule <m>]", "desc": "Primary Engine: Run 4-stage sequential pipeline (Fix -> Refactor -> Doc -> Curator)"},
+        {"slash": "/workflow curate", "syntax": "workflow curate [spec] [--create-pr]", "desc": "Generate ADR, compile PR summary & suggest Pull Request"},
+        {"slash": "/workflow status", "syntax": "workflow status [spec]", "desc": "View active pipeline status, worktrees & scheduled timers"},
+        {"slash": "/workflow stop", "syntax": "workflow stop [spec]", "desc": "Terminate background pipeline subagents and cancel timers"},
+        {"slash": "/workflow clean", "syntax": "workflow clean", "desc": "Deep Anti-Zombie cleanup of orphaned worktrees, locks & dead PIDs"},
         {"slash": "/workflow archive", "syntax": "workflow archive <name>", "desc": "Move completed spec to .workflow/specs/archive/<year>/"},
         {"slash": "/workflow drift", "syntax": "workflow drift [--sync]", "desc": "Detect manifest checksum drift & sync tech context"},
-        {"slash": "/workflow memory", "syntax": "workflow memory <action>", "desc": "Manage episodic memory sliding window & 00-10 compaction"},
-        {"slash": "/workflow daemon list", "syntax": "workflow daemon list", "desc": "Display catalog of configured daemon blueprints & multi-machine status"},
-        {"slash": "/workflow daemon create", "syntax": "workflow daemon create <name> [--archetype <type>]", "desc": "Create a new daemon blueprint in workflow.json"},
-        {"slash": "/workflow daemon set", "syntax": "workflow daemon set <name> [--interval <m>]", "desc": "Modify daemon schedule interval or max iterations"},
-        {"slash": "/workflow daemon start", "syntax": "workflow daemon start [name]", "desc": "Start background daemon subagent (fix-worker, refactor-worker, doc-worker)"},
-        {"slash": "/workflow daemon pause", "syntax": "workflow daemon pause [name]", "desc": "Pause background worker without deleting worktree"},
-        {"slash": "/workflow daemon resume", "syntax": "workflow daemon resume [name]", "desc": "Resume paused background worker execution"},
-        {"slash": "/workflow daemon stop", "syntax": "workflow daemon stop [name|--all]", "desc": "Terminate background worker & execute Anti-Zombie purge"},
-        {"slash": "/workflow daemon status", "syntax": "workflow daemon status", "desc": "View active daemon health table, host affinity & execution metrics"},
-        {"slash": "/workflow daemon clean", "syntax": "workflow daemon clean", "desc": "Force purge orphaned worktrees & dead worker PIDs"},
-        {"slash": "/workflow curate", "syntax": "workflow curate [--archetype <type>]", "desc": "Compile scoped PR summary in .workflow/prs/active/ & open PR"},
+        {"slash": "/workflow memory", "syntax": "workflow memory [list|add|show]", "desc": "Manage coding preferences, project context & indexed docs"},
         {"slash": "/workflow chat", "syntax": "workflow chat [spec]", "desc": "Macro architecture brainstorming & scoped spec debate"},
         {"slash": "/workflow check-env", "syntax": "workflow check-env", "desc": "Diagnostic check of Python >=3.10, Git, uv, and dependencies"},
         {"slash": "/workflow list", "syntax": "workflow list", "desc": "Display this concise command reference table"},
@@ -1143,11 +1179,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_drift.add_argument("--sync", action="store_true", help="Re-survey and update context automatically")
 
     # memory
-    p_mem = subparsers.add_parser("memory", help="Manage hierarchical memory and 00-10 compaction under .workflow/memory/")
-    p_mem.add_argument("action", choices=["status", "compact", "log"], help="Memory action")
-    p_mem.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync"], help="Archetype namespace")
-    p_mem.add_argument("--message", help="Decision title for logging")
-    p_mem.add_argument("--content", help="Decision content details")
+    p_mem = subparsers.add_parser("memory", help="Manage coding preferences, project context, and indexed memory docs")
+    p_mem.add_argument("action", nargs="?", choices=["list", "status", "add", "log", "show", "view"], default="list", help="Memory action (default: list)")
+    p_mem.add_argument("title", nargs="?", help="Document title or identifier (e.g. auth-rules, 01, coding_preferences)")
+    p_mem.add_argument("--content", help="Content details for the note")
+    p_mem.add_argument("--message", dest="message", help="Alternative title flag for logging")
     p_mem.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # new
