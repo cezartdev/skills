@@ -167,13 +167,33 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
             atomic_write_json(config_file, cfg_data)
         else:
             atomic_write_json(config_file, {
-                "version": "1.0.0",
-                "test_runner": {"command": test_cmd},
-                "daemons": {
-                    "fix-worker": {"archetype": "fix", "schedule": {"interval_minutes": 10}},
-                    "refactor-worker": {"archetype": "refactor", "schedule": {"interval_minutes": 15}},
-                    "doc-worker": {"archetype": "doc_sync", "schedule": {"interval_minutes": 30}}
-                }
+                "version": "2.0",
+                "pipeline": {
+                    "default_interval_minutes": 30,
+                    "max_iterations": None,
+                    "stages": [
+                        {"id": "fix", "role": "Fix-Worker Specialist", "description": "Bug stabilization and 100% green test pass"},
+                        {"id": "refactor", "role": "Refactor-Worker Specialist", "description": "Clean code, modularity, and complexity reduction"},
+                        {"id": "doc", "role": "Doc-Worker Specialist", "description": "Docstrings, OpenAPI schemas, and spec sync"},
+                        {"id": "curator", "role": "Curator Specialist", "description": "Quality gate, ADR generation, and PR synthesis"}
+                    ],
+                    "auto_merge": {
+                        "enabled": False,
+                        "strategy": "no-ff",
+                        "require_all_tests_pass": True,
+                        "require_security_scan": True
+                    },
+                    "adrs": {
+                        "enabled": True,
+                        "format": "MADR",
+                        "directory": ".workflow/specs/{namespace}/{spec}/adrs"
+                    }
+                },
+                "test_runner": {"command": test_cmd, "args": ["--run"], "coverage_threshold": 80},
+                "drift_detection": {"enabled": True, "auto_reexplore": True},
+                "memory": {"directory": ".workflow/memory", "max_episodic_files_per_archetype": 10},
+                "prs": {"directory": ".workflow/prs"},
+                "worktrees": {"directory": ".workflow/worktrees", "auto_clean_on_merge": True}
             })
         config_created = True
 

@@ -418,6 +418,22 @@ def get_daemon_catalog(target_dir: str = ".") -> Dict[str, Any]:
             "worktree_path": active_entry.get("worktree_path") or os.path.join(".workflow", "worktrees", name),
         })
 
+    seen_names = {c["name"] for c in catalog}
+    for r_name, r_entry in registry.get("daemons", {}).items():
+        if r_name not in seen_names:
+            catalog.append({
+                "name": r_name,
+                "archetype": r_entry.get("archetype", "pipeline"),
+                "default_interval_minutes": r_entry.get("interval_minutes", 30),
+                "max_iterations": r_entry.get("max_iterations"),
+                "cron_expression": r_entry.get("cron_expression", "*/30 * * * *"),
+                "description": f"Scheduled pipeline runner for '{r_entry.get('spec_name', r_name)}'",
+                "status": r_entry.get("status", "STOPPED"),
+                "host": r_entry.get("host"),
+                "conversation_id": r_entry.get("conversation_id"),
+                "worktree_path": r_entry.get("worktree_path") or os.path.join(".workflow", "worktrees", r_name),
+            })
+
     return {
         "status": "SUCCESS",
         "total_configured": len(catalog),

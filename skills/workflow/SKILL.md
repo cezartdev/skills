@@ -65,6 +65,7 @@ skills/workflow/
 ├── scripts/                          # [OPTIONAL] Executable automation code & launchers
 │   ├── workflow_runner.py            # Central CLI entry point with Smart Path Resolver
 │   ├── pipeline.py                   # Deterministic 4-stage sequential subagent pipeline runner
+│   ├── commit_validator.py           # Self-contained pre-commit security gates & Conventional Commits validator
 │   ├── workflow.ps1                  # Windows PowerShell launcher with auto-bootstrap
 │   ├── workflow.sh                   # Linux/macOS POSIX shell launcher
 │   ├── scaffolder.py                 # Scaffolds .workflow/ structure & specs from assets/
@@ -79,6 +80,7 @@ skills/workflow/
 │   └── graph/
 │       ├── state.py                  # LangGraph TypedDict state definitions
 │       ├── nodes.py                  # LangGraph node transitions (RED, GREEN, REFACTOR, GATES)
+│       ├── pipeline_graph.py         # Deterministic LangGraph 4-stage pipeline state machine
 │       └── engine.py                 # LangGraph StateGraph builder, checkpointer & runner
 ├── references/                       # [OPTIONAL] Reference documentation & system prompts read on-demand
 │   ├── ARCHITECTURE.md               # In-depth technical architecture guide

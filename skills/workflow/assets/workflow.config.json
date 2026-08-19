@@ -1,6 +1,27 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "version": "1.0",
+  "version": "2.0",
+  "pipeline": {
+    "default_interval_minutes": 30,
+    "max_iterations": null,
+    "stages": [
+      { "id": "fix", "role": "Fix-Worker Specialist", "description": "Bug stabilization and 100% green test pass" },
+      { "id": "refactor", "role": "Refactor-Worker Specialist", "description": "Clean code, modularity, and complexity reduction" },
+      { "id": "doc", "role": "Doc-Worker Specialist", "description": "Docstrings, OpenAPI schemas, and spec sync" },
+      { "id": "curator", "role": "Curator Specialist", "description": "Quality gate, ADR generation, and PR synthesis" }
+    ],
+    "auto_merge": {
+      "enabled": false,
+      "strategy": "no-ff",
+      "require_all_tests_pass": true,
+      "require_security_scan": true
+    },
+    "adrs": {
+      "enabled": true,
+      "format": "MADR",
+      "directory": ".workflow/specs/{namespace}/{spec}/adrs"
+    }
+  },
   "test_runner": {
     "command": "{{TEST_COMMAND}}",
     "args": ["--run"],
@@ -23,62 +44,6 @@
   "worktrees": {
     "directory": ".workflow/worktrees",
     "auto_clean_on_merge": true
-  },
-  "daemons": {
-    "fix-worker": {
-      "archetype": "fix",
-      "runner": "subagent",
-      "target_spec_dir": ".workflow/specs/bugs/",
-      "worktree": ".workflow/worktrees/fix-worker",
-      "branch": "fix/fix-worker",
-      "schedule": {
-        "interval_minutes": 10,
-        "max_iterations": 10
-      },
-      "auto_merge": {
-        "enabled": true,
-        "target_branch": "main",
-        "strategy": "rebase",
-        "require_all_tests_pass": true,
-        "require_security_scan": true
-      }
-    },
-    "refactor-worker": {
-      "archetype": "refactor",
-      "runner": "subagent",
-      "target_spec_dir": ".workflow/specs/refactor/",
-      "worktree": ".workflow/worktrees/refactor-worker",
-      "branch": "refactor/refactor-worker",
-      "schedule": {
-        "interval_minutes": 15,
-        "max_iterations": 8
-      },
-      "auto_merge": {
-        "enabled": true,
-        "target_branch": "main",
-        "strategy": "rebase",
-        "require_all_tests_pass": true,
-        "require_security_scan": true
-      }
-    },
-    "doc-worker": {
-      "archetype": "doc_sync",
-      "runner": "subagent",
-      "target_spec_dir": ".workflow/specs/docs/",
-      "worktree": ".workflow/worktrees/doc-worker",
-      "branch": "docs/doc-worker",
-      "schedule": {
-        "interval_minutes": 30,
-        "max_iterations": 5
-      },
-      "auto_merge": {
-        "enabled": true,
-        "target_branch": "main",
-        "strategy": "rebase",
-        "require_all_tests_pass": true,
-        "require_security_scan": true
-      }
-    }
   },
   "quality_gate": {
     "require_user_confirmation": true,
