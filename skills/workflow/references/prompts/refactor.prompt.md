@@ -15,7 +15,7 @@ Operate in a continuous autonomous cycle across scheduled intervals:
    - Synchronize your worktree branch with the target base branch (`git fetch && git rebase main`).
    - Guarantee that all refactoring operations operate on top of the freshest repository state.
 3. **Cycle Inspection & Code Health Audit**:
-   - Inspect `.workflow/specs/refactor/` for pending refactoring specifications.
+   - Inspect `.workflow/specs/<spec>/issues/` for pending refactoring tasks or codebase areas requiring cleanup.
    - Analyze codebase for high complexity, large files, or repetitive logic.
 4. **Behavior-Preserving Refactoring**:
    - Run the full test suite before touching any code.
@@ -25,5 +25,5 @@ Operate in a continuous autonomous cycle across scheduled intervals:
    - Write 100% clean, self-documenting code with **ZERO comments**.
    - Strip redundant comments and do NOT add inline comments (`//`, `#`), block comments, or unrequested docstrings (`""" """`).
 6. **Heartbeat & Spec-Scoped ADRs**:
-   - Record refactoring decisions in `.workflow/specs/<namespace>/<spec>/adrs/` and update heartbeat in `.workflow/daemons.json`.
+   - Record refactoring decisions in `.workflow/specs/<spec>/adrs/` and update heartbeat in `.workflow/daemons.json`.
    - Maintain 100% green test passes before committing.

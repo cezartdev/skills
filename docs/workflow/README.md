@@ -73,7 +73,7 @@ uv run skills/workflow/scripts/workflow_runner.py chat
 
 ### 5. Spec-Driven Development (SDD) & Sequential Pipeline
 ```bash
-# Scaffold new feature spec (defaults to feat)
+# Scaffold new feature spec directly under .workflow/specs/<spec>/
 uv run skills/workflow/scripts/workflow_runner.py new user-login
 
 # Interactive Grilling Session & Socratic co-authoring (Matt Pocock / Spec-Kit style)
@@ -104,8 +104,8 @@ uv run skills/workflow/scripts/workflow_runner.py clean
 uv run skills/workflow/scripts/workflow_runner.py archive user-login
 ```
 
-### 5. Architectural Decision Records (ADRs) & PR Curation
-The Curator subagent (`workflow curate <spec>`) unifies worker contributions on `<spec>-worker` inside `.workflow/worktrees/<spec>/worker/`, verifies test gates, writes a formal **Architectural Decision Record (ADR)** in `.workflow/specs/<namespace>/<spec>/adrs/`, and suggests opening a PR into the base feature branch (`<spec>`):
+### 6. Architectural Decision Records (ADRs) & PR Curation
+The Curator subagent (`workflow curate <spec>`) unifies worker contributions on `<spec>-worker` inside `.workflow/worktrees/<spec>/worker/`, verifies test gates, writes a formal **Architectural Decision Record (ADR)** in `.workflow/specs/<spec>/adrs/`, and suggests opening a PR into the base feature branch (`<spec>`):
 
 ```bash
 # Generate ADR and synthesize PR summary for user-login:
@@ -121,17 +121,17 @@ uv run skills/workflow/scripts/workflow_runner.py curate --archetype fix
 uv run skills/workflow/scripts/workflow_runner.py curate --archive PR_spec_user_login_20260818_200000.md
 ```
 
-### 6. Strict Hierarchical Worktrees & Subagent Branch Scoping
+### 7. Strict Hierarchical Worktrees & Subagent Branch Scoping
 Every physical worktree is **strictly dependent on and scoped to a specification and its designated subagent**:
 - **Feature / Developer Branch**: Primary implementation takes place directly on `<spec-name>` (e.g., `user-login`).
 - **Staging Branch**: Autonomous subagents operate on dedicated staging branch `<spec-name>-worker` inside `.workflow/worktrees/<spec-name>/worker/`.
 - **Auto-Merge Scope**: Auto-merge operations target the spec's associated branch (`user-login`), never solely `main`.
-- **ADR Audit Trail**: Versioned ADRs stored in `.workflow/specs/<namespace>/<spec>/adrs/ADR_<timestamp>_pipeline_decisions.md`.
+- **ADR Audit Trail**: Versioned ADRs stored in `.workflow/specs/<spec>/adrs/ADR_<timestamp>_pipeline_decisions.md`.
 
 ```bash
 # Execute the full pipeline on-demand:
 uv run skills/workflow/scripts/workflow_runner.py run user-login
 # => Worktree: .workflow/worktrees/user-login/worker/ (Branch: user-login-worker)
-# => Generates ADR in .workflow/specs/features/user-login/adrs/
+# => Generates ADR in .workflow/specs/user-login/adrs/
 # => Prepares PR: user-login-worker ➔ user-login
 ```

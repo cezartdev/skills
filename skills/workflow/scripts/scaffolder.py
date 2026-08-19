@@ -124,12 +124,9 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
     wf_root = get_workflow_root(target_dir)
     assets_dir = get_skill_assets_dir()
 
-    # 1. Create .workflow/specs/ namespaces with .gitkeep (features, bugs, refactor, docs, archive)
+    # 1. Create .workflow/specs/ directory with archive/ placeholder
     specs_dir = os.path.join(wf_root, "specs")
-    ensure_dir_with_gitkeep(os.path.join(specs_dir, "features"))
-    ensure_dir_with_gitkeep(os.path.join(specs_dir, "bugs"))
-    ensure_dir_with_gitkeep(os.path.join(specs_dir, "refactor"))
-    ensure_dir_with_gitkeep(os.path.join(specs_dir, "docs"))
+    os.makedirs(specs_dir, exist_ok=True)
     ensure_dir_with_gitkeep(os.path.join(specs_dir, "archive"))
 
     # 2. Create clean .workflow/memory/ directory with docs/ subfolder
@@ -184,7 +181,7 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
                     "adrs": {
                         "enabled": True,
                         "format": "MADR",
-                        "directory": ".workflow/specs/{namespace}/{spec}/adrs"
+                        "directory": ".workflow/specs/{spec}/adrs"
                     }
                 },
                 "test_runner": {"command": test_cmd, "args": ["--run"], "coverage_threshold": 80},
@@ -228,34 +225,20 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
 
 def scaffold_new_spec(
     spec_name: str,
-    archetype: str = "features",
+    archetype: Optional[str] = None,
     target_dir: str = "."
 ) -> Dict[str, Any]:
-    """Creates a new spec directory under .workflow/specs/<namespace>/<spec_name>/."""
+    """Creates a new spec directory under .workflow/specs/<spec_name>/."""
     target_dir = os.path.abspath(target_dir)
     wf_root = get_workflow_root(target_dir)
     assets_dir = get_skill_assets_dir()
 
     clean_name = sanitize_identifier(spec_name)
-
-    # Normalize archetype aliases (defaults to features/implement)
-    arch = (archetype or "feat").lower()
-    if arch in ["fix", "bug", "bugs"]:
-        parent_folder = "bugs"
-        norm_archetype = "fix"
-    elif arch in ["refactor", "refactoring"]:
-        parent_folder = "refactor"
-        norm_archetype = "refactor"
-    elif arch in ["doc", "docs", "doc_sync"]:
-        parent_folder = "docs"
-        norm_archetype = "doc_sync"
-    else:  # feat, feature, features, implement
-        parent_folder = "features"
-        norm_archetype = "implement"
-
-    spec_dir = os.path.join(wf_root, "specs", parent_folder, clean_name)
+    spec_dir = os.path.join(wf_root, "specs", clean_name)
     issues_dir = os.path.join(spec_dir, "issues")
+    adrs_dir = os.path.join(spec_dir, "adrs")
     ensure_dir_with_gitkeep(issues_dir)
+    ensure_dir_with_gitkeep(adrs_dir)
 
     # 1. Create spec.md from assets/spec.template.md
     spec_file = os.path.join(spec_dir, "spec.md")
@@ -269,17 +252,13 @@ def scaffold_new_spec(
     with open(spec_file, "w", encoding="utf-8") as f:
         f.write(spec_content)
 
-    # 2. Create initial state.json with clean empty issues list (tasks generated during /workflow plan)
+    # 2. Create initial state.json
     state_file = os.path.join(spec_dir, "state.json")
-    rel_spec_dir = os.path.join(".workflow", "specs", parent_folder, clean_name).replace("\\", "/")
-    
-    branch_prefix = "feat" if parent_folder == "features" else ("fix" if parent_folder == "bugs" else ("refactor" if parent_folder == "refactor" else ("docs" if parent_folder == "docs" else "feat")))
+    rel_spec_dir = os.path.join(".workflow", "specs", clean_name).replace("\\", "/")
     
     initial_state = {
         "spec_name": clean_name,
         "spec_path": rel_spec_dir,
-        "archetype": norm_archetype,
-        "daemon_name": None,
         "worktree_path": None,
         "branch_name": clean_name,
         "current_issue_index": 0,
@@ -291,19 +270,12 @@ def scaffold_new_spec(
         "all_tests_passing": False,
         "spec_verified": False,
         "can_auto_merge": False,
-        "memory_logged": False,
     }
     atomic_write_json(state_file, initial_state)
-
-    # Reconcile parent namespace directory (removes .gitkeep from specs/<parent_folder> since spec_dir now exists)
-    parent_specs_dir = os.path.join(wf_root, "specs", parent_folder)
-    reconcile_gitkeep(parent_specs_dir)
 
     return {
         "status": "SUCCESS",
         "spec_name": clean_name,
-        "archetype": norm_archetype,
-        "namespace": parent_folder,
         "spec_dir": spec_dir,
         "spec_file": spec_file,
         "state_file": state_file,
@@ -311,28 +283,30 @@ def scaffold_new_spec(
 
 
 def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
-    """Moves a completed spec folder into .workflow/specs/archive/<year>/<spec_name>/ and reconciles .gitkeep."""
+    """Moves a completed spec folder into .workflow/specs/archive/<year>/<spec_name>/."""
     wf_root = get_workflow_root(target_dir)
     specs_root = os.path.join(wf_root, "specs")
     clean_name = sanitize_identifier(spec_name)
 
-    # Search for spec in features, bugs, refactor, docs
+    # Search directly under specs/
     found_src = None
-    src_parent_folder = None
-    for folder in ["features", "bugs", "refactor", "docs"]:
-        candidate = os.path.join(specs_root, folder, clean_name)
-        if os.path.exists(candidate) and os.path.isdir(candidate):
-            found_src = candidate
-            src_parent_folder = os.path.join(specs_root, folder)
-            break
+    candidate = os.path.join(specs_root, clean_name)
+    if os.path.exists(candidate) and os.path.isdir(candidate):
+        found_src = candidate
+    else:
+        # Fallback for legacy specs in subfolders (features, bugs, refactor, docs)
+        for folder in ["features", "bugs", "refactor", "docs"]:
+            legacy_cand = os.path.join(specs_root, folder, clean_name)
+            if os.path.exists(legacy_cand) and os.path.isdir(legacy_cand):
+                found_src = legacy_cand
+                break
 
     if not found_src:
         if os.path.exists(spec_name) and os.path.isdir(spec_name):
             found_src = os.path.abspath(spec_name)
             clean_name = sanitize_identifier(os.path.basename(found_src))
-            src_parent_folder = os.path.dirname(found_src)
         else:
-            return {"status": "ERROR", "message": f"Spec '{spec_name}' not found under .workflow/specs/features, bugs, refactor, or docs."}
+            return {"status": "ERROR", "message": f"Spec '{spec_name}' not found under .workflow/specs/."}
 
     year = str(datetime.now().year)
     archive_dest = os.path.join(specs_root, "archive", year, clean_name)
@@ -343,11 +317,6 @@ def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
 
     shutil.move(found_src, archive_dest)
 
-    # Reconcile origin namespace folder (restores .gitkeep if it became empty)
-    if src_parent_folder and os.path.exists(src_parent_folder):
-        reconcile_gitkeep(src_parent_folder)
-
-    # Reconcile archive folders (removes .gitkeep since items exist)
     reconcile_gitkeep(os.path.join(specs_root, "archive"))
     reconcile_gitkeep(os.path.dirname(archive_dest))
 

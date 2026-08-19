@@ -19,7 +19,7 @@
     "adrs": {
       "enabled": true,
       "format": "MADR",
-      "directory": ".workflow/specs/{namespace}/{spec}/adrs"
+      "directory": ".workflow/specs/{spec}/adrs"
     }
   },
   "test_runner": {

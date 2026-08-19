@@ -66,18 +66,18 @@ def resolve_spec_path(spec_arg: str, target_dir: str = ".") -> str:
     wf_root = get_workflow_root(target_dir)
     specs_root = os.path.join(wf_root, "specs")
 
+    # 1. Direct candidate: .workflow/specs/<spec_arg>
+    direct_cand = os.path.join(specs_root, spec_arg)
+    if os.path.exists(direct_cand):
+        return direct_cand
+
+    # 2. Fallback for legacy specs in subfolders (features, bugs, refactor, docs)
     for folder in ["features", "bugs", "refactor", "docs"]:
         candidate = os.path.join(specs_root, folder, spec_arg)
         if os.path.exists(candidate):
             return candidate
 
-    legacy_specs = os.path.join(target_dir, "specs")
-    for folder in ["features", "bugs", "refactor", "docs"]:
-        candidate = os.path.join(legacy_specs, folder, spec_arg)
-        if os.path.exists(candidate):
-            return candidate
-
-    return os.path.abspath(os.path.join(specs_root, "features", spec_arg))
+    return os.path.abspath(direct_cand)
 
 
 def cmd_check_env(args: argparse.Namespace) -> int:
@@ -167,7 +167,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     print(f"{'Workflow Root':<24} │ {res['workflow_dir']}")
     print(f"{'Configuration':<24} │ {res['config_file']}")
     print(f"{'Test Runner':<24} │ {res['test_runner']}")
-    print(f"{'Specs Directory':<24} │ {res['specs_dir']} (features, bugs, refactor, docs, archive)")
+    print(f"{'Specs Directory':<24} │ {res['specs_dir']} (features & archive/)")
     print(f"{'Memory Catalog':<24} │ {res['memory_dir']} (coding_preferences.md, project_context.md, docs/)")
     print(f"{'PRs Catalog':<24} │ {res['prs_dir']} (active, archive)")
     print("=" * 110)
@@ -344,32 +344,32 @@ def cmd_memory(args: argparse.Namespace) -> int:
 
 
 def cmd_new(args: argparse.Namespace) -> int:
-    """Creates a new spec directory under .workflow/specs/<namespace>/<spec_name>/."""
-    res = scaffold_new_spec(args.spec_name, archetype=args.archetype, target_dir=args.target_dir)
+    """Creates a new spec directory under .workflow/specs/<spec_name>/."""
+    archetype = getattr(args, "archetype", None)
+    res = scaffold_new_spec(args.spec_name, archetype=archetype, target_dir=args.target_dir)
     if args.json:
         print(json.dumps(res, indent=2))
         return 0
 
     spec_clean = res.get("spec_name", args.spec_name)
-    ns = res.get("namespace", "features")
-    prefix = "feat" if ns == "features" else ("fix" if ns == "bugs" else ("refactor" if ns == "refactor" else ("docs" if ns == "docs" else "feat")))
 
     print("=" * 110)
     print(f" ✨ SPECIFICATION SCAFFOLDED: '{args.spec_name}'")
     print("=" * 110)
     print(f"{'PROPERTY':<24} │ VALUE")
     print("-" * 110)
-    print(f"{'Namespace':<24} │ .workflow/specs/{res.get('namespace')}/")
+    print(f"{'Directory':<24} │ {res['spec_dir']}")
     print(f"{'Spec Document':<24} │ {res['spec_file']}")
-    print(f"{'Issues Directory':<24} │ {os.path.join(os.path.dirname(res['spec_file']), 'issues')} (Clean, ready for /workflow plan)")
+    print(f"{'Issues Directory':<24} │ {os.path.join(res['spec_dir'], 'issues')} (Clean, ready for /workflow plan)")
+    print(f"{'ADRs Directory':<24} │ {os.path.join(res['spec_dir'], 'adrs')} (Decision audit trail)")
     print(f"{'State Checkpoint':<24} │ {res['state_file']}")
     print(f"{'Default Branch':<24} │ {spec_clean}")
-    print(f"{'Hierarchical Worktree':<24} │ .workflow/worktrees/{spec_clean}/<worker-name>")
+    print(f"{'Hierarchical Worktree':<24} │ .workflow/worktrees/{spec_clean}/worker")
     print("=" * 110)
 
     print("\nℹ️  AI Agent Interactive Grilling & Branch Selection Directive:")
     print(f"   Ask developer with ask_question to confirm or customize the target git branch:")
-    print(f"   Candidates: (Recommended) {spec_clean} | feat/{spec_clean} | fix/{spec_clean} | refactor/{spec_clean} | docs/{spec_clean}")
+    print(f"   Candidates: (Recommended) {spec_clean} | feat/{spec_clean} | fix/{spec_clean} | refactor/{spec_clean}")
 
     print_next_steps([
         {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py specify {args.spec_name}", "desc": "Interactive Grilling Session to co-author spec"},
@@ -1201,9 +1201,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_mem.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # new
-    p_new = subparsers.add_parser("new", help="Scaffold a new spec folder under .workflow/specs/features/ (default) or bugs/refactor/docs")
-    p_new.add_argument("spec_name", help="Name of the new spec")
-    p_new.add_argument("--archetype", choices=["feat", "feature", "implement", "fix", "bug", "refactor", "doc", "docs", "doc_sync"], default="feat", help="Target archetype (defaults to feat -> .workflow/specs/features/)")
+    p_new = subparsers.add_parser("new", help="Scaffold a new feature specification directory under .workflow/specs/<spec-name>/")
+    p_new.add_argument("spec_name", help="Name of the new specification")
+    p_new.add_argument("--archetype", nargs="?", help="Optional legacy archetype alias (defaults to standard feature spec)")
     p_new.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # specify

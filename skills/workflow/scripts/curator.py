@@ -189,23 +189,22 @@ def generate_spec_adr(
     target_dir: str = ".",
     decisions: Optional[Dict[str, List[Dict[str, Any]]]] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Generates formal Architectural Decision Record (ADR) under .workflow/specs/<namespace>/<spec>/adrs/."""
+    """Generates formal Architectural Decision Record (ADR) under .workflow/specs/<spec>/adrs/."""
     target_dir = os.path.abspath(target_dir)
     wf_root = get_workflow_root(target_dir)
     clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
 
-    # Find spec directory across namespaces
-    spec_dir = None
-    for ns in ["features", "bugs", "refactor", "docs"]:
-        candidate = os.path.join(wf_root, "specs", ns, clean_spec)
-        if os.path.exists(candidate):
-            spec_dir = candidate
-            break
+    # Find spec directory directly under specs/
+    spec_dir = os.path.join(wf_root, "specs", clean_spec)
+    if not os.path.exists(spec_dir):
+        # Fallback for legacy specs in subfolders (features, bugs, refactor, docs)
+        for ns in ["features", "bugs", "refactor", "docs"]:
+            candidate = os.path.join(wf_root, "specs", ns, clean_spec)
+            if os.path.exists(candidate):
+                spec_dir = candidate
+                break
 
-    if not spec_dir:
-        spec_dir = os.path.join(wf_root, "specs", "features", clean_spec)
-        os.makedirs(spec_dir, exist_ok=True)
-
+    os.makedirs(spec_dir, exist_ok=True)
     adrs_dir = os.path.join(spec_dir, "adrs")
     os.makedirs(adrs_dir, exist_ok=True)
 

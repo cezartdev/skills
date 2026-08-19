@@ -63,7 +63,7 @@ def generate_subagent_directive(
         "task_prompt": (
             f"Execute background cycle for '{daemon_name}' ({archetype}) "
             f"inside isolated Git Worktree at '{worktree_path}'. "
-            f"Inspect .workflow/specs/{'bugs' if archetype == 'fix' else 'refactor'}/ for pending tasks, "
-            f"run TDD cycle (RED -> GREEN -> REFACTOR), ensure 100% test pass, and record decision logs."
+            f"Inspect .workflow/specs/ for active tasks, "
+            f"run TDD cycle (RED -> GREEN -> REFACTOR), ensure 100% test pass, and record ADRs."
         ),
     }

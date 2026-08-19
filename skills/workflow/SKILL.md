@@ -35,7 +35,7 @@ metadata:
 >      1. **Stage 1 (Fix-Worker)**: Stabilize codebase and guarantee 100% green tests.
 >      2. **Stage 2 (Refactor-Worker)**: Clean code and optimize modularity over green tests.
 >      3. **Stage 3 (Doc-Worker)**: Synchronize docstrings, OpenAPI schemas, and specifications.
->      4. **Stage 4 (Curator-Worker)**: Run quality gates, generate formal ADR in `.workflow/specs/<namespace>/<spec>/adrs/`, and compile PR summary.
+>      4. **Stage 4 (Curator-Worker)**: Run quality gates, generate formal ADR in `.workflow/specs/<spec>/adrs/`, and compile PR summary.
 >    - If `--schedule <minutes>` is passed (e.g. 30 or 45), register the Fixed-Delay background timer with the native `schedule` tool.
 > 4. **Immediate Stop & Timer Cancellation**: When triggering `/workflow stop [spec|--all]`, the AI Agent MUST:
 >    - Execute `uv run skills/workflow/scripts/workflow_runner.py stop [spec]`.
@@ -111,7 +111,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 |---|---|---|
 | `/workflow init` | `workflow init [dir]` | Initialize encapsulated `.workflow/` structure & configs |
 | `/workflow explore` | `workflow explore [dir]` | Survey polyglot stack & extract style preferences (`coding_preferences.md`) |
-| `/workflow new` | `workflow new <spec> [--archetype <type>]` | Scaffold a new spec under `.workflow/specs/` (default: feat) |
+| `/workflow new` | `workflow new <spec>` | Scaffold a new feature spec directly under `.workflow/specs/<spec>/` |
 | `/workflow specify` | `workflow specify <spec>` | Interactive 1-by-1 Grilling Session to co-author `spec.md` |
 | `/workflow plan` | `workflow plan <spec>` | Decompose refined spec into atomic TDD task issues |
 | `/workflow check` | `workflow check <spec>` | Audit spec against deterministic Quality Gate (100/100) |
@@ -136,7 +136,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 1. Survey Stack:
    Run '/workflow explore' to detect Python, Rust, Go, Node, Java, or .NET test runners.
 2. Scaffold Spec (SDD):
-   Run '/workflow new <name> [--archetype feat|bug|refactor|doc]' under '.workflow/specs/'.
+   Run '/workflow new <name>' directly under '.workflow/specs/<name>/'.
 3. Socratic Co-Authoring & Branch Selection (Spec-Kit Style):
    Run '/workflow specify <name>' and confirm branch name via grilling session before planning.
 4. Deterministic TDD Execution:

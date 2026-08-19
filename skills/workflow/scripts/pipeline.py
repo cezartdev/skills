@@ -46,31 +46,39 @@ class PipelineRunner:
         self.wf_root = get_workflow_root(self.target_dir)
 
     def resolve_spec(self, spec_name: str) -> Dict[str, Any]:
-        """Resolves spec file location across features, bugs, refactor, and docs namespaces."""
+        """Resolves spec file location directly under .workflow/specs/<clean_name>/."""
         clean_name = re.sub(r"[^a-zA-Z0-9_.-]+", "-", spec_name).strip("-._").lower()
         specs_root = os.path.join(self.wf_root, "specs")
         
-        namespaces = ["features", "bugs", "refactor", "docs"]
-        for ns in namespaces:
+        # 1. Direct path: .workflow/specs/<clean_name>/spec.md
+        direct_dir = os.path.join(specs_root, clean_name)
+        direct_spec = os.path.join(direct_dir, "spec.md")
+        if os.path.exists(direct_spec):
+            return {
+                "found": True,
+                "spec_name": clean_name,
+                "spec_dir": direct_dir,
+                "spec_file": direct_spec,
+            }
+
+        # 2. Fallback for legacy specs in subfolders (features, bugs, refactor, docs)
+        for ns in ["features", "bugs", "refactor", "docs"]:
             candidate_dir = os.path.join(specs_root, ns, clean_name)
             candidate_spec = os.path.join(candidate_dir, "spec.md")
             if os.path.exists(candidate_spec):
                 return {
                     "found": True,
                     "spec_name": clean_name,
-                    "namespace": ns,
                     "spec_dir": candidate_dir,
                     "spec_file": candidate_spec,
                 }
         
-        # Fallback default feature path
-        default_dir = os.path.join(specs_root, "features", clean_name)
+        # Default spec path
         return {
             "found": False,
             "spec_name": clean_name,
-            "namespace": "features",
-            "spec_dir": default_dir,
-            "spec_file": os.path.join(default_dir, "spec.md"),
+            "spec_dir": direct_dir,
+            "spec_file": direct_spec,
         }
 
     def run_stage_sync(self, spec_name: str) -> Dict[str, Any]:
@@ -253,7 +261,6 @@ class PipelineRunner:
         initial_state = {
             "target_dir": self.target_dir,
             "spec_name": clean_spec,
-            "namespace": spec_info["namespace"],
             "auto_merge": auto_merge,
             "create_pr": create_pr,
         }
@@ -323,7 +330,6 @@ class PipelineRunner:
         return {
             "status": "SUCCESS",
             "spec_name": clean_spec,
-            "namespace": spec_info["namespace"],
             "staging_branch": graph_res.get("staging_branch", f"{clean_spec}-worker"),
             "target_base": graph_res.get("target_base", "main"),
             "current_branch": graph_res.get("current_branch", "main"),

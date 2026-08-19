@@ -12,7 +12,7 @@ Conduct an **interactive, sequential grilling interview** (one question at a tim
 When invoked on `/workflow specify <spec-name>`:
 
 1. **Targeted Gap Discovery**:
-   - Inspect `.workflow/specs/<namespace>/<spec_name>/spec.md`.
+   - Inspect `.workflow/specs/<spec_name>/spec.md`.
    - Identify missing data schemas, unspecified error states, or vague acceptance criteria.
 
 2. **Sequential 1-by-1 Question Loop (NEVER dump all questions at once)**:
