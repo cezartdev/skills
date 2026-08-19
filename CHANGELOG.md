@@ -1,5 +1,19 @@
 # cezartdev-skills
 
+## 1.8.0
+
+### Minor Changes
+
+- [`e4de2d9`](https://github.com/cezartdev/skills/commit/e4de2d9940b65702c8d8de4b825527282f10feae) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement deterministic LangGraph state machine pipeline runner (`pipeline_graph.py`), self-contained commit validator & security gate (`commit_validator.py`), and modernize `workflow.json` scaffold to Version 2.0.
+
+- [`376766e`](https://github.com/cezartdev/skills/commit/376766ed8d1f1b8ecd8275e1be621107f5da994a) Thanks [@cezartdev](https://github.com/cezartdev)! - Streamline project memory structure to `coding_preferences.md`, `project_context.md`, and indexed sequential documentation notes in `.workflow/memory/docs/` (`workflow memory add`).
+
+### Patch Changes
+
+- [`af186fe`](https://github.com/cezartdev/skills/commit/af186fe068d1b57bf5505ce52000418b3f938f58) Thanks [@cezartdev](https://github.com/cezartdev)! - Add deterministic Protected Branch Gate (`main`/`master`) on `/workflow run`, preventing direct commits/pushes to production branches and mandating an interactive grilling session for feature branch confirmation.
+
+- [`b8205ed`](https://github.com/cezartdev/skills/commit/b8205ed873c201707e50540960661ab20c193a5b) Thanks [@cezartdev](https://github.com/cezartdev)! - Enforce strict Zero-Comments code policy across all workflow subagent prompts and execution directives (no `//`, `#`, or `""" """` in generated code unless explicitly requested).
+
 ## 1.7.0
 
 ### Minor Changes
