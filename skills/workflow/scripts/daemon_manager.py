@@ -567,12 +567,19 @@ def start_daemon(
 def stop_daemon(daemon_name: str, target_dir: str = ".", force: bool = False) -> Dict[str, Any]:
     """Anti-Zombie 3-Phase Deep Cleanup: stops daemon, kills process, purges worktree and locks."""
     target_dir = os.path.abspath(target_dir)
+    if not daemon_name or daemon_name.lower() == "all":
+        return stop_all_daemons(target_dir)
+
     clean_name = sanitize_identifier(daemon_name)
     registry = load_daemon_registry(target_dir)
 
     if clean_name not in registry["daemons"]:
-        force_purge_worktree(clean_name, repo_dir=target_dir)
-        return {"status": "NOT_FOUND_BUT_PURGED", "daemon_name": clean_name}
+        pipe_name = f"pipeline-{clean_name}"
+        if pipe_name in registry["daemons"]:
+            clean_name = pipe_name
+        else:
+            force_purge_worktree(clean_name, repo_dir=target_dir)
+            return {"status": "NOT_FOUND_BUT_PURGED", "daemon_name": clean_name}
 
     entry = registry["daemons"][clean_name]
     conv_id = entry.get("conversation_id")

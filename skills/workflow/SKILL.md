@@ -30,35 +30,29 @@ metadata:
 > **MANDATORY AGENT EXECUTION DIRECTIVES**:
 > 1. **Tool Invocation**: AI Agents MUST ALWAYS invoke workflow commands using `uv run` (e.g. `uv run skills/workflow/scripts/workflow_runner.py <subcommand>` or `uv run .agents/skills/workflow/scripts/workflow_runner.py <subcommand>`). NEVER invoke `python3` or `python` directly.
 > 2. **Specify Grilling Session**: When triggering `/workflow specify <name>`, the AI Agent MUST conduct an interactive 1-by-1 Grilling Session using the interactive question tool (e.g., `ask_question`), asking questions sequentially with multiple-choice recommendations and updating `spec.md` in-place after each answer.
-> 3. **Native Subagent & Recurring Scheduler Dispatch**: When triggering `/workflow daemon start <name>`, the AI Agent MUST:
->    - Execute `uv run skills/workflow/scripts/workflow_runner.py daemon start <name>`.
->    - Register the recurring cron trigger using the native `schedule` tool (passing `CronExpression: res.cron_expression`, e.g. `*/2 * * * *` or `*/10 * * * *`, and `Prompt: "Execute recurring daemon cycle for <name> inside .workflow/worktrees/<name>/"`) to guarantee that recurring cycles are continuously triggered every interval without stopping.
->    - Invoke the native subagent (`invoke_subagent`) passing `TypeName: "self"`, `Role: "<Name> Daemon Specialist"`, and the continuous task prompt targeting `.workflow/worktrees/<name>/`.
-> 4. **Immediate Daemon Stop & Timer Cancellation**: When triggering `/workflow daemon stop [name|--all]`, the AI Agent MUST:
->    - Execute `uv run skills/workflow/scripts/workflow_runner.py daemon stop <name>`.
->    - Check active background tasks via `manage_task(Action="list")` and cancel the scheduled cron timer (`manage_task(Action="kill", TaskId=...)`) immediately.
->    - Terminate any active subagent conversation for that daemon (`manage_subagents(Action="kill", ConversationIds=[...])`).
->    - If a scheduled wakeup prompt is received while `.workflow/daemons.json` marks the daemon as `STOPPED` or `PAUSED`, the agent MUST abort immediately without performing any worktree operations, tests, or code changes.
+> 3. **Deterministic Sequential Subagent Pipeline**: When triggering `/workflow run <spec>`, the AI Agent MUST:
+>    - Execute the deterministic 4-stage sequential pipeline in `.workflow/worktrees/<spec>/worker/` on branch `<spec>-worker`:
+>      1. **Stage 1 (Fix-Worker)**: Stabilize codebase and guarantee 100% green tests.
+>      2. **Stage 2 (Refactor-Worker)**: Clean code and optimize modularity over green tests.
+>      3. **Stage 3 (Doc-Worker)**: Synchronize docstrings, OpenAPI schemas, and specifications.
+>      4. **Stage 4 (Curator-Worker)**: Run quality gates, generate formal ADR in `.workflow/specs/<namespace>/<spec>/adrs/`, and compile PR summary.
+>    - If `--schedule <minutes>` is passed (e.g. 30 or 45), register the Fixed-Delay background timer with the native `schedule` tool.
+> 4. **Immediate Stop & Timer Cancellation**: When triggering `/workflow stop [spec|--all]`, the AI Agent MUST:
+>    - Execute `uv run skills/workflow/scripts/workflow_runner.py stop [spec]`.
+>    - Cancel background schedule cron timers with `manage_task(Action="kill")`.
+>    - Terminate active subagents with `manage_subagents(Action="kill", ConversationIds=[...])`.
 > 5. **Interactive Test Runner Selection**: When `/workflow init` or `/workflow explore` indicates that no explicit test script is defined in project manifests, the AI Agent MUST prompt the developer using `ask_question` in English to pick from the detected ecosystem candidates (e.g. `pnpm test`, `vitest run`, `jest`).
-> 6. **Daemon Blueprint Creation & Configuration Grilling**: When triggering `/workflow daemon create` or `/workflow daemon set` without flags, the AI Agent MUST conduct an interactive Grilling Session using `ask_question` asking sequentially:
->    - Daemon Name (e.g. `security-auditor`, `perf-monitor`).
->    - Archetype persona (`fix`, `refactor`, `implement`, `doc_sync`).
->    - Execution interval in minutes (`5`, `10`, `15`, `30`, `60`).
->    - Max iterations cap (`Unlimited`, `5`, `10`, `20`, `50`).
->    - Responsibilities description.
->    - Then execute `uv run skills/workflow/scripts/workflow_runner.py daemon create ...` or `daemon set ...` with atomic updates to `.workflow/workflow.json`.
-> 7. **Multi-Machine Host Affinity**: All daemons register their machine fingerprint (`host: user@hostname`). AI Agents and scripts on other machines MUST respect remote workers and NEVER send local OS kill signals or corrupt worktrees belonging to other team members.
-> 8. **Fixed-Delay & Zero-Overlap Concurrency Lock**: Daemon intervals operate strictly under a **Fixed-Delay** model (i.e. $N$ minutes counting **after the previous execution finishes**, NEVER overlapping concurrent agents):
+> 6. **Multi-Machine Host Affinity**: All daemons register their machine fingerprint (`host: user@hostname`). AI Agents and scripts on other machines MUST respect remote workers and NEVER send local OS kill signals or corrupt worktrees belonging to other team members.
+> 7. **Fixed-Delay & Zero-Overlap Concurrency Lock**: Daemon intervals operate strictly under a **Fixed-Delay** model (i.e. $N$ minutes counting **after the previous execution finishes**, NEVER overlapping concurrent agents):
 >    - Gate 0B rejects overlapping executions if a cycle is actively running (`is_busy: true`).
 >    - Gate 0C enforces cooldown until the full $N$ minutes interval has elapsed since `last_completed_at`.
 >    - Subagents and host agents complete their current cycle, record `last_completed_at`, and schedule the next cycle using `schedule(DurationSeconds=interval_minutes * 60, Prompt="...")`.
-> 9. **Strict Hierarchical Worktrees & Worker Branch Scoping (`.workflow/worktrees/<spec>/<worker>/`)**: Every physical worktree is **strictly dependent on and scoped to a specification and its assigned subagent**:
+> 8. **Strict Hierarchical Worktrees & Worker Branch Scoping (`.workflow/worktrees/<spec>/worker/`)**: Every physical worktree is **strictly dependent on and scoped to a specification and its designated subagent**:
 >    - **Feature / Developer Branch**: Primary implementation takes place directly on `<spec-name>` (e.g. `user-login`).
->    - **Worker Branches**: Autonomous subagents operate on dedicated worker branches `<spec-name>-<worker-name>` (e.g. `user-login-fix-worker`, `user-login-refactor-worker`, `user-login-doc-worker`, `user-login-curator-worker`).
->    - **Worktree Directory**: Nested format `.workflow/worktrees/<spec-name>/<worker-name>/` (e.g. `.workflow/worktrees/user-login/fix-worker/`, `.workflow/worktrees/user-login/curator-worker/`).
+>    - **Staging Branch**: Autonomous subagents operate on dedicated staging branch `<spec-name>-worker` inside `.workflow/worktrees/<spec-name>/worker/`.
 >    - **Auto-Merge Scope**: Automatic merges rebase and target the spec's associated branch (`<spec-name>`), never solely `main`.
->    - **Curator Unification & PR**: The Curator (`workflow curate --spec <spec>`) runs in `.workflow/worktrees/<spec>/curator-worker/` on branch `<spec>-curator-worker`, unifies and orders all worker contributions, executes test gates, and suggests a Pull Request to merge `<spec>-curator-worker` into `<spec-name>`.
-> 10. **Interactive Grilling for Branch Selection**: When creating a spec, worktree, or daemon interactively, the AI Agent MUST initiate a question round using `ask_question` allowing the developer to confirm or select their preferred branch name format (`<name>`, `feat/<name>`, `fix/<name>`, `refactor/<name>`, `docs/<name>`, or custom), ensuring alignment before disk operations occur.
+>    - **Curator Unification & ADR**: The Curator generates formal Architectural Decision Records (ADRs) in `.workflow/specs/<namespace>/<spec>/adrs/` and suggests a Pull Request merging `<spec-name>-worker` into `<spec-name>`.
+> 9. **Interactive Grilling for Branch Selection**: When creating a spec interactively, the AI Agent MUST initiate a question round using `ask_question` allowing the developer to confirm or select their preferred branch name format (`<name>`, `feat/<name>`, `fix/<name>`, `refactor/<name>`, `docs/<name>`, or custom), ensuring alignment before disk operations occur.
 
 ---
 
@@ -70,6 +64,7 @@ skills/workflow/
 ├── pyproject.toml                    # [OPTIONAL] Python dependencies managed via uv
 ├── scripts/                          # [OPTIONAL] Executable automation code & launchers
 │   ├── workflow_runner.py            # Central CLI entry point with Smart Path Resolver
+│   ├── pipeline.py                   # Deterministic 4-stage sequential subagent pipeline runner
 │   ├── workflow.ps1                  # Windows PowerShell launcher with auto-bootstrap
 │   ├── workflow.sh                   # Linux/macOS POSIX shell launcher
 │   ├── scaffolder.py                 # Scaffolds .workflow/ structure & specs from assets/
@@ -80,7 +75,7 @@ skills/workflow/
 │   ├── quality_auditor.py            # Deterministic Pre-Execution Quality Gate
 │   ├── orchestrator.py               # Universal Subagent Dispatch engine
 │   ├── daemon_manager.py             # Multi-daemon scheduler with cron, pause/resume & Anti-Zombie cleanup
-│   ├── curator.py                    # Multi-PR Curator & scoped release synthesizer
+│   ├── curator.py                    # Multi-PR Curator, ADR generator & scoped release synthesizer
 │   └── graph/
 │       ├── state.py                  # LangGraph TypedDict state definitions
 │       ├── nodes.py                  # LangGraph node transitions (RED, GREEN, REFACTOR, GATES)
@@ -113,24 +108,18 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 |---|---|---|
 | `/workflow init` | `workflow init [dir]` | Initialize encapsulated `.workflow/` structure & configs |
 | `/workflow explore` | `workflow explore [dir]` | Survey polyglot stack & extract style preferences (`00_coding_preferences.md`) |
-| `/workflow new` | `workflow new <name> [--archetype <type>]` | Scaffold a new spec under `.workflow/specs/` (default: feat) |
-| `/workflow specify` | `workflow specify <name>` | Interactive 1-by-1 Grilling Session to co-author `spec.md` |
-| `/workflow plan` | `workflow plan <name>` | Decompose refined spec into atomic TDD task issues |
-| `/workflow check` | `workflow check <name>` | Audit spec against deterministic Quality Gate (100/100) |
-| `/workflow run` | `workflow run <name>` | Execute deterministic LangGraph TDD DAG (Red -> Green -> Refactor) |
-| `/workflow archive` | `workflow archive <name>` | Move completed spec to `.workflow/specs/archive/<year>/` |
+| `/workflow new` | `workflow new <spec> [--archetype <type>]` | Scaffold a new spec under `.workflow/specs/` (default: feat) |
+| `/workflow specify` | `workflow specify <spec>` | Interactive 1-by-1 Grilling Session to co-author `spec.md` |
+| `/workflow plan` | `workflow plan <spec>` | Decompose refined spec into atomic TDD task issues |
+| `/workflow check` | `workflow check <spec>` | Audit spec against deterministic Quality Gate (100/100) |
+| `/workflow run` | `workflow run <spec> [--schedule <m>]` | **Primary Engine**: Run 4-stage sequential pipeline (Fix -> Refactor -> Doc -> Curator) |
+| `/workflow curate` | `workflow curate [spec] [--create-pr]` | Generate ADR, compile PR summary & suggest Pull Request |
+| `/workflow status` | `workflow status [spec]` | View active pipeline status, worktrees & scheduled timers |
+| `/workflow stop` | `workflow stop [spec]` | Terminate background pipeline subagents and cancel timers |
+| `/workflow clean` | `workflow clean` | Deep Anti-Zombie cleanup of orphaned worktrees, locks & dead PIDs |
+| `/workflow archive` | `workflow archive <spec>` | Move completed spec to `.workflow/specs/archive/<year>/` |
 | `/workflow drift` | `workflow drift [--sync]` | Detect manifest checksum drift & sync tech context |
 | `/workflow memory` | `workflow memory <action>` | Manage episodic memory sliding window & 00-10 compaction |
-| `/workflow daemon list` | `workflow daemon list` | Display catalog of configured daemon blueprints & multi-machine status |
-| `/workflow daemon create` | `workflow daemon create <name>` | Create a new daemon blueprint in `workflow.json` via interactive Grilling |
-| `/workflow daemon set` | `workflow daemon set <name> [--interval <m>]` | Modify daemon schedule interval, max iterations, or archetype |
-| `/workflow daemon start` | `workflow daemon start [name]` | Start background daemon subagent (`fix-worker`, `refactor-worker`, `doc-worker`) |
-| `/workflow daemon pause` | `workflow daemon pause [name]` | Pause background worker without deleting worktree |
-| `/workflow daemon resume` | `workflow daemon resume [name]` | Resume paused background worker execution |
-| `/workflow daemon stop` | `workflow daemon stop [name\|--all]` | Terminate background worker & execute Anti-Zombie purge |
-| `/workflow daemon status` | `workflow daemon status` | View active daemon health table, host affinity & execution metrics |
-| `/workflow daemon clean` | `workflow daemon clean` | Force purge orphaned worktrees & dead worker PIDs |
-| `/workflow curate` | `workflow curate [--archetype <type>]` | Compile scoped PR summary in `.workflow/prs/active/` & open PR |
 | `/workflow chat` | `workflow chat [spec]` | Macro architecture brainstorming & scoped spec debate |
 | `/workflow check-env` | `workflow check-env` | Diagnostic check of Python $\ge 3.10$, Git, uv, and dependencies |
 | `/workflow list` | `workflow list` | Display this concise command reference table |

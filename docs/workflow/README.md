@@ -56,105 +56,67 @@ uv run skills/workflow/scripts/workflow_runner.py init
 uv run skills/workflow/scripts/workflow_runner.py chat
 ```
 
-### 4. Spec-Driven Development (SDD) Cycle
+### 4. Spec-Driven Development (SDD) & Sequential Pipeline
 ```bash
 # Scaffold new feature spec (defaults to feat)
-uv run skills/workflow/scripts/workflow_runner.py new 001-payment-gateway
+uv run skills/workflow/scripts/workflow_runner.py new user-login
 
 # Interactive Grilling Session & Socratic co-authoring (Matt Pocock / Spec-Kit style)
-uv run skills/workflow/scripts/workflow_runner.py specify 001-payment-gateway
+uv run skills/workflow/scripts/workflow_runner.py specify user-login
 
 # Decompose into atomic TDD task issues
-uv run skills/workflow/scripts/workflow_runner.py plan 001-payment-gateway
+uv run skills/workflow/scripts/workflow_runner.py plan user-login
 
 # Deterministic Quality Gate audit (100/100 score)
-uv run skills/workflow/scripts/workflow_runner.py check 001-payment-gateway
+uv run skills/workflow/scripts/workflow_runner.py check user-login
 
-# Execute LangGraph TDD state machine (RED -> GREEN -> REFACTOR)
-uv run skills/workflow/scripts/workflow_runner.py run 001-payment-gateway
+# Primary Engine: Execute deterministic 4-stage sequential subagent pipeline (Fix -> Refactor -> Doc -> Curator)
+uv run skills/workflow/scripts/workflow_runner.py run user-login
 
-# Archive completed spec
-uv run skills/workflow/scripts/workflow_runner.py archive 001-payment-gateway
+# Opt-In Recurring Background Execution (runs every 30m with Fixed-Delay):
+uv run skills/workflow/scripts/workflow_runner.py run user-login --schedule 30
+
+# Check active pipeline status and worktree metrics:
+uv run skills/workflow/scripts/workflow_runner.py status
+
+# Stop active background schedulers & terminate subagents:
+uv run skills/workflow/scripts/workflow_runner.py stop user-login
+
+# Deep Anti-Zombie cleanup (purges orphaned worktrees, dangling locks & dead PIDs):
+uv run skills/workflow/scripts/workflow_runner.py clean
+
+# Archive completed spec when merged:
+uv run skills/workflow/scripts/workflow_runner.py archive user-login
 ```
 
-### 5. Multi-Daemon Scheduling & Configuration
+### 5. Architectural Decision Records (ADRs) & PR Curation
+The Curator subagent (`workflow curate <spec>`) unifies worker contributions on `<spec>-worker` inside `.workflow/worktrees/<spec>/worker/`, verifies test gates, writes a formal **Architectural Decision Record (ADR)** in `.workflow/specs/<namespace>/<spec>/adrs/`, and suggests opening a PR into the base feature branch (`<spec>`):
+
 ```bash
-# View catalog of all configured daemon blueprints & multi-machine status
-uv run skills/workflow/scripts/workflow_runner.py daemon list
+# Generate ADR and synthesize PR summary for user-login:
+uv run skills/workflow/scripts/workflow_runner.py curate user-login
 
-# Create a new daemon blueprint without manual JSON editing
-uv run skills/workflow/scripts/workflow_runner.py daemon create security-auditor \
-  --archetype fix \
-  --interval 5 \
-  --max-iterations 20 \
-  --description "Vulnerability audit & regression hunter"
+# Open Pull Request directly on GitHub via gh CLI:
+uv run skills/workflow/scripts/workflow_runner.py curate user-login --create-pr
 
-# Modify an existing daemon blueprint's schedule or iterations dynamically
-uv run skills/workflow/scripts/workflow_runner.py daemon set security-auditor --interval 3 --max-iterations 50
+# Scoped Rollup PR: Compile exclusively bug fixes into .workflow/prs/active/
+uv run skills/workflow/scripts/workflow_runner.py curate --archetype fix
 
-# 1. Start fix-worker subagent (archetype: fix, bugs namespace) every 10 minutes
-uv run skills/workflow/scripts/workflow_runner.py daemon start fix-worker --interval 10
-
-# 2. Start refactor-worker subagent (archetype: refactor, refactor namespace) every 15 minutes
-uv run skills/workflow/scripts/workflow_runner.py daemon start refactor-worker --interval 15
-
-# 3. Start doc-worker subagent (archetype: doc_sync, docs namespace) every 30 minutes
-uv run skills/workflow/scripts/workflow_runner.py daemon start doc-worker --interval 30
-
-# Pause daemon cron execution without destroying worktree
-uv run skills/workflow/scripts/workflow_runner.py daemon pause fix-worker
-
-# Resume daemon cron execution
-uv run skills/workflow/scripts/workflow_runner.py daemon resume fix-worker
-
-# View active daemon status table, multi-machine host affinity (user@hostname) & health metrics
-uv run skills/workflow/scripts/workflow_runner.py daemon status
-
-# Stop a specific daemon or all daemons with Anti-Zombie purge
-uv run skills/workflow/scripts/workflow_runner.py daemon stop fix-worker
-uv run skills/workflow/scripts/workflow_runner.py daemon stop --all
-
-# Clean dead PIDs and stale worktree locks
-uv run skills/workflow/scripts/workflow_runner.py daemon clean
+# Archive a merged PR record:
+uv run skills/workflow/scripts/workflow_runner.py curate --archive PR_spec_user_login_20260818_200000.md
 ```
-
-> [!NOTE]
-> **Fixed-Delay Interval & Zero-Overlap Concurrency Model**:
-> Daemon intervals (e.g. `--interval 2` minutes) operate strictly under a **Fixed-Delay** execution model:
-> - The interval starts counting **after the previous execution cycle completes**, preventing overlapping agents.
-> - An atomic concurrency lock (`is_busy: true`) prevents concurrent cycles from colliding inside the same `.workflow/worktrees/<name>/`.
-> - If an execution takes 3 minutes and the interval is 2 minutes, the next cycle will run 2 minutes after the 3-minute run finishes (5 minutes from start).
 
 ### 6. Strict Hierarchical Worktrees & Subagent Branch Scoping
 Every physical worktree is **strictly dependent on and scoped to a specification and its designated subagent**:
 - **Feature / Developer Branch**: Primary implementation takes place directly on `<spec-name>` (e.g., `user-login`).
-- **Worker Branches**: Dedicated subagent branches named `<spec-name>-<worker-name>`:
-  - `fix-worker`: `.workflow/worktrees/user-login/fix-worker/` (Branch: `user-login-fix-worker`)
-  - `refactor-worker`: `.workflow/worktrees/user-login/refactor-worker/` (Branch: `user-login-refactor-worker`)
-  - `doc-worker`: `.workflow/worktrees/user-login/doc-worker/` (Branch: `user-login-doc-worker`)
-  - `curator-worker`: `.workflow/worktrees/user-login/curator-worker/` (Branch: `user-login-curator-worker`)
+- **Staging Branch**: Autonomous subagents operate on dedicated staging branch `<spec-name>-worker` inside `.workflow/worktrees/<spec-name>/worker/`.
 - **Auto-Merge Scope**: Auto-merge operations target the spec's associated branch (`user-login`), never solely `main`.
+- **ADR Audit Trail**: Versioned ADRs stored in `.workflow/specs/<namespace>/<spec>/adrs/ADR_<timestamp>_pipeline_decisions.md`.
 
 ```bash
-# Create an isolated worktree for fix-worker bound to a feature branch:
-uv run skills/workflow/scripts/workflow_runner.py worktree add fix-worker --spec user-login
-# => Worktree: .workflow/worktrees/user-login/fix-worker/ (Branch: user-login-fix-worker)
-```
-
-### 7. Multi-PR Release Curation & Subagent Unification
-The Curator (`workflow curate`) unifies and logically orders all worker contributions (`user-login-fix-worker`, `user-login-refactor-worker`, `user-login-doc-worker`) into `user-login-curator-worker` inside `.workflow/worktrees/user-login/curator-worker/`, verifies tests, and suggests opening a PR into the base feature branch (`user-login`):
-
-```bash
-# Feature Spec PR: Unify worker branches and compile PR targeting the feature branch
-uv run skills/workflow/scripts/workflow_runner.py curate --spec user-login
-
-# Scoped PR: Compile exclusively bug fixes into .workflow/prs/active/
-uv run skills/workflow/scripts/workflow_runner.py curate --archetype fix
-
-# Master Release PR: Open directly on GitHub via gh CLI
-uv run skills/workflow/scripts/workflow_runner.py curate --spec user-login --create-pr
-```
-
-# Archive a merged PR record
-uv run skills/workflow/scripts/workflow_runner.py curate --archive PR_fix_rollup_20260814.md
+# Execute the full pipeline on-demand:
+uv run skills/workflow/scripts/workflow_runner.py run user-login
+# => Worktree: .workflow/worktrees/user-login/worker/ (Branch: user-login-worker)
+# => Generates ADR in .workflow/specs/features/user-login/adrs/
+# => Prepares PR: user-login-worker ➔ user-login
 ```

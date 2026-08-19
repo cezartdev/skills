@@ -38,6 +38,7 @@ from daemon_manager import (
 )
 from curator import compile_scoped_pr_summary, create_curator_pr, archive_merged_pr
 from orchestrator import prepare_subagent_dispatch, generate_subagent_directive, get_archetype_prompt
+from pipeline import PipelineRunner
 from graph.engine import WorkflowEngine
 
 
@@ -489,42 +490,83 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    """Executes the LangGraph DAG state machine for a spec."""
-    target_dir = getattr(args, "target_dir", ".") or "."
-    resolved_path = resolve_spec_path(args.spec_dir, target_dir=target_dir)
-    engine = WorkflowEngine(resolved_path)
-    res = engine.run_step()
-    spec_name = res.get("spec_name", os.path.basename(resolved_path))
+    """Executes the deterministic 4-stage sequential subagent pipeline for a spec."""
+    target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
+    spec_name = getattr(args, "spec_name", None) or getattr(args, "spec", None) or getattr(args, "spec_dir", None)
 
-    if args.json:
+    if not spec_name:
+        print("Error: Specification name is required. Example: workflow run user-login", file=sys.stderr)
+        return 1
+
+    schedule_minutes = getattr(args, "schedule", None) or getattr(args, "interval", None)
+    auto_merge = getattr(args, "auto_merge", False)
+    create_pr = getattr(args, "create_pr", False)
+
+    runner = PipelineRunner(target_dir=target_dir)
+    res = runner.run_pipeline(
+        spec_name=spec_name,
+        schedule_minutes=schedule_minutes,
+        auto_merge=auto_merge,
+        create_pr=create_pr,
+    )
+
+    if getattr(args, "json", False):
         print(json.dumps(res, indent=2))
         return 0
 
     print("=" * 110)
-    print(f" 🚀 EXECUTED WORKFLOW DAG: {spec_name}")
+    print(f" 🚀 PIPELINE COMPLETED: '{res['spec_name']}' ({res['elapsed_seconds']}s)")
     print("=" * 110)
-    print(f"{'PROPERTY':<24} │ VALUE")
+    print(f"{'STAGE':<24} │ {'STATUS':<24} │ SUBAGENT SPECIALIST")
     print("-" * 110)
-    print(f"{'DAG Step':<24} │ {res.get('dag_step')}")
-    print(f"{'Tests Passing':<24} │ {res.get('all_tests_passing')}")
-    print(f"{'Spec Verified':<24} │ {res.get('spec_verified')}")
+    for st in res["stages"]:
+        print(f"{st['stage']:<24} │ {st['status']:<24} │ {st['subagent_role']}")
+    print("=" * 110)
+    print(f"{'Staging Branch':<24} │ {res['staging_branch']}")
+    print(f"{'Target Base Branch':<24} │ {res['target_base']}")
+    print(f"{'Worktree Path':<24} │ {res['worktree_path']}")
+    if res.get("adr") and res["adr"].get("adr_file"):
+        print(f"{'ADR Record':<24} │ {res['adr']['adr_file']}")
+    if res.get("pr_summary") and res["pr_summary"].get("pr_file"):
+        print(f"{'PR Summary':<24} │ {res['pr_summary']['pr_file']}")
     print("=" * 110)
 
-    if res.get("dag_step") == "REQUIRES_PLANNING":
-        print("\n⚠️  No task issues planned yet.")
-        print_next_steps([
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py plan {spec_name}", "desc": "Decompose spec.md into atomic task issues"},
-        ])
-    elif res.get("spec_verified"):
-        print_next_steps([
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py archive {spec_name}", "desc": "Move completed spec to archive"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile changes into scoped PR summary"},
-        ])
-    else:
-        print_next_steps([
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py run {spec_name}", "desc": "Continue executing next issue in DAG"},
-        ])
+    print("\nℹ️  AI Agent Native Subagent Dispatch Directives:")
+    for d in res["subagent_directives"]:
+        print(f"   - {d['stage']} ({d['role']}): {d['action']}")
+
+    print("\n💡 Suggested PR & Integration Commands:")
+    print(f"   👉 GitHub PR: {res.get('suggested_gh_command')}")
+    print(f"   👉 Git Merge: {res.get('suggested_git_merge')}")
+
+    if res.get("scheduled_interval"):
+        print(f"\n⏰ Opt-In Recurring Daemon Registered: Runs every {res['scheduled_interval']}m (Fixed-Delay)")
+        print(f"   To stop: uv run skills/workflow/scripts/workflow_runner.py stop {res['spec_name']}")
+
+    print_next_steps([
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py curate {res['spec_name']} --create-pr", "desc": "Open pull request directly on GitHub via gh CLI"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py status", "desc": "Check active pipeline status & worktrees"},
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py archive {res['spec_name']}", "desc": "Archive completed specification when merged"},
+    ])
     return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """Displays active specifications, pipeline worktrees, and running daemons."""
+    setattr(args, "action", "status")
+    return cmd_daemon(args)
+
+
+def cmd_stop(args: argparse.Namespace) -> int:
+    """Stops active background pipeline schedulers and cleans processes."""
+    setattr(args, "action", "stop")
+    return cmd_daemon(args)
+
+
+def cmd_clean(args: argparse.Namespace) -> int:
+    """Performs anti-zombie cleanup of orphaned worktrees, dangling locks, and dead PIDs."""
+    setattr(args, "action", "clean")
+    return cmd_daemon(args)
 
 
 def cmd_archive(args: argparse.Namespace) -> int:
@@ -604,9 +646,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
 
 def cmd_curate(args: argparse.Namespace) -> int:
-    """Executes the Curator Subagent: manages multi-PR catalog and compiles scoped PR summaries."""
+    """Executes the Curator Subagent: generates ADR, manages multi-PR catalog and compiles scoped PR summaries."""
     target_dir = os.path.abspath(args.target_dir if hasattr(args, "target_dir") and args.target_dir else ".")
-    spec_name = getattr(args, "spec", None)
+    spec_name = getattr(args, "spec_name", None) or getattr(args, "spec", None) or getattr(args, "flag_spec", None)
     target_branch = getattr(args, "target_branch", None)
     if not target_branch:
         target_branch = spec_name if spec_name else "main"
@@ -641,8 +683,8 @@ def cmd_curate(args: argparse.Namespace) -> int:
         return 0
 
     file_slug = res.get("file_slug") or "PR_summary.md"
-    head_branch = res.get("head_branch", "curator-worker")
-    base_branch = res.get("base_branch", "main")
+    head_branch = res.get("head_branch", f"{spec_name}-worker" if spec_name else "curator-worker")
+    base_branch = res.get("base_branch", target_branch)
     print("=" * 110)
     print(f" 🚀 WORKFLOW CURATOR SUMMARY (.workflow/prs/active/{file_slug})")
     print("=" * 110)
@@ -665,7 +707,7 @@ def cmd_curate(args: argparse.Namespace) -> int:
         print(f"   👉 Git Merge: {res.get('suggested_git_merge')}")
 
     print_next_steps([
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py curate --spec {spec_name or '<spec>'} --create-pr", "desc": "Open pull request directly on GitHub via gh CLI"},
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py curate {spec_name or '<spec>'} --create-pr", "desc": "Open pull request directly on GitHub via gh CLI"},
         {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py curate --archive {file_slug}", "desc": "Archive merged PR summary to history"},
     ])
     return 0
@@ -673,14 +715,15 @@ def cmd_curate(args: argparse.Namespace) -> int:
 
 def cmd_daemon(args: argparse.Namespace) -> int:
     """Manages background daemon subagents, cron scheduling, and Anti-Zombie lifecycle."""
-    action = args.action or "status"
+    action = getattr(args, "action", "status") or "status"
     target_dir = getattr(args, "target_dir", ".") or "."
+    name = getattr(args, "spec_name", None) or getattr(args, "name", None)
 
     # If action doesn't require a daemon name (status, list, clean) and name is a directory path
-    if action in ["status", "list", "clean"] and getattr(args, "name", None):
-        if os.path.isdir(args.name) or args.name.startswith("/") or args.name.startswith("."):
-            target_dir = args.name
-            args.name = None
+    if action in ["status", "list", "clean"] and name:
+        if os.path.isdir(name) or name.startswith("/") or name.startswith("."):
+            target_dir = name
+            name = None
 
     target_dir = os.path.abspath(target_dir)
 
@@ -866,7 +909,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         return 0
 
     elif action == "stop":
-        if getattr(args, "all", False) or not args.name:
+        if getattr(args, "all", False) or not name:
             res = stop_all_daemons(target_dir=target_dir)
             if args.json:
                 print(json.dumps(res, indent=2))
@@ -883,13 +926,13 @@ def cmd_daemon(args: argparse.Namespace) -> int:
                 {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon clean", "desc": "Ensure zero orphaned processes or locks remain"},
             ])
         else:
-            res = stop_daemon(args.name, target_dir=target_dir, force=getattr(args, "force", False))
+            res = stop_daemon(name, target_dir=target_dir, force=getattr(args, "force", False))
             if args.json:
                 print(json.dumps(res, indent=2))
                 return 0
 
             print("=" * 110)
-            print(f" 🛑 DAEMON STOPPED: '{args.name}' (Worktree, process & scheduled timers purged)")
+            print(f" 🛑 DAEMON STOPPED: '{name}' (Worktree, process & scheduled timers purged)")
             print("=" * 110)
             print("\nℹ️  AI Agent Stop & Cleanup Directive:")
             print(f"   - Check running cron tasks with manage_task(Action='list') and cancel matching schedule task with manage_task(Action='kill', TaskId=...)")
@@ -1129,9 +1172,37 @@ def build_parser() -> argparse.ArgumentParser:
     p_chk.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # run
-    p_run = subparsers.add_parser("run", help="Execute the LangGraph DAG state machine for a spec")
-    p_run.add_argument("spec_dir", help="Path or shorthand name of the spec")
+    p_run = subparsers.add_parser("run", help="Run deterministic 4-stage sequential subagent pipeline (Fix -> Refactor -> Doc -> Curator)")
+    p_run.add_argument("spec_name", help="Target specification name (e.g. user-login)")
+    p_run.add_argument("--schedule", "--interval", dest="schedule", type=int, default=None, help="Opt-in recurring interval in minutes (e.g. 30 or 45)")
+    p_run.add_argument("--auto-merge", action="store_true", help="Auto-merge pipeline branch into feature branch if tests pass")
+    p_run.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
     p_run.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
+    # curate
+    p_curate = subparsers.add_parser("curate", help="Curator Subagent: generate ADR and compile scoped PR summaries")
+    p_curate.add_argument("spec_name", nargs="?", help="Target specification name (e.g. user-login)")
+    p_curate.add_argument("--spec", dest="flag_spec", help="Target specification name (alternative flag)")
+    p_curate.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync", "all"], help="Scope PR to specific archetype decisions")
+    p_curate.add_argument("--archive", help="Archive a merged PR filename into .workflow/prs/archive/<year>/")
+    p_curate.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
+    p_curate.add_argument("--target-branch", default=None, help="Target merge branch (defaults to spec branch or main)")
+    p_curate.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
+    # status
+    p_status = subparsers.add_parser("status", help="Display active specifications, pipeline worktrees, and running daemons")
+    p_status.add_argument("spec_name", nargs="?", help="Optional specification name to filter")
+    p_status.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
+    # stop
+    p_stop = subparsers.add_parser("stop", help="Stop background pipeline schedulers and terminate subagents")
+    p_stop.add_argument("spec_name", nargs="?", help="Optional specification name to stop (stops all if omitted)")
+    p_stop.add_argument("--all", action="store_true", help="Stop all running daemons and timers")
+    p_stop.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
+    # clean
+    p_clean = subparsers.add_parser("clean", help="Anti-Zombie cleanup of orphaned worktrees, dangling locks, and dead PIDs")
+    p_clean.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # archive
     p_arc = subparsers.add_parser("archive", help="Move completed spec folder into .workflow/specs/archive/<year>/")
@@ -1142,15 +1213,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_chat = subparsers.add_parser("chat", help="Freeform project brainstorming or scoped spec debate session")
     p_chat.add_argument("spec_name", nargs="?", help="Optional spec name to scope debate")
     p_chat.add_argument("--target-dir", default=".", help="Target workspace directory")
-
-    # curate
-    p_curate = subparsers.add_parser("curate", help="Curator Subagent: manage multi-PR catalog in .workflow/prs/active/, compile scoped PRs, and open release PRs")
-    p_curate.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync", "all"], help="Scope PR to specific archetype decisions")
-    p_curate.add_argument("--spec", help="Scope PR to a specific specification name")
-    p_curate.add_argument("--archive", help="Archive a merged PR filename into .workflow/prs/archive/<year>/")
-    p_curate.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
-    p_curate.add_argument("--target-branch", default=None, help="Target merge branch (defaults to spec branch or main)")
-    p_curate.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # daemon
     p_daemon = subparsers.add_parser("daemon", help="Manage background daemon subagents, cron scheduling, and Anti-Zombie lifecycle")
@@ -1210,9 +1272,12 @@ def main() -> int:
         "plan": cmd_plan,
         "check": cmd_check,
         "run": cmd_run,
+        "curate": cmd_curate,
+        "status": cmd_status,
+        "stop": cmd_stop,
+        "clean": cmd_clean,
         "archive": cmd_archive,
         "chat": cmd_chat,
-        "curate": cmd_curate,
         "daemon": cmd_daemon,
         "worktree": cmd_worktree,
         "list": cmd_list,
