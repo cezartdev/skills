@@ -1,5 +1,19 @@
 # cezartdev-skills
 
+## 1.7.0
+
+### Minor Changes
+
+- [`0cba65c`](https://github.com/cezartdev/skills/commit/0cba65c15356c8eca9ca78cb3d42e654d3986bbc) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement worker branch scoping (`<spec>-<worker>`), spec-based auto-merge targeting, and Curator subagent unification into `<spec>-curator-worker` with PR suggestions to `<spec>`.
+
+- [`51e4e5e`](https://github.com/cezartdev/skills/commit/51e4e5edc58aff1e824e79de7555a2c921082e54) Thanks [@cezartdev](https://github.com/cezartdev)! - Enforce strict hierarchical worktree structure (`.workflow/worktrees/<branch-name>/<worker-name>/`) and align branch names directly with spec functionality.
+
+- [`d722918`](https://github.com/cezartdev/skills/commit/d722918cd62ad7dc170d4f54e4c35f14563e7e51) Thanks [@cezartdev](https://github.com/cezartdev)! - Rename default daemon subagents to `fix-worker`, `refactor-worker`, and `doc-worker`, enforce spec-dependent worktrees, and add interactive branch grilling directives.
+
+- [`91a016b`](https://github.com/cezartdev/skills/commit/91a016bc335f97bf7e609b6057d1ac6cacff2e52) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement standardized semantic git branch creation (`feat/*`, `fix/*`, `refactor/*`, `docs/*`) automatically alongside physical Git Worktrees and specification scaffolding.
+
+- [`08d7479`](https://github.com/cezartdev/skills/commit/08d7479321c4f300eeb22189b50fcaad53e779c4) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement deterministic 4-stage sequential subagent pipeline runner (`workflow run <spec>`), automated MADR Architectural Decision Record generation, and streamlined positional CLI commands (`status`, `stop`, `clean`, `curate`).
+
 ## 1.6.0
 
 ### Minor Changes
