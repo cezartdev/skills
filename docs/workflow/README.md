@@ -16,6 +16,7 @@ The **`workflow`** skill provides a deterministic, state-machine driven developm
 - **Multi-PR Catalog (`.workflow/prs/`)**: Scoped PR generation per archetype (`fix`, `refactor`, `implement`), spec-specific PRs, or unified batch releases stored in `.workflow/prs/active/` and archived to `.workflow/prs/archive/<year>/`.
 - **Universal Polyglot Engine (Zero Bias)**: Automatically detects and adapts to Python, Rust, Go, Node, Java, and .NET test runners.
 - **Pure-Deterministic Pipelines in Python**: Separates strict logical rules (quality score regex, exit code evaluation, worktree locks) from LLM reasoning to guarantee zero hallucinations in critical logic.
+- **Strict Zero-Comments Code Policy**: All autonomous subagents produce 100% clean, self-documenting code without extraneous inline or block comments (`//`, `#`, `/* */`, `""" """`) unless explicitly requested by the developer.
 - **Autonomous Background Daemons (`/workflow daemon`)**: Dispatches subagents on recurring **cron schedules** inside isolated Git Worktrees, with pause, resume, status, and Anti-Zombie cleanup.
 
 ---

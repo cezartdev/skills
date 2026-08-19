@@ -22,10 +22,9 @@ Operate in a continuous autonomous cycle across scheduled intervals:
      a. Write a deterministic failing test reproducing the failure (RED phase).
      b. Implement the minimal surgical fix required (GREEN phase).
      c. Run the full test suite to guarantee zero regressions.
-5. **Heartbeat, Memory & Safe Auto-Merge**:
-   - Log completed resolutions to `.workflow/memory/fix/` with root cause and fix details.
-   - Update `last_heartbeat` in `.workflow/daemons.json` to signal active worker health.
-   - If 100% tests pass and auto-merge is configured, merge cleanly back into `main`.
-6. **Cycle Summary & Fixed-Delay Rescheduling**:
-   - Report concise cycle status to your background terminal drawer.
-   - The interval delay starts counting strictly AFTER this execution completes, preventing concurrent agent collisions on the worktree.
+5. **Strict Zero-Comments Code Policy**:
+   - Write 100% clean, self-documenting code with **ZERO comments**.
+   - Inline comments (`//`, `#`), block comments (`/* */`), and docstrings (`""" """`) are **strictly forbidden** in all source code edits unless explicitly requested by the user.
+6. **Heartbeat & Spec-Scoped ADRs**:
+   - Record resolutions in `.workflow/specs/<namespace>/<spec>/adrs/` and update heartbeat in `.workflow/daemons.json`.
+   - Maintain 100% green test passes before committing.

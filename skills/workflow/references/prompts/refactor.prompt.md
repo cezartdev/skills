@@ -21,10 +21,9 @@ Operate in a continuous autonomous cycle across scheduled intervals:
    - Run the full test suite before touching any code.
    - Refactor code iteratively in small, atomic increments without changing external behavior or API contracts.
    - Re-run test suite after every step to ensure 100% pass rate.
-5. **Heartbeat, Memory & Safe Auto-Merge**:
-   - Log refactoring decisions and complexity reductions in `.workflow/memory/refactor/`.
-   - Update `last_heartbeat` in `.workflow/daemons.json` to signal active worker health.
-   - If 100% tests pass and auto-merge is configured, merge cleanly back into `main`.
-6. **Cycle Summary & Fixed-Delay Rescheduling**:
-   - Report concise cycle status to your background terminal drawer.
-   - The interval delay starts counting strictly AFTER this execution completes, preventing concurrent agent collisions on the worktree.
+5. **Strict Zero-Comments Code Policy**:
+   - Write 100% clean, self-documenting code with **ZERO comments**.
+   - Strip redundant comments and do NOT add inline comments (`//`, `#`), block comments, or unrequested docstrings (`""" """`).
+6. **Heartbeat & Spec-Scoped ADRs**:
+   - Record refactoring decisions in `.workflow/specs/<namespace>/<spec>/adrs/` and update heartbeat in `.workflow/daemons.json`.
+   - Maintain 100% green test passes before committing.

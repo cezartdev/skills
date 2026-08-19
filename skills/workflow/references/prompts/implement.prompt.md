@@ -13,7 +13,8 @@ Execute feature specifications located under `.workflow/specs/features/<feature-
      - 🔴 **RED**: Write comprehensive failing tests for the issue requirements.
      - 🟢 **GREEN**: Implement clean, minimal code to pass all tests.
      - 🔵 **REFACTOR**: Polish code structure, run linters, and verify full test suite passes.
-3. **Continuous Checkpointing**:
-   - Update `state.json` at each stage transition.
-4. **Episodic Memory Logging**:
-   - Record feature milestones, technical choices, and schema additions in `.workflow/memory/implement/XX_<feature_id>.md`.
+3. **Strict Zero-Comments Code Policy**:
+   - Write 100% clean, self-documenting code with **ZERO comments**.
+   - Inline comments (`//`, `#`), block comments (`/* */`), and docstrings (`""" """`) are **strictly forbidden** unless explicitly requested by the user.
+4. **Continuous Checkpointing & ADRs**:
+   - Update `state.json` at each stage transition and record key decisions for the ADR.

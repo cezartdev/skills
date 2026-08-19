@@ -574,6 +574,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     print("=" * 110)
 
     print("\nℹ️  AI Agent Native Subagent Dispatch Directives:")
+    print("   🚫 STRICT ZERO-COMMENTS RULE: Write 100% clean, self-documenting code with ZERO comments (no //, #, or \"\"\" \"\"\") unless explicitly requested.")
     for d in res["subagent_directives"]:
         print(f"   - {d['stage']} ({d['role']}): {d['action']}")
 

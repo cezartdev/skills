@@ -51,8 +51,8 @@ metadata:
 >    - **Feature / Developer Branch**: Primary implementation takes place directly on `<spec-name>` (e.g. `user-login`).
 >    - **Staging Branch**: Autonomous subagents operate on dedicated staging branch `<spec-name>-worker` inside `.workflow/worktrees/<spec-name>/worker/`.
 >    - **Auto-Merge Scope**: Automatic merges rebase and target the spec's associated branch (`<spec-name>`), never solely `main`.
->    - **Curator Unification & ADR**: The Curator generates formal Architectural Decision Records (ADRs) in `.workflow/specs/<namespace>/<spec>/adrs/` and suggests a Pull Request merging `<spec-name>-worker` into `<spec-name>`.
 > 9. **Interactive Grilling for Branch Selection**: When creating a spec interactively, the AI Agent MUST initiate a question round using `ask_question` allowing the developer to confirm or select their preferred branch name format (`<name>`, `feat/<name>`, `fix/<name>`, `refactor/<name>`, `docs/<name>`, or custom), ensuring alignment before disk operations occur.
+> 10. **Strict Zero-Comments Code Policy**: When writing, editing, or refactoring code in this workflow (across all subagent phases: Fix-Worker, Refactor-Worker, Implementer), AI Agents MUST produce 100% clean, self-documenting code with **ZERO comments**. Inline comments (`//`, `#`), block comments (`/* */`), and unrequested docstrings (`""" """`) are **strictly prohibited**, with the sole exception being when the user explicitly requests comments or documentation annotations.
 
 ---
 

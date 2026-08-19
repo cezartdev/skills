@@ -324,22 +324,22 @@ class PipelineRunner:
                 {
                     "stage": "Stage 1 (Fix)",
                     "role": "Fix-Worker Specialist",
-                    "action": f"invoke_subagent(TypeName='self', Role='Fix-Worker Specialist', Cwd='{wt_path}')",
+                    "action": f"invoke_subagent(TypeName='self', Role='Fix-Worker Specialist', Prompt='Fix failing tests in {wt_path}. CRITICAL RULE: Write 100% clean code with ZERO comments (no //, #, or \"\"\" \"\"\").', Cwd='{wt_path}')",
                 },
                 {
                     "stage": "Stage 2 (Refactor)",
                     "role": "Refactor-Worker Specialist",
-                    "action": f"invoke_subagent(TypeName='self', Role='Refactor-Worker Specialist', Cwd='{wt_path}')",
+                    "action": f"invoke_subagent(TypeName='self', Role='Refactor-Worker Specialist', Prompt='Refactor modular architecture in {wt_path}. CRITICAL RULE: Write 100% clean code with ZERO comments (no //, #, or \"\"\" \"\"\").', Cwd='{wt_path}')",
                 },
                 {
                     "stage": "Stage 3 (Doc)",
                     "role": "Doc-Worker Specialist",
-                    "action": f"invoke_subagent(TypeName='self', Role='Doc-Worker Specialist', Cwd='{wt_path}')",
+                    "action": f"invoke_subagent(TypeName='self', Role='Doc-Worker Specialist', Prompt='Sync markdown documentation and spec.md for {clean_spec} in {wt_path}.', Cwd='{wt_path}')",
                 },
                 {
                     "stage": "Stage 4 (Curator)",
                     "role": "Curator Specialist",
-                    "action": f"invoke_subagent(TypeName='self', Role='Curator Specialist', Cwd='{wt_path}')",
+                    "action": f"invoke_subagent(TypeName='self', Role='Curator Specialist', Prompt='Run quality gate audit and finalize PR summary in {wt_path}.', Cwd='{wt_path}')",
                 },
             ],
         }
