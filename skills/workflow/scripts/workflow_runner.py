@@ -387,13 +387,13 @@ def cmd_new(args: argparse.Namespace) -> int:
     print(f"{'Issues Directory':<24} │ {os.path.join(res['spec_dir'], 'issues')} (Clean, ready for /workflow plan)")
     print(f"{'ADRs Directory':<24} │ {os.path.join(res['spec_dir'], 'adrs')} (Decision audit trail)")
     print(f"{'State Checkpoint':<24} │ {res['state_file']}")
-    print(f"{'Default Branch':<24} │ {spec_clean}")
+    print(f"{'Default Branch':<24} │ feat/{spec_clean}")
     print(f"{'Hierarchical Worktree':<24} │ .workflow/worktrees/{spec_clean}/worker")
     print("=" * 110)
 
     print("\nℹ️  AI Agent Interactive Grilling & Branch Selection Directive:")
     print(f"   Ask developer with ask_question to confirm or customize the target git branch:")
-    print(f"   Candidates: (Recommended) {spec_clean} | feat/{spec_clean} | fix/{spec_clean} | refactor/{spec_clean}")
+    print(f"   Candidates: (Recommended) feat/{spec_clean} | {spec_clean} | fix/{spec_clean} | refactor/{spec_clean}")
 
     print_next_steps([
         {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py specify {args.spec_name}", "desc": "Interactive Grilling Session to co-author spec"},
@@ -629,7 +629,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("\nℹ️  AI Agent Interactive Grilling Directive:")
         print(f"   Current active branch is protected ('{curr_b}'). You MUST prompt developer using ask_question")
         print(f"   to confirm target feature branch before pushing or opening PRs to protect {curr_b}:")
-        print(f"   Candidates: (Recommended) {res['target_base']} | feat/{res['target_base']} | fix/{res['target_base']}")
+        print(f"   Candidates: (Recommended) feat/{res['target_base']} | {res['target_base']} | fix/{res['target_base']}")
 
     if res.get("scheduled_interval"):
         print(f"\n⏰ Opt-In Recurring Daemon Registered: Runs every {res['scheduled_interval']}m (Fixed-Delay)")

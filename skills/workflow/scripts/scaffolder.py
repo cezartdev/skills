@@ -393,7 +393,7 @@ def scaffold_new_spec(
         "spec_name": clean_name,
         "spec_path": rel_spec_dir,
         "worktree_path": None,
-        "branch_name": clean_name,
+        "branch_name": f"feat/{clean_name}",
         "current_issue_index": 0,
         "issues": [],
         "dag_step": "NEW_SPEC_INITIALIZED",

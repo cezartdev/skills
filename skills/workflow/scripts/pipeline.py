@@ -104,13 +104,18 @@ class PipelineRunner:
         curr_branch = get_current_branch(self.target_dir)
         protected_active = is_protected_branch(curr_branch)
 
-        # Check if local spec branch exists, else branch off from main
+        # Check if local spec branch exists (feat/<spec> or <spec>), else branch off from main
+        feat_branch = f"feat/{clean_spec}"
+        feat_ref = run_git(["rev-parse", "--verify", f"refs/heads/{feat_branch}"], cwd=self.target_dir)
         spec_ref = run_git(["rev-parse", "--verify", f"refs/heads/{clean_spec}"], cwd=self.target_dir)
-        if spec_ref.returncode != 0 and protected_active:
-            run_git(["branch", clean_spec, curr_branch], cwd=self.target_dir)
-            target_base = clean_spec
+
+        if feat_ref.returncode == 0:
+            target_base = feat_branch
         elif spec_ref.returncode == 0:
             target_base = clean_spec
+        elif protected_active:
+            run_git(["branch", feat_branch, curr_branch], cwd=self.target_dir)
+            target_base = feat_branch
         else:
             target_base = curr_branch if not protected_active else get_default_branch(self.target_dir)
 
