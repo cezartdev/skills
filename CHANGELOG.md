@@ -1,5 +1,19 @@
 # cezartdev-skills
 
+## 1.11.0
+
+### Minor Changes
+
+- [`df3cb81`](https://github.com/cezartdev/skills/commit/df3cb81088b7abb137575542708ce8c448bbe6ba) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement Orchestrator supervisor feedback loops, bounded revision routing, self-contained `git_ops.py` engine, deterministic `git-worker` archetype, and interactive Grilling Session release confirmation gates.
+
+### Patch Changes
+
+- [`5dc0ff0`](https://github.com/cezartdev/skills/commit/5dc0ff075f22da5621307aa6d5aa8bb09f580148) Thanks [@cezartdev](https://github.com/cezartdev)! - Ensure `workflow init` deterministically scans the codebase and generates `project_context.md` and `coding_preferences.md` in memory alongside `workflow_methodology.md`.
+
+- [`7068954`](https://github.com/cezartdev/skills/commit/7068954afa455f44f68d389218f19f16e7c4bd68) Thanks [@cezartdev](https://github.com/cezartdev)! - Document GitHub CLI (`gh`) prerequisite and token scopes for issue reading, pull request curation, and repository management, and add `gh` diagnostic reporting to `workflow check-env`.
+
+- [`0559513`](https://github.com/cezartdev/skills/commit/0559513915853c14158561a7bfe87e1ab04f7431) Thanks [@cezartdev](https://github.com/cezartdev)! - Streamline workflow scripts by removing obsolete `daemon_manager.py` and `commit_validator.py`, auditing cross-platform compatibility across Windows, Linux, and macOS, and adding smart path disambiguation to CLI subcommands.
+
 ## 1.10.0
 
 ### Minor Changes
