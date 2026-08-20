@@ -1,11 +1,12 @@
 """Deterministic Sequential Subagent Pipeline Runner (workflow run <spec-name>).
 
-Orchestrates the 4-stage TDD / Clean Code lifecycle:
+Orchestrates the 5-stage TDD / Clean Code lifecycle governed by the Orchestrator:
 Stage 0: Pre-Cycle Sync & Worktree Isolation (.workflow/worktrees/<spec>/worker/ on <spec>-worker)
 Stage 1: Fix-Worker Specialist (Green Tests Phase)
 Stage 2: Refactor-Worker Specialist (Clean Code & Architecture Phase)
-Stage 3: Doc-Worker Specialist (Documentation & Contract Sync Phase)
-Stage 4: Curator Specialist (Quality Gates, ADR Generation & PR Curation)
+Stage 3: Orchestrator Supervisor (Quality Gate, Routing Loop & ADR Generation)
+Stage 4: Doc-Worker Specialist (Documentation & Contract Sync Phase)
+Stage 5: Git-Worker Specialist (Deterministic Commit, Grilling Session & PR Synthesis)
 """
 
 import os
@@ -28,7 +29,16 @@ from worktree_manager import (
     sync_worktree_with_base,
 )
 from scaffolder import get_workflow_root, reconcile_gitkeep
-from curator import compile_scoped_pr_summary, create_curator_pr, generate_spec_adr
+from orchestrator import (
+    compile_scoped_pr_summary,
+    generate_spec_adr,
+    evaluate_pipeline_quality,
+)
+from git_ops import (
+    scan_pre_commit_security,
+    execute_atomic_commit,
+    create_github_pull_request,
+)
 from daemon_manager import (
     get_machine_identity,
     load_daemon_registry,
@@ -39,7 +49,7 @@ from graph.pipeline_graph import create_pipeline_graph
 
 
 class PipelineRunner:
-    """Orchestrates the deterministic 4-stage subagent pipeline for specifications."""
+    """Orchestrates the deterministic multi-worker pipeline governed by the Orchestrator."""
 
     def __init__(self, target_dir: str = "."):
         self.target_dir = os.path.abspath(target_dir)
@@ -137,10 +147,6 @@ class PipelineRunner:
         """Stage 1: Fix-Worker (Stabilizes codebase and ensures 100% green tests)."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         
-        # Polyglot test check inside worktree
-        test_res = run_git(["status", "--porcelain"], cwd=wt_path)
-        
-        # Check if any fixes staged/committed
         return {
             "stage": "1_fix",
             "status": "GREEN_TESTS_READY",
@@ -161,56 +167,75 @@ class PipelineRunner:
             "message": f"Refactor phase complete. Architecture modularized and complexity reduced for '{clean_spec}'.",
         }
 
+    def run_stage_orchestrator(
+        self,
+        spec_name: str,
+        wt_path: str,
+        stage_results: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Stage 3: Orchestrator Evaluation (Audits tests, security, zero-comments compliance, and generates ADR)."""
+        clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
+        
+        # 1. Evaluate pipeline quality
+        quality_eval = evaluate_pipeline_quality(
+            spec_name=clean_spec,
+            target_dir=self.target_dir,
+            stage_results=stage_results,
+            worktree_path=wt_path,
+        )
+
+        # 2. Generate ADR if approved
+        adr_res = None
+        if quality_eval.get("verdict") == "APPROVED":
+            adr_res = generate_spec_adr(spec_name=clean_spec, target_dir=self.target_dir)
+
+        return {
+            "stage": "3_orchestrator",
+            "status": "ORCHESTRATOR_EVALUATED",
+            "subagent_role": "Orchestrator Specialist",
+            "verdict": quality_eval.get("verdict", "APPROVED"),
+            "target_stage": quality_eval.get("target_stage", "doc"),
+            "reason": quality_eval.get("reason"),
+            "feedback": quality_eval.get("feedback"),
+            "adr": adr_res,
+        }
+
     def run_stage_doc(self, spec_name: str, wt_path: str) -> Dict[str, Any]:
-        """Stage 3: Doc-Worker (Generates docstrings, API schemas, and synchronizes spec)."""
+        """Stage 4: Doc-Worker (Generates docstrings, API schemas, and synchronizes spec)."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         
         return {
-            "stage": "3_doc",
+            "stage": "4_doc",
             "status": "DOCS_SYNCHRONIZED",
             "subagent_role": "Doc-Worker Specialist",
             "worktree_path": wt_path,
             "message": f"Documentation phase complete. Contracts and schemas synchronized for '{clean_spec}'.",
         }
 
-    def run_stage_curator(
+    def run_stage_git(
         self,
         spec_name: str,
         wt_path: str,
         auto_merge: bool = False,
         create_pr: bool = False,
     ) -> Dict[str, Any]:
-        """Stage 4: Curator (Quality Gate, formal ADR generation, and PR synthesis)."""
+        """Stage 5: Git-Worker (Prepares PR summary, formats Conventional Commit, and handles PR delivery)."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         worker_branch = f"{clean_spec}-worker"
         
         spec_ref = run_git(["rev-parse", "--verify", f"refs/heads/{clean_spec}"], cwd=self.target_dir)
         target_base = clean_spec if spec_ref.returncode == 0 else get_default_branch(self.target_dir)
 
-        # 1. Generate Formal Architectural Decision Record (ADR)
-        adr_res = generate_spec_adr(spec_name=clean_spec, target_dir=self.target_dir)
-        
-        # Commit ADR inside worktree if changes exist
-        status_check = run_git(["status", "--porcelain"], cwd=wt_path)
-        if status_check.stdout.strip():
-            run_git(["add", "-A"], cwd=wt_path)
-            run_git(["commit", "-m", f"docs({clean_spec}): record automated pipeline architectural decision"], cwd=wt_path)
-
-        # 2. Compile PR Summary
+        # 1. Compile PR Summary in .workflow/prs/active/
         pr_summary = compile_scoped_pr_summary(target_dir=self.target_dir, spec_name=clean_spec)
 
-        # 3. Check GitHub CLI availability
-        gh_available = False
-        try:
-            res = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True, check=False)
-            gh_available = (res.returncode == 0)
-        except FileNotFoundError:
-            gh_available = False
+        # 2. Check GitHub CLI availability
+        gh_available = (shutil.which("gh") is not None)
 
         pr_url = None
-        merge_status = "PENDING_REVIEW"
+        merge_status = "PENDING_GRILLING_CONFIRMATION"
 
-        # 4. Optional Auto-Merge into target feature branch
+        # 3. Optional Auto-Merge into target feature branch
         if auto_merge:
             status_main = run_git(["status", "--porcelain"], cwd=self.target_dir)
             if status_main.stdout.strip():
@@ -219,35 +244,31 @@ class PipelineRunner:
                 merge_cmd = run_git(["merge", "--no-ff", worker_branch, "-m", f"chore({clean_spec}): auto-merge pipeline improvements"], cwd=self.target_dir)
                 merge_status = "AUTO_MERGED" if merge_cmd.returncode == 0 else f"MERGE_FAILED: {merge_cmd.stderr.strip()}"
 
-        # 5. Optional GitHub PR creation
+        # 4. Optional GitHub PR creation
         if create_pr and gh_available:
-            try:
-                cmd = [
-                    "gh", "pr", "create",
-                    "--title", pr_summary["title"],
-                    "--body", pr_summary["body"],
-                    "--head", worker_branch,
-                    "--base", target_base,
-                ]
-                pr_res = subprocess.run(cmd, cwd=self.target_dir, capture_output=True, text=True, check=False)
-                if pr_res.returncode == 0:
-                    pr_url = pr_res.stdout.strip()
-            except Exception:
-                pass
+            pr_res = create_github_pull_request(
+                head_branch=worker_branch,
+                base_branch=target_base,
+                title=pr_summary.get("pr_title", f"feat({clean_spec}): integrate automated pipeline improvements"),
+                body_file=pr_summary.get("pr_file_path"),
+                target_dir=self.target_dir,
+                push_before_pr=True,
+            )
+            if pr_res.get("status") == "SUCCESS":
+                pr_url = pr_res.get("pr_url")
 
-        suggested_gh = f"gh pr create --head {worker_branch} --base {target_base} --title \"feat({clean_spec}): integrate automated pipeline improvements\" --body-file \"{pr_summary['pr_file']}\""
+        suggested_gh = f"gh pr create --head {worker_branch} --base {target_base} --title \"feat({clean_spec}): integrate automated pipeline improvements\" --body-file \"{pr_summary['pr_file_path']}\""
         suggested_git = f"git checkout {target_base} && git merge --no-ff {worker_branch}"
 
         return {
-            "stage": "4_curator",
-            "status": "QUALITY_GATE_PASSED",
-            "subagent_role": "Curator Specialist",
+            "stage": "5_git",
+            "status": "READY_FOR_GRILLING_CONFIRMATION",
+            "subagent_role": "Git-Worker Specialist",
             "spec_name": clean_spec,
             "staging_branch": worker_branch,
             "target_base": target_base,
-            "adr": adr_res,
             "pr_summary": pr_summary,
-            "pr_file": pr_summary.get("pr_file"),
+            "pr_file": pr_summary.get("pr_file_path"),
             "pr_url": pr_url,
             "merge_status": merge_status,
             "suggested_gh_command": suggested_gh,
@@ -259,10 +280,11 @@ class PipelineRunner:
         spec_name: str,
         schedule_minutes: Optional[int] = None,
         max_iterations: Optional[int] = None,
+        max_revisions: int = 3,
         auto_merge: bool = False,
         create_pr: bool = False,
     ) -> Dict[str, Any]:
-        """Executes the full 4-stage sequential subagent pipeline via deterministic LangGraph state machine."""
+        """Executes the full Orchestrator-governed multi-worker pipeline with bounded feedback loops."""
         start_time = time.time()
         spec_info = self.resolve_spec(spec_name)
         clean_spec = spec_info["spec_name"]
@@ -281,6 +303,10 @@ class PipelineRunner:
         elapsed = round(time.time() - start_time, 2)
         now_iso = datetime.now().isoformat()
         machine = get_machine_identity()
+
+        # Run Orchestrator evaluation and Git-Worker preparation
+        orch_res = self.run_stage_orchestrator(clean_spec, wt_path)
+        git_res = self.run_stage_git(clean_spec, wt_path, auto_merge=auto_merge, create_pr=create_pr)
 
         # Handle Opt-In Background Scheduling Registration
         if schedule_minutes and schedule_minutes > 0:
@@ -316,25 +342,29 @@ class PipelineRunner:
                 "stage": "1_fix",
                 "status": graph_res.get("fix_status", "GREEN_TESTS_READY"),
                 "subagent_role": "Fix-Worker Specialist",
-                "commit": graph_res.get("fix_commit"),
             },
             {
                 "stage": "2_refactor",
                 "status": graph_res.get("refactor_status", "REFACTOR_COMPLETE"),
                 "subagent_role": "Refactor-Worker Specialist",
-                "commit": graph_res.get("refactor_commit"),
             },
             {
-                "stage": "3_doc",
+                "stage": "3_orchestrator",
+                "status": "ORCHESTRATOR_APPROVED",
+                "subagent_role": "Orchestrator Specialist",
+                "verdict": orch_res.get("verdict"),
+                "adr": orch_res.get("adr"),
+            },
+            {
+                "stage": "4_doc",
                 "status": graph_res.get("doc_status", "DOCS_SYNCHRONIZED"),
                 "subagent_role": "Doc-Worker Specialist",
-                "commit": graph_res.get("doc_commit"),
             },
             {
-                "stage": "4_curator",
-                "status": "QUALITY_GATE_PASSED",
-                "subagent_role": "Curator Specialist",
-                "adr": graph_res.get("adr"),
+                "stage": "5_git",
+                "status": "READY_FOR_GRILLING_CONFIRMATION",
+                "subagent_role": "Git-Worker Specialist",
+                "pr_summary": git_res.get("pr_summary"),
             },
         ]
 
@@ -348,10 +378,10 @@ class PipelineRunner:
             "worktree_path": normalize_rel_path(wt_path, self.target_dir),
             "elapsed_seconds": elapsed,
             "stages": stages,
-            "adr": graph_res.get("adr"),
-            "pr_summary": graph_res.get("pr_summary"),
-            "suggested_gh_command": graph_res.get("suggested_gh_command"),
-            "suggested_git_merge": graph_res.get("suggested_git_merge"),
+            "adr": orch_res.get("adr"),
+            "pr_summary": git_res.get("pr_summary"),
+            "suggested_gh_command": git_res.get("suggested_gh_command"),
+            "suggested_git_merge": git_res.get("suggested_git_merge"),
             "scheduled_interval": schedule_minutes,
             "subagent_directives": [
                 {
@@ -365,14 +395,19 @@ class PipelineRunner:
                     "action": f"invoke_subagent(TypeName='self', Role='Refactor-Worker Specialist', Prompt='Refactor modular architecture in {wt_path}. CRITICAL RULE: Write 100% clean code with ZERO comments (no //, #, or \"\"\" \"\"\").', Cwd='{wt_path}')",
                 },
                 {
-                    "stage": "Stage 3 (Doc)",
+                    "stage": "Stage 3 (Orchestrator)",
+                    "role": "Orchestrator Specialist",
+                    "action": f"invoke_subagent(TypeName='self', Role='Orchestrator Specialist', Prompt='Audit quality gates (100/100, zero-comments) in {wt_path}. If issues found, route to Fix-Worker or Refactor-Worker. If approved, generate ADR.', Cwd='{wt_path}')",
+                },
+                {
+                    "stage": "Stage 4 (Doc)",
                     "role": "Doc-Worker Specialist",
                     "action": f"invoke_subagent(TypeName='self', Role='Doc-Worker Specialist', Prompt='Sync markdown documentation and spec.md for {clean_spec} in {wt_path}.', Cwd='{wt_path}')",
                 },
                 {
-                    "stage": "Stage 4 (Curator)",
-                    "role": "Curator Specialist",
-                    "action": f"invoke_subagent(TypeName='self', Role='Curator Specialist', Prompt='Run quality gate audit and finalize PR summary in {wt_path}.', Cwd='{wt_path}')",
+                    "stage": "Stage 5 (Git-Worker)",
+                    "role": "Git-Worker Specialist",
+                    "action": f"invoke_subagent(TypeName='self', Role='Git-Worker Specialist', Prompt='Execute Grilling Session confirmation with developer via ask_question. Once confirmed, invoke workflow commit and PR tools deterministically.', Cwd='{wt_path}')",
                 },
             ],
         }

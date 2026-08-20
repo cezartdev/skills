@@ -13,15 +13,17 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 try:
-    from commit_validator import safe_atomic_commit, scan_pre_commit_security
-    from curator import compile_scoped_pr_summary, generate_spec_adr
+    from git_ops import scan_pre_commit_security, execute_atomic_commit
+    from orchestrator import compile_scoped_pr_summary, generate_spec_adr
     from worktree_manager import create_worktree, sync_worktree_with_base, run_git, get_default_branch, get_current_branch, is_protected_branch
     from scaffolder import get_workflow_root
 except ImportError:
-    from ..commit_validator import safe_atomic_commit, scan_pre_commit_security
-    from ..curator import compile_scoped_pr_summary, generate_spec_adr
-    from ..worktree_manager import create_worktree, sync_worktree_with_base, run_git, get_default_branch, get_current_branch, is_protected_branch
-    from ..scaffolder import get_workflow_root
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from git_ops import scan_pre_commit_security, execute_atomic_commit
+    from orchestrator import compile_scoped_pr_summary, generate_spec_adr
+    from worktree_manager import create_worktree, sync_worktree_with_base, run_git, get_default_branch, get_current_branch, is_protected_branch
+    from scaffolder import get_workflow_root
 
 
 def get_configured_test_command(target_dir: str) -> str:

@@ -105,7 +105,7 @@ uv run skills/workflow/scripts/workflow_runner.py memory show 01
 uv run skills/workflow/scripts/workflow_runner.py chat
 ```
 
-### 5. Spec-Driven Development (SDD) & Sequential Pipeline
+### 5. Spec-Driven Development (SDD) & Orchestrator Pipeline
 ```bash
 # Scaffold new feature spec directly under .workflow/specs/active/<spec>/
 uv run skills/workflow/scripts/workflow_runner.py new user-login
@@ -122,7 +122,7 @@ uv run skills/workflow/scripts/workflow_runner.py plan user-login
 # Deterministic Quality Gate audit (100/100 score)
 uv run skills/workflow/scripts/workflow_runner.py check user-login
 
-# Primary Engine: Execute deterministic 4-stage sequential subagent pipeline (Fix -> Refactor -> Doc -> Curator)
+# Primary Engine: Execute deterministic 5-stage Orchestrator pipeline (Fix -> Refactor -> Orchestrator -> Doc -> Git-Worker)
 uv run skills/workflow/scripts/workflow_runner.py run user-login
 
 # Opt-In Recurring Background Execution (runs every 30m with Fixed-Delay):
@@ -141,24 +141,43 @@ uv run skills/workflow/scripts/workflow_runner.py clean
 uv run skills/workflow/scripts/workflow_runner.py archive user-login
 ```
 
-### 6. Architectural Decision Records (ADRs) & PR Curation
-The Curator subagent (`workflow curate <spec>`) unifies worker contributions on `<spec>-worker` inside `.workflow/worktrees/<spec>/worker/`, verifies test gates, writes a formal **Architectural Decision Record (ADR)** in `.workflow/specs/active/<spec>/adrs/`, and suggests opening a PR into the base feature branch (`<spec>`):
+### 6. Architectural Decision Records (ADRs) & Release Orchestration
+The Orchestrator (`workflow orchestrate <spec>`) evaluates quality parameters, verifies test passes, writes formal **Architectural Decision Records (ADRs)** in `.workflow/specs/active/<spec>/adrs/`, and compiles structured PR summaries in `.workflow/prs/active/`:
 
 ```bash
-# Generate ADR and synthesize PR summary for user-login:
-uv run skills/workflow/scripts/workflow_runner.py curate user-login
+# Run Orchestrator quality audit, generate ADR and synthesize PR summary for user-login:
+uv run skills/workflow/scripts/workflow_runner.py orchestrate user-login
 
 # Open Pull Request directly on GitHub via gh CLI:
-uv run skills/workflow/scripts/workflow_runner.py curate user-login --create-pr
+uv run skills/workflow/scripts/workflow_runner.py orchestrate user-login --create-pr
 
 # Scoped Rollup PR: Compile exclusively bug fixes into .workflow/prs/active/
-uv run skills/workflow/scripts/workflow_runner.py curate --archetype fix
+uv run skills/workflow/scripts/workflow_runner.py orchestrate --archetype fix
 
 # Archive a merged PR record:
-uv run skills/workflow/scripts/workflow_runner.py curate --archive PR_spec_user_login_20260818_200000.md
+uv run skills/workflow/scripts/workflow_runner.py orchestrate --archive PR_spec_user_login_20260818_200000.md
 ```
 
-### 7. Strict Hierarchical Worktrees & Subagent Branch Scoping
+### 7. Deterministic `git-worker` Commands & Grilling Session Gates
+The **`git-worker`** archetype operates with **100% determinism** and zero inference. It uses internal `git_ops.py` tooling:
+
+```bash
+# Deterministic Conventional Commit (executed by git-worker after Grilling Session confirmation):
+uv run skills/workflow/scripts/workflow_runner.py commit \
+  -t feat \
+  -s user-login \
+  -m "implement secure token authentication flow" \
+  -b "- Add JWT token signing and refresh verification.\n- Guarantee 100% green unit tests." \
+  --target-dir ".workflow/worktrees/user-login/worker"
+
+# Deterministic GitHub Pull Request creation:
+uv run skills/workflow/scripts/workflow_runner.py pr \
+  --spec user-login \
+  --body-file ".workflow/prs/active/PR_spec_user_login_20260819_234000.md" \
+  --target-dir ".workflow/worktrees/user-login/worker"
+```
+
+### 8. Strict Hierarchical Worktrees & Subagent Branch Scoping
 Every physical worktree is **strictly dependent on and scoped to a specification and its designated subagent**:
 - **Feature / Developer Branch**: Primary implementation takes place directly on `<spec-name>` (e.g., `user-login`).
 - **Staging Branch**: Autonomous subagents operate on dedicated staging branch `<spec-name>-worker` inside `.workflow/worktrees/<spec-name>/worker/`.
@@ -169,6 +188,7 @@ Every physical worktree is **strictly dependent on and scoped to a specification
 # Execute the full pipeline on-demand:
 uv run skills/workflow/scripts/workflow_runner.py run user-login
 # => Worktree: .workflow/worktrees/user-login/worker/ (Branch: user-login-worker)
+# => Orchestrator audits 100% tests & quality score
 # => Generates ADR in .workflow/specs/active/user-login/adrs/
-# => Prepares PR: user-login-worker ➔ user-login
+# => Git-Worker executes Grilling Session confirmation before commit & PR
 ```

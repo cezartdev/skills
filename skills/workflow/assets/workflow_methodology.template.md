@@ -11,10 +11,11 @@
 The project utilizes the **Deterministic Workflow Suite**, a structured harness combining:
 1. **Spec-Driven Development (SDD)**: High-precision specifications co-authored via Socratic debate before any code is written.
 2. **Test-Driven Development (TDD)**: Deterministic 🔴 RED $\rightarrow$ 🟢 GREEN $\rightarrow$ 🔵 REFACTOR cycles where exit codes govern state transitions.
-3. **Deterministic 4-Stage Subagent Pipeline**: Automated multi-worker pipeline executing specialized roles sequentially.
+3. **Deterministic 5-Stage Multi-Worker Pipeline**: Orchestrator-governed pipeline executing specialized roles sequentially with bounded feedback loops.
 4. **Physical Git Worktree Isolation**: Staging workspaces isolated in `.workflow/worktrees/<spec>/worker/` protecting the primary repository branch.
 5. **Architectural Decision Records (ADRs)**: Continuous, Git-trackable decision auditing co-located in `.workflow/specs/active/<spec>/adrs/`.
-6. **Strict Zero-Comments Code Policy**: Clean, self-documenting code with zero unrequested inline comments, block comments, or docstrings.
+6. **Zero Direct Commits & Grilling Session Gates**: Zero unvetted commits or pushes; all releases are confirmed via interactive Grilling Sessions by the `Git-Worker`.
+7. **Strict Zero-Comments Code Policy**: Clean, self-documenting code with zero unrequested inline comments, block comments, or docstrings.
 
 ---
 
@@ -46,16 +47,17 @@ The project utilizes the **Deterministic Workflow Suite**, a structured harness 
 
 ---
 
-## 3. The 4-Stage Sequential Subagent Pipeline
+## 3. The 5-Stage Orchestrator-Governed Subagent Pipeline
 
-When `/workflow run <spec>` is triggered, the pipeline executes 4 specialized stages inside `.workflow/worktrees/<spec>/worker/`:
+When `/workflow run <spec>` is triggered, the pipeline executes 5 specialized stages inside `.workflow/worktrees/<spec>/worker/`:
 
 | Stage | Specialist Role | Responsibility |
 |---|---|---|
 | **Stage 1 (Fix)** | `Fix-Worker Specialist` | Stabilize failing tests, apply surgical bug fixes, and guarantee 100% green builds. |
-| **Stage 2 (Refactor)** | `Refactor-Worker Specialist` | Clean code, optimize modularity, and reduce complexity over passing tests. |
-| **Stage 3 (Doc)** | `Doc-Worker Specialist` | Synchronize documentation, OpenAPI schemas, and specifications. |
-| **Stage 4 (Curator)** | `Curator Specialist` | Execute Quality Gates, generate formal ADR in `.workflow/specs/active/<spec>/adrs/`, and compile PR summary in `.workflow/prs/active/`. |
+| **Stage 2 (Refactor)** | `Refactor-Worker Specialist` | Clean code, optimize modularity, reduce complexity, and enforce Zero-Comments policy. |
+| **Stage 3 (Orchestrator)** | `Orchestrator Specialist` | Evaluate Quality Gate (100/100), route feedback loops (Fix vs Refactor), and generate ADR. |
+| **Stage 4 (Doc)** | `Doc-Worker Specialist` | Synchronize documentation, OpenAPI schemas, and specifications. |
+| **Stage 5 (Git-Worker)** | `Git-Worker Specialist` | Conduct Grilling Session confirmation with developer, then execute atomic Conventional Commit and PR. |
 
 ---
 

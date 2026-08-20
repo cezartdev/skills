@@ -40,8 +40,19 @@ from daemon_manager import (
     create_daemon_blueprint,
     update_daemon_config,
 )
-from curator import compile_scoped_pr_summary, create_curator_pr, archive_merged_pr, generate_specify_adr
-from orchestrator import prepare_subagent_dispatch, generate_subagent_directive, get_archetype_prompt
+from orchestrator import (
+    compile_scoped_pr_summary,
+    generate_spec_adr,
+    generate_specify_adr,
+    evaluate_pipeline_quality,
+    create_curator_pr,
+    archive_merged_pr,
+)
+from git_ops import (
+    execute_atomic_commit,
+    create_github_pull_request,
+    scan_pre_commit_security,
+)
 from pipeline import PipelineRunner
 from graph.engine import WorkflowEngine
 
@@ -809,6 +820,106 @@ def cmd_curate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_orchestrate(args: argparse.Namespace) -> int:
+    """Orchestrator Supervisor: audits quality gates, generates ADRs, and synthesizes PR releases."""
+    return cmd_curate(args)
+
+
+def cmd_commit(args: argparse.Namespace) -> int:
+    """Deterministic atomic commit for Git-Worker with pre-commit security gates."""
+    target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
+    commit_type = getattr(args, "type", "feat") or "feat"
+    scope = getattr(args, "scope", None) or getattr(args, "spec", None)
+    message = getattr(args, "message", None)
+    if not message:
+        print("Error: -m/--message is required for commit.", file=sys.stderr)
+        return 1
+    
+    body_bullets = getattr(args, "bullets", None)
+    if body_bullets and isinstance(body_bullets, str):
+        body_bullets = [b.strip() for b in body_bullets.split("\n") if b.strip()]
+
+    res = execute_atomic_commit(
+        commit_type=commit_type,
+        scope=scope,
+        message=message,
+        body_bullets=body_bullets,
+        target_dir=target_dir,
+    )
+
+    if getattr(args, "json", False):
+        print(json.dumps(res, indent=2))
+        return 0 if res.get("status") == "SUCCESS" else 1
+
+    if res.get("status") == "SUCCESS":
+        print("=" * 110)
+        print(" ✅ ATOMIC COMMIT CREATED BY GIT-WORKER")
+        print("=" * 110)
+        print(f"Commit SHA:    {res.get('commit_sha')}")
+        print(f"Commit Header: {res.get('commit_header')}")
+        print(f"Working Dir:   {res.get('target_dir')}")
+        print("=" * 110)
+        return 0
+    else:
+        print("=" * 110)
+        print(f" ❌ COMMIT FAILED: {res.get('status')}")
+        print("=" * 110)
+        print(f"Message: {res.get('message')}")
+        if res.get("violations"):
+            for v in res.get("violations"):
+                print(f"  - [{v.get('type')}] {v.get('detail')}")
+        if res.get("errors"):
+            for e in res.get("errors"):
+                print(f"  - {e}")
+        print("=" * 110)
+        return 1
+
+
+def cmd_pr(args: argparse.Namespace) -> int:
+    """Deterministic GitHub Pull Request creation for Git-Worker."""
+    target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
+    spec_name = getattr(args, "spec", None) or getattr(args, "spec_name", None)
+    head_branch = getattr(args, "head", None) or (f"{spec_name}-worker" if spec_name else None)
+    base_branch = getattr(args, "base", None) or spec_name or "main"
+    title = getattr(args, "title", None) or (f"feat({spec_name}): integrate automated pipeline improvements" if spec_name else "chore: automated pipeline release")
+    body_file = getattr(args, "body_file", None)
+
+    if not head_branch:
+        print("Error: --head or --spec is required to create a Pull Request.", file=sys.stderr)
+        return 1
+
+    res = create_github_pull_request(
+        head_branch=head_branch,
+        base_branch=base_branch,
+        title=title,
+        body_file=body_file,
+        target_dir=target_dir,
+        push_before_pr=getattr(args, "push", True),
+    )
+
+    if getattr(args, "json", False):
+        print(json.dumps(res, indent=2))
+        return 0 if res.get("status") == "SUCCESS" else 1
+
+    if res.get("status") == "SUCCESS":
+        print("=" * 110)
+        print(" 🚀 PULL REQUEST OPENED BY GIT-WORKER")
+        print("=" * 110)
+        print(f"PR URL:      {res.get('pr_url')}")
+        print(f"Head Branch: {res.get('head_branch')}")
+        print(f"Base Branch: {res.get('base_branch')}")
+        print(f"Title:       {res.get('title')}")
+        print("=" * 110)
+        return 0
+    else:
+        print("=" * 110)
+        print(f" ❌ PR CREATION FAILED: {res.get('status')}")
+        print("=" * 110)
+        print(f"Message: {res.get('message')}")
+        print("=" * 110)
+        return 1
+
+
 def cmd_daemon(args: argparse.Namespace) -> int:
     """Manages background daemon subagents, cron scheduling, and Anti-Zombie lifecycle."""
     action = getattr(args, "action", "status") or "status"
@@ -1265,15 +1376,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_chk.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # run
-    p_run = subparsers.add_parser("run", help="Run deterministic 4-stage sequential subagent pipeline (Fix -> Refactor -> Doc -> Curator)")
+    p_run = subparsers.add_parser("run", help="Run deterministic 5-stage Orchestrator-governed pipeline (Fix -> Refactor -> Orchestrator -> Doc -> Git-Worker)")
     p_run.add_argument("spec_name", help="Target specification name (e.g. user-login)")
     p_run.add_argument("--schedule", "--interval", dest="schedule", type=int, default=None, help="Opt-in recurring interval in minutes (e.g. 30 or 45)")
     p_run.add_argument("--auto-merge", action="store_true", help="Auto-merge pipeline branch into feature branch if tests pass")
     p_run.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
     p_run.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
-    # curate
-    p_curate = subparsers.add_parser("curate", help="Curator Subagent: generate ADR and compile scoped PR summaries")
+    # orchestrate (curate alias)
+    p_orch = subparsers.add_parser("orchestrate", help="Orchestrator Supervisor: audit quality gates, generate ADRs, and compile PR releases")
+    p_orch.add_argument("spec_name", nargs="?", help="Target specification name (e.g. user-login)")
+    p_orch.add_argument("--spec", dest="flag_spec", help="Target specification name (alternative flag)")
+    p_orch.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync", "all"], help="Scope PR to specific archetype decisions")
+    p_orch.add_argument("--archive", help="Archive a merged PR filename into .workflow/prs/archive/<year>/")
+    p_orch.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
+    p_orch.add_argument("--target-branch", default=None, help="Target merge branch (defaults to spec branch or main)")
+    p_orch.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
+    # curate (backward compatibility)
+    p_curate = subparsers.add_parser("curate", help="Curator Subagent (alias for orchestrate): generate ADR and compile scoped PR summaries")
     p_curate.add_argument("spec_name", nargs="?", help="Target specification name (e.g. user-login)")
     p_curate.add_argument("--spec", dest="flag_spec", help="Target specification name (alternative flag)")
     p_curate.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync", "all"], help="Scope PR to specific archetype decisions")
@@ -1281,6 +1402,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_curate.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
     p_curate.add_argument("--target-branch", default=None, help="Target merge branch (defaults to spec branch or main)")
     p_curate.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
+    # commit (for git-worker)
+    p_cmt = subparsers.add_parser("commit", help="Git-Worker deterministic Conventional Commit with pre-commit security gates")
+    p_cmt.add_argument("-t", "--type", default="feat", help="Commit type (feat, fix, docs, refactor, chore, etc.)")
+    p_cmt.add_argument("-s", "--scope", "--spec", dest="scope", help="Commit scope / spec name")
+    p_cmt.add_argument("-m", "--message", required=True, help="Imperative commit description")
+    p_cmt.add_argument("-b", "--bullets", help="Newline-separated bullet summary of changes")
+    p_cmt.add_argument("--target-dir", default=".", help="Target working directory or worktree")
+
+    # pr (for git-worker)
+    p_pr = subparsers.add_parser("pr", help="Git-Worker deterministic GitHub PR creation via gh CLI")
+    p_pr.add_argument("--spec", "--spec-name", dest="spec", help="Target specification name")
+    p_pr.add_argument("--head", help="Head branch name (defaults to <spec>-worker)")
+    p_pr.add_argument("--base", help="Base branch name (defaults to spec branch or main)")
+    p_pr.add_argument("--title", help="PR title")
+    p_pr.add_argument("--body-file", help="Path to markdown PR body file")
+    p_pr.add_argument("--target-dir", default=".", help="Target repository directory")
+    p_pr.add_argument("--no-push", dest="push", action="store_false", help="Skip remote branch push before opening PR")
 
     # status
     p_status = subparsers.add_parser("status", help="Display active specifications, pipeline worktrees, and running daemons")
@@ -1365,7 +1504,10 @@ def main() -> int:
         "plan": cmd_plan,
         "check": cmd_check,
         "run": cmd_run,
+        "orchestrate": cmd_orchestrate,
         "curate": cmd_curate,
+        "commit": cmd_commit,
+        "pr": cmd_pr,
         "status": cmd_status,
         "stop": cmd_stop,
         "clean": cmd_clean,

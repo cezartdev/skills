@@ -2,14 +2,25 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "version": "2.0",
   "pipeline": {
+    "supervisor": "orchestrator",
+    "max_revisions": 3,
     "default_interval_minutes": 30,
     "max_iterations": null,
     "stages": [
       { "id": "fix", "role": "Fix-Worker Specialist", "description": "Bug stabilization and 100% green test pass" },
-      { "id": "refactor", "role": "Refactor-Worker Specialist", "description": "Clean code, modularity, and complexity reduction" },
-      { "id": "doc", "role": "Doc-Worker Specialist", "description": "Docstrings, OpenAPI schemas, and spec sync" },
-      { "id": "curator", "role": "Curator Specialist", "description": "Quality gate, ADR generation, and PR synthesis" }
+      { "id": "refactor", "role": "Refactor-Worker Specialist", "description": "Clean code, modularity, and zero comments enforcement" },
+      { "id": "orchestrator", "role": "Orchestrator Specialist", "description": "Quality gate, routing feedback loops, and ADR generation" },
+      { "id": "doc", "role": "Doc-Worker Specialist", "description": "Docstrings, API contracts, and spec sync" },
+      { "id": "git", "role": "Git-Worker Specialist", "description": "Deterministic Conventional Commits, Grilling Session confirmation, and PR synthesis" }
     ],
+    "curator_gate": {
+      "enabled": true,
+      "max_revisions": 3,
+      "block_unvetted_commits": true,
+      "block_direct_pushes": true,
+      "require_grilling_confirmation": true,
+      "strict_zero_comments_check": true
+    },
     "auto_merge": {
       "enabled": false,
       "strategy": "no-ff",

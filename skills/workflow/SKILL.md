@@ -32,12 +32,13 @@ metadata:
 > **MANDATORY AGENT EXECUTION DIRECTIVES**:
 > 1. **Deterministic Tool Invocation (NEVER Manual Creation)**: AI Agents MUST ALWAYS invoke workflow commands using `uv run` (e.g. `uv run skills/workflow/scripts/workflow_runner.py <subcommand>` or `uv run .agents/skills/workflow/scripts/workflow_runner.py <subcommand>`). NEVER invoke `python3` or `python` directly, and NEVER attempt to manually write or reconstruct the `.workflow/` directory tree or memory files by hand. Running `workflow init` deterministically creates `.workflow/specs/active/`, `.workflow/specs/archive/`, `.workflow/prs/active/`, `.workflow/prs/archive/`, `.workflow/memory/docs/`, `.workflow/memory/workflow_methodology.md`, analyzes the codebase to generate `.workflow/memory/project_context.md` and `.workflow/memory/coding_preferences.md`, scaffolds `.workflow/workflow.json`, and updates `AGENTS.md` automatically.
 > 2. **Specify Grilling Session & ADR Generation**: When triggering `/workflow specify <name>`, the AI Agent MUST conduct an interactive 1-by-1 Grilling Session using the interactive question tool (e.g., `ask_question`), asking questions sequentially with multiple-choice recommendations, updating `spec.md` in-place after each answer, and generating an Architectural Decision Record (ADR) in `.workflow/specs/active/<name>/adrs/ADR_<timestamp>_specification_design.md` capturing all agreed-upon architectural choices.
-> 3. **Deterministic Sequential Subagent Pipeline**: When triggering `/workflow run <spec>`, the AI Agent MUST:
->    - Execute the deterministic 4-stage sequential pipeline in `.workflow/worktrees/<spec>/worker/` on branch `<spec>-worker`:
+> 3. **Deterministic 5-Stage Orchestrator Pipeline & Bounded Quality Loop**: When triggering `/workflow run <spec>`, the AI Agent MUST:
+>    - Execute the deterministic 5-stage sequential pipeline in `.workflow/worktrees/<spec>/worker/` on branch `<spec>-worker`:
 >      1. **Stage 1 (Fix-Worker)**: Stabilize codebase and guarantee 100% green tests.
->      2. **Stage 2 (Refactor-Worker)**: Clean code and optimize modularity over green tests.
->      3. **Stage 3 (Doc-Worker)**: Synchronize docstrings, OpenAPI schemas, and specifications.
->      4. **Stage 4 (Curator-Worker)**: Run quality gates, generate formal ADR in `.workflow/specs/active/<spec>/adrs/`, and compile PR summary.
+>      2. **Stage 2 (Refactor-Worker)**: Clean code, optimize modularity, and enforce zero-comments policy over green tests.
+>      3. **Stage 3 (Orchestrator)**: Evaluate Quality Gate (100/100), Zero-Comments compliance, and security scan. If failing, route back to Fix or Refactor (bounded by `max_revisions: 3`). If approved, compile formal ADR in `.workflow/specs/active/<spec>/adrs/`.
+>      4. **Stage 4 (Doc-Worker)**: Synchronize docstrings, OpenAPI schemas, and specifications.
+>      5. **Stage 5 (Git-Worker)**: Conduct Grilling Session confirmation with developer, then execute deterministic Conventional Commit and PR creation via internal `git_ops.py`.
 >    - If `--schedule <minutes>` is passed (e.g. 30 or 45), register the Fixed-Delay background timer with the native `schedule` tool.
 > 4. **Immediate Stop & Timer Cancellation**: When triggering `/workflow stop [spec|--all]`, the AI Agent MUST:
 >    - Execute `uv run skills/workflow/scripts/workflow_runner.py stop [spec]`.
@@ -56,6 +57,7 @@ metadata:
 > 9. **Interactive Grilling for Branch Selection**: When creating a spec interactively, the AI Agent MUST initiate a question round using `ask_question` allowing the developer to confirm or select their preferred branch name format (`<name>`, `feat/<name>`, `fix/<name>`, `refactor/<name>`, `docs/<name>`, or custom), ensuring alignment before disk operations occur.
 > 10. **Strict Zero-Comments Code Policy**: When writing, editing, or refactoring code in this workflow (across all subagent phases: Fix-Worker, Refactor-Worker, Implementer), AI Agents MUST produce 100% clean, self-documenting code with **ZERO comments**. Inline comments (`//`, `#`), block comments (`/* */`), and unrequested docstrings (`""" """`) are **strictly prohibited**, with the sole exception being when the user explicitly requests comments or documentation annotations.
 > 11. **Protected Branch Gate & Grilling on `main`/`master`**: When `/workflow run <spec>` is executed while the active branch is `main` or `master` (or protected branches), direct commits or pushes to `main` are **deterministically blocked**. The pipeline automatically creates and isolates the feature branch `<spec>`. The AI Agent MUST conduct a grilling session using `ask_question` asking the developer to confirm their desired feature branch before any remote push or merge.
+> 12. **100% Self-Contained Skill & Zero External Skill Dependency**: The `workflow` skill is completely independent and contains internal tools for Git operations (`git_ops.py`), security scanning, and PR synthesis. AI Agents MUST NEVER invoke external skills (e.g. `skills/git/`) from within the workflow harness.
 
 ---
 
@@ -67,8 +69,9 @@ skills/workflow/
 ├── pyproject.toml                    # [OPTIONAL] Python dependencies managed via uv
 ├── scripts/                          # [OPTIONAL] Executable automation code & launchers
 │   ├── workflow_runner.py            # Central CLI entry point with Smart Path Resolver
-│   ├── pipeline.py                   # Deterministic 4-stage sequential subagent pipeline runner
-│   ├── commit_validator.py           # Self-contained pre-commit security gates & Conventional Commits validator
+│   ├── pipeline.py                   # Deterministic 5-stage Orchestrator pipeline runner
+│   ├── git_ops.py                    # Self-contained Git engine, security gates & Conventional Commits
+│   ├── orchestrator.py               # Orchestrator supervisor, quality evaluator & ADR generator
 │   ├── workflow.ps1                  # Windows PowerShell launcher with auto-bootstrap
 │   ├── workflow.sh                   # Linux/macOS POSIX shell launcher
 │   ├── scaffolder.py                 # Scaffolds .workflow/ structure & specs from assets/
@@ -77,13 +80,11 @@ skills/workflow/
 │   ├── memory_manager.py             # Hierarchical 00-10 memory sliding window & compaction engine
 │   ├── worktree_manager.py           # Physical Git Worktree lifecycle manager with Anti-Zombie force purge
 │   ├── quality_auditor.py            # Deterministic Pre-Execution Quality Gate
-│   ├── orchestrator.py               # Universal Subagent Dispatch engine
 │   ├── daemon_manager.py             # Multi-daemon scheduler with cron, pause/resume & Anti-Zombie cleanup
-│   ├── curator.py                    # Multi-PR Curator, ADR generator & scoped release synthesizer
 │   └── graph/
 │       ├── state.py                  # LangGraph TypedDict state definitions
 │       ├── nodes.py                  # LangGraph node transitions (RED, GREEN, REFACTOR, GATES)
-│       ├── pipeline_graph.py         # Deterministic LangGraph 4-stage pipeline state machine
+│       ├── pipeline_graph.py         # Deterministic LangGraph 5-stage pipeline state machine
 │       └── engine.py                 # LangGraph StateGraph builder, checkpointer & runner
 ├── references/                       # [OPTIONAL] Reference documentation & system prompts read on-demand
 │   ├── ARCHITECTURE.md               # In-depth technical architecture guide
@@ -91,15 +92,16 @@ skills/workflow/
 │       ├── explorer.prompt.md        # Codebase discovery scout prompt
 │       ├── fix.prompt.md             # BugFix & Auto-Heal prompt (fix-worker)
 │       ├── refactor.prompt.md        # Architecture & code health prompt (refactor-worker)
-│       ├── implement.prompt.md       # Feature builder prompt (feat-worker)
+│       ├── orchestrator.prompt.md    # Pipeline Orchestrator & supervisor prompt
 │       ├── doc_sync.prompt.md        # Documentation synchronizer prompt (doc-worker)
+│       ├── git_worker.prompt.md      # Deterministic Git & GitHub release prompt (git-worker)
 │       ├── specify.prompt.md         # Spec Scribe & Socratic Co-Author prompt (Spec-Kit style)
-│       ├── chat.prompt.md            # Macro project advisor & brainstorming prompt
-│       └── curator.prompt.md         # Multi-PR Release Curator prompt
+│       └── chat.prompt.md            # Macro project advisor & brainstorming prompt
 └── assets/                           # [OPTIONAL] Templates, schemas, and static resources
     ├── spec.template.md              # Matt Pocock-inspired Spec template
     ├── issue.template.md             # Atomic TDD Issue template (Red -> Green -> Refactor)
     ├── memory_00.template.md         # Initial master context template
+    ├── workflow_methodology.template.md # Methodology guide template
     └── workflow.config.json          # Default workflow.json scaffold template
 ```
 
@@ -117,8 +119,10 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 | `/workflow specify` | `workflow specify <spec> [--generate-adr]` | Interactive 1-by-1 Grilling Session to co-author `spec.md` & generate ADR |
 | `/workflow plan` | `workflow plan <spec>` | Decompose refined spec into atomic TDD task issues |
 | `/workflow check` | `workflow check <spec>` | Audit spec against deterministic Quality Gate (100/100) |
-| `/workflow run` | `workflow run <spec> [--schedule <m>]` | **Primary Engine**: Run 4-stage sequential pipeline (Fix -> Refactor -> Doc -> Curator) |
-| `/workflow curate` | `workflow curate [spec] [--create-pr]` | Generate ADR, compile PR summary & suggest Pull Request |
+| `/workflow run` | `workflow run <spec> [--schedule <m>]` | **Primary Engine**: Run 5-stage Orchestrator pipeline (Fix -> Refactor -> Orchestrator -> Doc -> Git-Worker) |
+| `/workflow orchestrate` | `workflow orchestrate [spec] [--create-pr]` | Orchestrator Gate: audit quality, generate ADR & compile PR summary |
+| `/workflow commit` | `workflow commit -t <type> -s <spec> -m <msg>` | Git-Worker deterministic Conventional Commit with security scan |
+| `/workflow pr` | `workflow pr --spec <spec>` | Git-Worker deterministic GitHub PR creation via gh CLI |
 | `/workflow status` | `workflow status [spec]` | View active pipeline status, worktrees & scheduled timers |
 | `/workflow stop` | `workflow stop [spec]` | Terminate background pipeline subagents and cancel timers |
 | `/workflow clean` | `workflow clean` | Deep Anti-Zombie cleanup of orphaned worktrees, locks & dead PIDs |
@@ -126,7 +130,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 | `/workflow drift` | `workflow drift [--sync]` | Detect manifest checksum drift & sync tech context |
 | `/workflow memory` | `workflow memory [list|add|show]` | Manage methodology, coding preferences, project context & indexed docs |
 | `/workflow chat` | `workflow chat [spec]` | Macro architecture brainstorming & scoped spec debate |
-| `/workflow check-env` | `workflow check-env` | Diagnostic check of Python $\ge 3.10$, Git, uv, and dependencies |
+| `/workflow check-env` | `workflow check-env` | Diagnostic check of Python $\ge 3.10$, Git, uv, gh CLI, and dependencies |
 | `/workflow list` | `workflow list` | Display this concise command reference table |
 
 ---
@@ -134,17 +138,17 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 ## 4. Agent Execution Protocol
 
 ```text
-[Multi-PR & Polyglot Agent Lifecycle]:
+[Multi-Worker & Polyglot Agent Lifecycle]:
 1. Survey Stack:
    Run '/workflow explore' to detect Python, Rust, Go, Node, Java, or .NET test runners.
 2. Scaffold Spec (SDD):
    Run '/workflow new <name>' directly under '.workflow/specs/active/<name>/'.
-3. Socratic Co-Authoring & Branch Selection (Spec-Kit Style):
+3. Socratic Co-Authoring & ADR Generation (Spec-Kit Style):
    Run '/workflow specify <name>' to co-author spec and generate ADR under '.workflow/specs/active/<name>/adrs/'.
-4. Deterministic TDD Execution:
-   Run '/workflow run <name>'. Python strictly validates exit codes (RED != 0, GREEN == 0).
-5. Background Daemons:
-   Run '/workflow daemon start fix-worker --interval 10' for isolated worktree auto-healing.
-6. Multi-PR Release Curation:
-   Pause workers with '/workflow daemon pause --all' and run '/workflow curate --archetype fix' or '/workflow curate --all --create-pr' to generate scoped pull requests in '.workflow/prs/active/'.
+4. Deterministic 5-Stage Orchestrator Pipeline:
+   Run '/workflow run <name>'. Orchestrator governs feedback loops across isolated subagents.
+5. Interactive Grilling Gate for Release:
+   Git-Worker conducts Grilling Session via ask_question with developer before any commit or push.
+6. Deterministic Commit & Pull Request:
+   Git-Worker executes '/workflow commit' and '/workflow pr' via internal git_ops.py.
 ```
