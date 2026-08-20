@@ -104,6 +104,29 @@ def reconcile_gitkeep(dir_path: str) -> None:
                 pass
 
 
+def reconcile_all_gitkeeps(target_dir: str = ".") -> int:
+    """Recursively walks .workflow/ tree and reconciles .gitkeep files across all folders:
+    - Removes .gitkeep if folder contains other real files or subdirectories.
+    - Adds .gitkeep if folder is completely empty.
+    Returns the number of reconciled directories.
+    """
+    target_dir = os.path.abspath(target_dir)
+    wf_root = get_workflow_root(target_dir)
+    if not os.path.exists(wf_root) or not os.path.isdir(wf_root):
+        return 0
+
+    count = 0
+    # Walk bottom-up so leaf directories are reconciled first
+    for root, dirs, files in os.walk(wf_root, topdown=False):
+        rel = os.path.relpath(root, target_dir)
+        if "worktrees" in rel.split(os.sep) or ".git" in rel.split(os.sep):
+            continue
+        reconcile_gitkeep(root)
+        count += 1
+
+    return count
+
+
 def get_skill_assets_dir() -> str:
     """Returns the absolute path to skills/workflow/assets."""
     script_dir = os.path.dirname(os.path.abspath(__file__))

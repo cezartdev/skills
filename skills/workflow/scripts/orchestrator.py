@@ -9,10 +9,10 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 try:
-    from .scaffolder import reconcile_gitkeep
+    from .scaffolder import reconcile_gitkeep, reconcile_all_gitkeeps
     from .git_ops import scan_pre_commit_security
 except ImportError:
-    from scaffolder import reconcile_gitkeep
+    from scaffolder import reconcile_gitkeep, reconcile_all_gitkeeps
     from git_ops import scan_pre_commit_security
 
 
@@ -198,6 +198,8 @@ def compile_scoped_pr_summary(
     with open(pr_file_path, "w", encoding="utf-8") as f:
         f.write(content)
 
+    reconcile_gitkeep(prs_active_dir)
+
     return {
         "status": "SUCCESS",
         "pr_title": pr_title,
@@ -282,6 +284,8 @@ def generate_spec_adr(
     with open(adr_path, "w", encoding="utf-8") as f:
         f.write(adr_content)
 
+    reconcile_gitkeep(adrs_dir)
+
     return {
         "status": "SUCCESS",
         "adr_path": adr_path,
@@ -363,6 +367,8 @@ def generate_specify_adr(
     with open(adr_path, "w", encoding="utf-8") as f:
         f.write(adr_content)
 
+    reconcile_gitkeep(adrs_dir)
+
     return {
         "status": "SUCCESS",
         "spec_name": clean_spec,
@@ -394,7 +400,7 @@ def create_curator_pr(
     pr_file_path = pr_res.get("pr_file_path")
 
     head_branch = f"{clean_spec}-worker" if clean_spec else "curator-worker"
-    base_branch = target_branch or (clean_spec if clean_spec else "main")
+    base_branch = target_branch or (f"feat/{clean_spec}" if clean_spec else "main")
 
     suggested_gh = f"gh pr create --head {head_branch} --base {base_branch} --title \"{pr_res.get('pr_title')}\" --body-file \"{pr_file_path}\""
     suggested_git = f"git checkout {base_branch} && git merge --no-ff {head_branch}"
@@ -444,6 +450,7 @@ def archive_merged_pr(pr_filename: str, target_dir: str = ".") -> Dict[str, Any]
 
     shutil.move(active_path, destination)
     reconcile_gitkeep(os.path.join(wf_root, "prs", "active"))
+    reconcile_gitkeep(archive_dir)
 
     return {
         "status": "ARCHIVED",

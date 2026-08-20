@@ -15,6 +15,7 @@ from scaffolder import (
     get_workflow_root,
     sanitize_identifier,
     reconcile_gitkeep,
+    reconcile_all_gitkeeps,
 )
 from explorer import scan_codebase, generate_master_context
 from drift_detector import check_drift, sync_drift
@@ -775,10 +776,7 @@ def cmd_clean(args: argparse.Namespace) -> int:
 
     wt_res = prune_worktrees(target_dir)
 
-    for sub in ["specs/active", "specs/archive", "memory/docs", "prs/active", "prs/archive"]:
-        p = os.path.join(wf_root, sub)
-        if os.path.exists(p):
-            reconcile_gitkeep(p)
+    reconcile_all_gitkeeps(target_dir)
 
     data = {
         "status": "CLEANED",
