@@ -32,14 +32,21 @@ metadata:
 > **MANDATORY AGENT EXECUTION DIRECTIVES**:
 > 1. **Deterministic Tool Invocation (NEVER Manual Creation)**: AI Agents MUST ALWAYS invoke workflow commands using `uv run` (e.g. `uv run skills/workflow/scripts/workflow_runner.py <subcommand>` or `uv run .agents/skills/workflow/scripts/workflow_runner.py <subcommand>`). NEVER invoke `python3` or `python` directly, and NEVER attempt to manually write or reconstruct the `.workflow/` directory tree or memory files by hand. Running `workflow init` deterministically creates `.workflow/specs/active/`, `.workflow/specs/archive/`, `.workflow/prs/active/`, `.workflow/prs/archive/`, `.workflow/memory/docs/`, `.workflow/memory/workflow_methodology.md`, analyzes the codebase to generate `.workflow/memory/project_context.md` and `.workflow/memory/coding_preferences.md`, scaffolds `.workflow/workflow.json`, and updates `AGENTS.md` automatically.
 > 2. **Specify Grilling Session & ADR Generation**: When triggering `/workflow specify <name>`, the AI Agent MUST conduct an interactive 1-by-1 Grilling Session using the interactive question tool (e.g., `ask_question`), asking questions sequentially with multiple-choice recommendations, updating `spec.md` in-place after each answer, and generating an Architectural Decision Record (ADR) in `.workflow/specs/active/<name>/adrs/ADR_<timestamp>_specification_design.md` capturing all agreed-upon architectural choices.
-> 3. **Deterministic 5-Stage Orchestrator Pipeline & Bounded Quality Loop**: When triggering `/workflow run <spec>`, the AI Agent MUST:
->    - Execute the deterministic 5-stage sequential pipeline in `.workflow/worktrees/<spec>/worker/` on branch `<spec>-worker`:
->      1. **Stage 1 (Fix-Worker)**: Stabilize codebase and guarantee 100% green tests.
->      2. **Stage 2 (Refactor-Worker)**: Clean code, optimize modularity, and enforce zero-comments policy over green tests.
->      3. **Stage 3 (Orchestrator)**: Evaluate Quality Gate (100/100), Zero-Comments compliance, and security scan. If failing, route back to Fix or Refactor (bounded by `max_revisions: 3`). If approved, compile formal ADR in `.workflow/specs/active/<spec>/adrs/`.
->      4. **Stage 4 (Doc-Worker)**: Synchronize docstrings, OpenAPI schemas, and specifications.
->      5. **Stage 5 (Git-Worker)**: Conduct Grilling Session confirmation with developer, then execute deterministic Conventional Commit and PR creation via internal `git_ops.py`.
->    - If `--schedule <minutes>` is passed (e.g. 30 or 45), register the Fixed-Delay background timer with the native `schedule` tool.
+> 3. **Deterministic 5-Stage Multi-Subagent Pipeline**: When triggering `/workflow run <spec>`, the AI Agent MUST NOT execute all stages in a single monolithic turn. Instead, the AI Agent MUST:
+>    - First run `uv run skills/workflow/scripts/workflow_runner.py run <spec>` to initialize and sync the physical worktree (`.workflow/worktrees/<spec>/worker/`).
+>    - Define the 5 specialized subagent types using `define_subagent` (reading their system prompts from `skills/workflow/references/prompts/`):
+>      * `workflow-fix-worker` (System prompt: `references/prompts/fix.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-refactor-worker` (System prompt: `references/prompts/refactor.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-orchestrator` (System prompt: `references/prompts/orchestrator.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-doc-worker` (System prompt: `references/prompts/doc_sync.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-git-worker` (System prompt: `references/prompts/git_worker.prompt.md`, `enable_write_tools=True`)
+>    - Sequentially invoke each subagent using `invoke_subagent` so each worker appears distinctly in the agent UI:
+>      1. **Stage 1 (Fix-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-fix-worker', 'Role': 'Fix-Worker Specialist', 'Prompt': 'Diagnose and stabilize tests in .workflow/worktrees/<spec>/worker/'}])`
+>      2. **Stage 2 (Refactor-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-refactor-worker', 'Role': 'Refactor-Worker Specialist', 'Prompt': 'Refactor modular code and strip redundant comments in worktree while keeping tests green.'}])`
+>      3. **Stage 3 (Orchestrator)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-orchestrator', 'Role': 'Orchestrator Specialist', 'Prompt': 'Audit quality gates (100/100, zero comments, security) and compile ADR in .workflow/specs/active/<spec>/adrs/.'}])`
+>         * If Orchestrator returns `NEEDS_FIX` or `NEEDS_REFACTOR`, loop back to that subagent (up to `max_revisions: 3`).
+>      4. **Stage 4 (Doc-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-doc-worker', 'Role': 'Doc-Worker Specialist', 'Prompt': 'Sync markdown docs and verify spec acceptance criteria in worktree.'}])`
+>      5. **Stage 5 (Git-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-git-worker', 'Role': 'Git-Worker Specialist', 'Prompt': 'Conduct interactive Grilling Session confirmation via ask_question with developer, then invoke workflow commit and PR tools deterministically.'}])`
 > 4. **Immediate Stop & Timer Cancellation**: When triggering `/workflow stop [spec|--all]`, the AI Agent MUST:
 >    - Execute `uv run skills/workflow/scripts/workflow_runner.py stop [spec]`.
 >    - Cancel background schedule cron timers with `manage_task(Action="kill")`.

@@ -355,28 +355,38 @@ class PipelineRunner:
             "subagent_directives": [
                 {
                     "stage": "Stage 1 (Fix)",
+                    "type": "workflow-fix-worker",
                     "role": "Fix-Worker Specialist",
-                    "action": f"invoke_subagent(TypeName='self', Role='Fix-Worker Specialist', Prompt='Fix failing tests in {wt_path}. CRITICAL RULE: Write 100% clean code with ZERO comments (no //, #, or \"\"\" \"\"\").', Cwd='{wt_path}')",
+                    "prompt_file": "skills/workflow/references/prompts/fix.prompt.md",
+                    "action": f"define_subagent(name='workflow-fix-worker', description='Bug stabilization & 100% green test specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-fix-worker', 'Role': 'Fix-Worker Specialist', 'Prompt': 'Diagnose and stabilize tests in {wt_path}. Zero-comments policy.'}}])",
                 },
                 {
                     "stage": "Stage 2 (Refactor)",
+                    "type": "workflow-refactor-worker",
                     "role": "Refactor-Worker Specialist",
-                    "action": f"invoke_subagent(TypeName='self', Role='Refactor-Worker Specialist', Prompt='Refactor modular architecture in {wt_path}. CRITICAL RULE: Write 100% clean code with ZERO comments (no //, #, or \"\"\" \"\"\").', Cwd='{wt_path}')",
+                    "prompt_file": "skills/workflow/references/prompts/refactor.prompt.md",
+                    "action": f"define_subagent(name='workflow-refactor-worker', description='Clean architecture and modularity specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-refactor-worker', 'Role': 'Refactor-Worker Specialist', 'Prompt': 'Refactor modular code in {wt_path} while preserving 100% green tests.'}}])",
                 },
                 {
                     "stage": "Stage 3 (Orchestrator)",
+                    "type": "workflow-orchestrator",
                     "role": "Orchestrator Specialist",
-                    "action": f"invoke_subagent(TypeName='self', Role='Orchestrator Specialist', Prompt='Audit quality gates (100/100, zero-comments) in {wt_path}. If issues found, route to Fix-Worker or Refactor-Worker. If approved, generate ADR.', Cwd='{wt_path}')",
+                    "prompt_file": "skills/workflow/references/prompts/orchestrator.prompt.md",
+                    "action": f"define_subagent(name='workflow-orchestrator', description='Quality gate supervisor & ADR author', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-orchestrator', 'Role': 'Orchestrator Specialist', 'Prompt': 'Audit quality gates (100/100, zero-comments) in {wt_path} and write ADR.'}}])",
                 },
                 {
                     "stage": "Stage 4 (Doc)",
+                    "type": "workflow-doc-worker",
                     "role": "Doc-Worker Specialist",
-                    "action": f"invoke_subagent(TypeName='self', Role='Doc-Worker Specialist', Prompt='Sync markdown documentation and spec.md for {clean_spec} in {wt_path}.', Cwd='{wt_path}')",
+                    "prompt_file": "skills/workflow/references/prompts/doc_sync.prompt.md",
+                    "action": f"define_subagent(name='workflow-doc-worker', description='Documentation and spec synchronizer', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-doc-worker', 'Role': 'Doc-Worker Specialist', 'Prompt': 'Sync markdown docs and spec.md for {clean_spec} in {wt_path}.'}}])",
                 },
                 {
                     "stage": "Stage 5 (Git-Worker)",
+                    "type": "workflow-git-worker",
                     "role": "Git-Worker Specialist",
-                    "action": f"invoke_subagent(TypeName='self', Role='Git-Worker Specialist', Prompt='Execute Grilling Session confirmation with developer via ask_question. Once confirmed, invoke workflow commit and PR tools deterministically.', Cwd='{wt_path}')",
+                    "prompt_file": "skills/workflow/references/prompts/git_worker.prompt.md",
+                    "action": f"define_subagent(name='workflow-git-worker', description='Deterministic Conventional Commits and GitHub PR specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-git-worker', 'Role': 'Git-Worker Specialist', 'Prompt': 'Conduct Grilling Session confirmation with developer, then invoke workflow commit and PR tools deterministically.'}}])",
                 },
             ],
         }
