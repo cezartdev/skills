@@ -117,6 +117,23 @@ def cmd_check_env(args: argparse.Namespace) -> int:
     except ImportError:
         pass
 
+    gh_ok = False
+    gh_ver = "Not installed"
+    gh_auth = "Run 'gh auth login'"
+    try:
+        res = subprocess.run(["gh", "--version"], capture_output=True, text=True, check=False)
+        if res.returncode == 0:
+            gh_ok = True
+            first_line = res.stdout.strip().split("\n")[0]
+            gh_ver = first_line.replace("gh version ", "")
+            auth_res = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True, check=False)
+            if auth_res.returncode == 0:
+                gh_auth = "Authenticated"
+            else:
+                gh_auth = "Run 'gh auth login'"
+    except Exception:
+        pass
+
     all_passed = py_ok and git_ok and uv_ok
 
     report = {
@@ -135,6 +152,11 @@ def cmd_check_env(args: argparse.Namespace) -> int:
             "passed": uv_ok,
         },
         "langgraph_installed": langgraph_ok,
+        "github_cli": {
+            "version": gh_ver,
+            "installed": gh_ok,
+            "auth_status": gh_auth,
+        },
     }
 
     if args.json:
@@ -149,6 +171,7 @@ def cmd_check_env(args: argparse.Namespace) -> int:
     print(f"{'Python':<20} │ {'[PASS]' if py_ok else '[FAIL]':<10} │ {report['python']['version']:<30} │ Required >= 3.10")
     print(f"{'Git':<20} │ {'[PASS]' if git_ok else '[FAIL]':<10} │ {git_ver:<30} │ Standard version control")
     print(f"{'Astral uv':<20} │ {'[PASS]' if uv_ok else '[FAIL]':<10} │ {uv_ver:<30} │ Fast Python package manager")
+    print(f"{'GitHub CLI (gh)':<20} │ {'[PASS]' if gh_ok else '[INFO]':<10} │ {gh_ver:<30} │ {gh_auth} (PRs & issues)")
     print(f"{'LangGraph':<20} │ {'[PASS]' if langgraph_ok else '[INFO]':<10} │ {'Installed' if langgraph_ok else 'Fallback Active':<30} │ Deterministic State Graph Engine")
     print("=" * 110)
     print(f"OVERALL SYSTEM STATUS: {report['status']}")

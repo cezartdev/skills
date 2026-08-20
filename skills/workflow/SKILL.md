@@ -1,7 +1,7 @@
 ---
 name: workflow
 description: Deterministic state-machine workflow runner, Spec-Driven Development (SDD), Test-Driven Development (TDD), streamlined project memory (coding preferences, project context, indexed docs), codebase exploration with tech drift detection, Anti-Zombie multi-daemon physical Git Worktree isolation, and multi-PR Release Curator.
-compatibility: Requires Python 3.10+, Git, and Astral uv. Works across Linux, Windows (PowerShell/CMD), and macOS. Supports Python, Rust, Go, TypeScript/JavaScript, Java, and .NET.
+compatibility: Requires Python 3.10+, Git, Astral uv, and GitHub CLI (gh). Works across Linux, Windows (PowerShell/CMD), and macOS. Supports Python, Rust, Go, TypeScript/JavaScript, Java, and .NET.
 metadata:
   author: cezartdev
   version: "1.3.0"
@@ -12,7 +12,9 @@ metadata:
 ## 1. Prerequisites & Polyglot Environment (Linux, Windows, macOS)
 
 - **Python Core**: Version **3.10+** executes `scripts/workflow_runner.py`.
-- **Dependencies**: Managed via Astral `uv` (`langgraph`, `langchain-core`, `pydantic`). If `langgraph` is not yet installed, a pure-Python standard library fallback runner executes automatically.
+- **Git Core**: Version **2.25+** for version control and physical worktree isolation.
+- **Astral `uv`**: Ultra-fast Python package manager for virtual environments and runner dependencies (`langgraph`, `langchain-core`, `pydantic`). If `langgraph` is not yet installed, a pure-Python standard library fallback runner executes automatically.
+- **GitHub CLI (`gh`)**: Required for reading GitHub issues, opening pull requests (`/workflow curate --create-pr`), and repository automation. Authenticate via `gh auth login` with necessary scopes (`repo`, `workflow`, `read:org`, `read:project`). Verify with `gh auth status` or `/workflow check-env`.
 - **Polyglot Stacks Supported**: Automatically adapts to Python (`uv`/`pytest`), Rust (`cargo`), Go (`go test`), TypeScript/JavaScript (`pnpm`/`bun`/`npm`), Java (`maven`/`gradle`), and C# (`dotnet`).
 - **Encapsulated Architecture**: All project artifacts reside in the target project's **`.workflow/`** directory (`workflow.json`, `daemons.json`, `specs/`, `memory/`, `prs/`, `worktrees/`).
 - **Universal Execution (Tier 1 — Recommended across Linux, Windows, macOS)**:

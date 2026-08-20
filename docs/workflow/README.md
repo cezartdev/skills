@@ -22,6 +22,40 @@ The **`workflow`** skill provides a deterministic, state-machine driven developm
 
 ---
 
+## 📋 Prerequisites & Tooling
+
+To use the full capabilities of the Workflow Suite, ensure the following core tools are installed on your system:
+
+| Tool | Minimum Version | Purpose | Installation / Setup |
+|---|---|---|---|
+| **Python** | `3.10+` | Core state machine runner and deterministic validator engine. | Standard package manager (`brew`, `apt`, `winget`). |
+| **Git** | `2.25+` | Physical worktree isolation, branch management, and atomic commits. | Standard package manager (`git-scm.com`). |
+| **Astral `uv`** | Latest | Ultra-fast Python package and virtual environment runner. | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| **GitHub CLI (`gh`)** | `2.0+` | Reading remote issues, opening Pull Requests (`/workflow curate --create-pr`), and repository automation. | Standard package manager (`cli.github.com`). |
+
+### 🔑 GitHub CLI Authentication & Permissions
+The GitHub CLI (`gh`) is essential for agents and developers to interact with GitHub repositories directly from the terminal (reading issues, opening pull requests, and inspecting CI status).
+
+1. **Authenticate**:
+   ```bash
+   gh auth login
+   ```
+2. **Required Permissions / Scopes**: Ensure your authenticated token includes scopes according to your needs:
+   - `repo`: Full control of private/public repositories (read issues, push branches, create PRs).
+   - `workflow`: Update GitHub Action workflows if modifying CI.
+   - `read:org`: Read organization membership (if collaborating in an organization repository).
+   - `read:project`: Access organization project boards (if tracking issues).
+3. **Verify Environment**:
+   ```bash
+   # Check GitHub CLI authentication status and granted scopes:
+   gh auth status
+
+   # Or run workflow diagnostic health check:
+   uv run skills/workflow/scripts/workflow_runner.py check-env
+   ```
+
+---
+
 ## 🛠️ Universal Execution Hierarchy
 
 - **Tier 1 (Universal Recommended — Linux, Windows, macOS)**:
