@@ -9,9 +9,9 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 try:
-    from .explorer import scan_codebase
+    from .explorer import scan_codebase, generate_master_context, generate_coding_preferences
 except ImportError:
-    from explorer import scan_codebase
+    from explorer import scan_codebase, generate_master_context, generate_coding_preferences
 
 
 import stat
@@ -241,23 +241,27 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
             f.write(meth_content)
         methodology_created = True
 
-    # 3. Create .workflow/prs/ catalog with .gitkeep (active, archive)
+    # 3. Deterministically generate project_context.md and coding_preferences.md
+    context_file = generate_master_context(target_dir)
+    pref_file = os.path.join(memory_dir, "coding_preferences.md")
+
+    # 4. Create .workflow/prs/ catalog with .gitkeep (active, archive)
     prs_dir = os.path.join(wf_root, "prs")
     ensure_dir_with_gitkeep(os.path.join(prs_dir, "active"))
     ensure_dir_with_gitkeep(os.path.join(prs_dir, "archive"))
 
-    # 4. Create .workflow/worktrees/ placeholder
+    # 5. Create .workflow/worktrees/ placeholder
     worktrees_dir = os.path.join(wf_root, "worktrees")
     os.makedirs(worktrees_dir, exist_ok=True)
 
-    # 5. Determine test runner dynamically via polyglot scan
+    # 6. Determine test runner dynamically via polyglot scan
     if not test_runner_cmd:
         scan = scan_codebase(target_dir)
         test_cmd = scan.get("test_runner", "pytest")
     else:
         test_cmd = test_runner_cmd
 
-    # 6. Scaffold .workflow/workflow.json if not present
+    # 7. Scaffold .workflow/workflow.json if not present
     config_file = os.path.join(wf_root, "workflow.json")
     config_created = False
     if not os.path.exists(config_file):
@@ -299,7 +303,7 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
             })
         config_created = True
 
-    # 7. Add .workflow/worktrees to .gitignore if not present
+    # 8. Add .workflow/worktrees to .gitignore if not present
     gitignore_path = os.path.join(target_dir, ".gitignore")
     gitignore_updated = False
     if os.path.exists(gitignore_path):
@@ -316,7 +320,7 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
             f.write("# Workflow Ephemeral Artifacts\n.workflow/worktrees/\n.workflow/logs/\n")
         gitignore_updated = True
 
-    # 8. Inject agent rules & pointers into AGENTS.md, CLAUDE.md, etc.
+    # 9. Inject agent rules & pointers into AGENTS.md, CLAUDE.md, etc.
     rules_injection = inject_agent_rules(target_dir)
 
     return {
@@ -329,6 +333,8 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
         "memory_dir": memory_dir,
         "methodology_file": methodology_file,
         "methodology_created": methodology_created,
+        "project_context_file": context_file,
+        "coding_preferences_file": pref_file,
         "prs_dir": prs_dir,
         "config_file": config_file,
         "test_runner": test_cmd,
