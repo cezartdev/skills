@@ -25,21 +25,6 @@ from memory_manager import (
 )
 from worktree_manager import list_worktrees, create_worktree, remove_worktree, force_purge_worktree, prune_worktrees, ensure_git_repository
 from quality_auditor import audit_spec
-from daemon_manager import (
-    start_daemon,
-    stop_daemon,
-    pause_daemon,
-    resume_daemon,
-    stop_all_daemons,
-    clean_orphaned_daemons,
-    get_daemon_status_table,
-    get_daemon_catalog,
-    run_daemon_cycle,
-    load_workflow_config,
-    reconcile_daemon_registry,
-    create_daemon_blueprint,
-    update_daemon_config,
-)
 from orchestrator import (
     compile_scoped_pr_summary,
     generate_spec_adr,
@@ -658,22 +643,164 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def resolve_spec_and_target_dir(args: argparse.Namespace) -> Tuple[Optional[str], str]:
+    """Smart resolver that disambiguates whether a single positional argument is a spec_name or a target directory path."""
+    pos1 = getattr(args, "spec_name", None) or getattr(args, "name", None) or getattr(args, "spec_dir", None)
+    pos2 = getattr(args, "target_dir", None)
+    
+    target_dir = "."
+    spec_name = None
+
+    if pos2 and pos2 != ".":
+        target_dir = pos2
+        spec_name = pos1
+    elif pos1:
+        if os.path.isdir(pos1) or pos1.startswith("/") or pos1.startswith("./") or pos1.startswith("../") or "\\" in pos1 or pos1 == ".":
+            target_dir = pos1
+            spec_name = None
+        else:
+            spec_name = pos1
+            target_dir = getattr(args, "target_dir", ".") or "."
+    else:
+        target_dir = getattr(args, "target_dir", ".") or "."
+
+    return spec_name, os.path.abspath(target_dir)
+
+
 def cmd_status(args: argparse.Namespace) -> int:
-    """Displays active specifications, pipeline worktrees, and running daemons."""
-    setattr(args, "action", "status")
-    return cmd_daemon(args)
+    """Displays active specifications and physical worktrees under .workflow/."""
+    filter_spec, target_dir = resolve_spec_and_target_dir(args)
+    wf_root = get_workflow_root(target_dir)
+
+    # 1. Scan active specifications
+    active_specs_dir = os.path.join(wf_root, "specs", "active")
+    specs_data = []
+    if os.path.exists(active_specs_dir):
+        for name in sorted(os.listdir(active_specs_dir)):
+            if filter_spec and filter_spec.lower() not in name.lower():
+                continue
+            spec_path = os.path.join(active_specs_dir, name)
+            if os.path.isdir(spec_path):
+                issues_dir = os.path.join(spec_path, "issues")
+                adrs_dir = os.path.join(spec_path, "adrs")
+                state_file = os.path.join(spec_path, "state.json")
+                
+                issues_count = len([f for f in os.listdir(issues_dir) if f.endswith(".md") and f != ".gitkeep"]) if os.path.exists(issues_dir) else 0
+                adrs_count = len([f for f in os.listdir(adrs_dir) if f.endswith(".md") and f != ".gitkeep"]) if os.path.exists(adrs_dir) else 0
+                
+                dag_step = "READY"
+                if os.path.exists(state_file):
+                    try:
+                        with open(state_file, "r", encoding="utf-8") as f:
+                            st = json.load(f)
+                            dag_step = st.get("dag_step", "READY")
+                    except Exception:
+                        pass
+
+                audit = audit_spec(spec_path)
+                specs_data.append({
+                    "spec_name": name,
+                    "score": audit.get("score", 0),
+                    "dag_step": dag_step,
+                    "issues_count": issues_count,
+                    "adrs_count": adrs_count,
+                    "spec_path": spec_path,
+                })
+
+    # 2. Scan active worktrees
+    worktrees = list_worktrees(target_dir)
+
+    data = {
+        "status": "SUCCESS",
+        "target_dir": target_dir,
+        "active_specs": specs_data,
+        "worktrees": worktrees,
+    }
+
+    if getattr(args, "json", False):
+        print(json.dumps(data, indent=2))
+        return 0
+
+    print("=" * 110)
+    print(f" 📊 WORKFLOW STATUS: {len(specs_data)} active specs, {len(worktrees)} worktrees")
+    print("=" * 110)
+    print(" 📦 ACTIVE SPECIFICATIONS (.workflow/specs/active/)")
+    print(f"{'SPEC NAME':<24} │ {'SCORE':<8} │ {'DAG STEP':<20} │ {'TASKS':<8} │ ADRS")
+    print("-" * 110)
+    if not specs_data:
+        print(f"{'No active specs':<24} │ {'-':<8} │ {'-':<20} │ {'-':<8} │ -")
+    else:
+        for s in specs_data:
+            print(f"{s['spec_name']:<24} │ {s['score']}/100   │ {s['dag_step']:<20} │ {s['issues_count']:<8} │ {s['adrs_count']}")
+
+    print("\n 🌿 PHYSICAL WORKTREES (.workflow/worktrees/)")
+    print(f"{'WORKTREE NAME':<24} │ {'BRANCH':<24} │ STATUS")
+    print("-" * 110)
+    if not worktrees:
+        print(f"{'No active worktrees':<24} │ {'-':<24} │ Clean")
+    else:
+        for wt in worktrees:
+            print(f"{wt.get('name', '-'):<24} │ {wt.get('branch', '-'):<24} │ {wt.get('path', '-')}")
+    print("=" * 110)
+
+    print_next_steps([
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a new feature specification"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py run <spec-name>", "desc": "Execute 5-stage Orchestrator pipeline"},
+    ])
+    return 0
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
-    """Stops active background pipeline schedulers and cleans processes."""
-    setattr(args, "action", "stop")
-    return cmd_daemon(args)
+    """Stops/resets active worktrees for a specification."""
+    spec_name, target_dir = resolve_spec_and_target_dir(args)
+
+    res = prune_worktrees(target_dir)
+    if getattr(args, "json", False):
+        print(json.dumps(res, indent=2))
+        return 0
+
+    print("=" * 110)
+    print(f" 🛑 WORKFLOW WORKTREES RESET {'FOR ' + spec_name if spec_name else ''}")
+    print("=" * 110)
+    print_next_steps([
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py status", "desc": "Inspect active specs and worktrees"},
+    ])
+    return 0
 
 
 def cmd_clean(args: argparse.Namespace) -> int:
-    """Performs anti-zombie cleanup of orphaned worktrees, dangling locks, and dead PIDs."""
-    setattr(args, "action", "clean")
-    return cmd_daemon(args)
+    """Performs deep cleanup of orphaned worktrees, dangling locks, and temporary files."""
+    _, target_dir = resolve_spec_and_target_dir(args)
+    wf_root = get_workflow_root(target_dir)
+
+    wt_res = prune_worktrees(target_dir)
+
+    for sub in ["specs/active", "specs/archive", "memory/docs", "prs/active", "prs/archive"]:
+        p = os.path.join(wf_root, sub)
+        if os.path.exists(p):
+            reconcile_gitkeep(p)
+
+    data = {
+        "status": "CLEANED",
+        "worktrees_pruned": wt_res.get("pruned", 0),
+        "target_dir": target_dir,
+    }
+
+    if getattr(args, "json", False):
+        print(json.dumps(data, indent=2))
+        return 0
+
+    print("=" * 110)
+    print(" 🧹 WORKFLOW CLEAN COMPLETE")
+    print("=" * 110)
+    print(f"Worktrees Pruned: {wt_res.get('pruned', 0)}")
+    print(f"Directory Tree:   {wf_root}")
+    print("=" * 110)
+
+    print_next_steps([
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py status", "desc": "View clean status"},
+    ])
+    return 0
 
 
 def cmd_archive(args: argparse.Namespace) -> int:
@@ -921,311 +1048,32 @@ def cmd_pr(args: argparse.Namespace) -> int:
 
 
 def cmd_daemon(args: argparse.Namespace) -> int:
-    """Manages background daemon subagents, cron scheduling, and Anti-Zombie lifecycle."""
-    action = getattr(args, "action", "status") or "status"
+    """Provides compatibility notice for the streamlined 5-stage Orchestrator pipeline."""
     target_dir = getattr(args, "target_dir", ".") or "."
-    name = getattr(args, "spec_name", None) or getattr(args, "name", None)
+    if getattr(args, "action", "") == "status":
+        return cmd_status(args)
+    if getattr(args, "action", "") == "clean":
+        return cmd_clean(args)
+    if getattr(args, "action", "") == "stop":
+        return cmd_stop(args)
 
-    # If action doesn't require a daemon name (status, list, clean) and name is a directory path
-    if action in ["status", "list", "clean"] and name:
-        if os.path.isdir(name) or name.startswith("/") or name.startswith("."):
-            target_dir = name
-            name = None
-
-    target_dir = os.path.abspath(target_dir)
-
-    if action == "list":
-        res = get_daemon_catalog(target_dir=target_dir)
-        if args.json:
-            print(json.dumps(res, indent=2))
-            return 0
-
-        print("=" * 110)
-        print(" 🤖 AVAILABLE WORKFLOW DAEMONS (.workflow/workflow.json)")
-        print("=" * 110)
-        print(f"{'NAME':<18} │ {'ARCHETYPE':<10} │ {'CRON':<12} │ {'MAX ITER':<10} │ {'STATUS':<10} │ {'HOST':<20} │ DESCRIPTION")
-        print("-" * 110)
-        for d in res.get("daemons", []):
-            max_it = str(d.get("max_iterations") or "Unlimited")
-            host_str = str(d.get("host") or "-")
-            print(f"{d['name']:<18} │ {d['archetype']:<10} │ every {d['default_interval_minutes']}m    │ {max_it:<10} │ {d['status']:<10} │ {host_str:<20} │ {d['description']}")
-        print("=" * 110)
-
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon create <name>", "desc": "Create a new custom daemon blueprint"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon set <name> --interval <m>", "desc": "Configure daemon schedule or iterations"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start fix-worker", "desc": "Start background daemon subagent"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "View active daemon health table"},
-        ])
+    if getattr(args, "json", False):
+        print(json.dumps({
+            "status": "STREAMLINED",
+            "message": "Background daemons upgraded to native subagent 5-stage pipeline runner.",
+            "pipeline_cmd": "uv run skills/workflow/scripts/workflow_runner.py run <spec>"
+        }, indent=2))
         return 0
 
-    elif action in ["create", "add"]:
-        if not getattr(args, "name", None):
-            print("Error: Daemon name is required for daemon create. Example: workflow daemon create perf-monitor --archetype refactor", file=sys.stderr)
-            return 1
-
-        name = args.name
-        archetype = args.archetype or "fix"
-        interval = getattr(args, "interval", None) or 10
-        max_iter = getattr(args, "max_iterations", None)
-        desc = getattr(args, "description", None)
-        target_spec = getattr(args, "target_spec_dir", None)
-
-        res = create_daemon_blueprint(
-            name=name,
-            archetype=archetype,
-            interval_minutes=interval,
-            max_iterations=max_iter,
-            description=desc,
-            target_spec_dir=target_spec,
-            target_dir=target_dir
-        )
-
-        if args.json:
-            print(json.dumps(res, indent=2))
-            return 0
-
-        print("=" * 110)
-        print(f" ✨ DAEMON BLUEPRINT CREATED: '{res['daemon_name']}' (.workflow/workflow.json)")
-        print("=" * 110)
-        print(f"{'PROPERTY':<24} │ VALUE")
-        print("-" * 110)
-        print(f"{'Archetype':<24} │ {res['archetype']}")
-        print(f"{'Execution Interval':<24} │ every {res['interval_minutes']}m (cron: */{res['interval_minutes']} * * * *)")
-        print(f"{'Max Iterations':<24} │ {res['max_iterations'] if res['max_iterations'] else 'Unlimited (Continuous)'}")
-        print(f"{'Description':<24} │ {res['description']}")
-        print(f"{'Target Spec Dir':<24} │ {res['target_spec_dir']}")
-        print(f"{'Isolated Worktree':<24} │ .workflow/worktrees/{res['daemon_name']}")
-        print("=" * 110)
-
-        print_next_steps([
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py daemon start {res['daemon_name']}", "desc": "Launch this new daemon background worker"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon list", "desc": "Inspect all registered daemon blueprints"},
-        ])
-        return 0
-
-    elif action in ["set", "edit", "config"]:
-        if not getattr(args, "name", None):
-            print("Error: Daemon name is required for daemon set. Example: workflow daemon set fix-worker --interval 5 --max-iterations 10", file=sys.stderr)
-            return 1
-
-        name = args.name
-        interval = getattr(args, "interval", None)
-        max_iter = getattr(args, "max_iterations", None)
-        archetype = args.archetype
-        desc = getattr(args, "description", None)
-
-        res = update_daemon_config(
-            name=name,
-            interval_minutes=interval,
-            max_iterations=max_iter,
-            archetype=archetype,
-            description=desc,
-            target_dir=target_dir
-        )
-
-        if res.get("status") == "NOT_FOUND":
-            print(f"Error: Daemon '{name}' not found in .workflow/workflow.json. Use 'workflow daemon create {name}' first.", file=sys.stderr)
-            return 1
-
-        if args.json:
-            print(json.dumps(res, indent=2))
-            return 0
-
-        cfg = res.get("config", {})
-        sched = cfg.get("schedule", {})
-        print("=" * 110)
-        print(f" ⚙️  DAEMON CONFIGURATION UPDATED: '{name}' (.workflow/workflow.json)")
-        print("=" * 110)
-        print(f"{'PROPERTY':<24} │ VALUE")
-        print("-" * 110)
-        print(f"{'Archetype':<24} │ {cfg.get('archetype')}")
-        print(f"{'Execution Interval':<24} │ every {sched.get('interval_minutes', 10)}m")
-        print(f"{'Max Iterations':<24} │ {sched.get('max_iterations', 'Unlimited (Continuous)')}")
-        print(f"{'Description':<24} │ {cfg.get('description')}")
-        print("=" * 110)
-
-        print_next_steps([
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py daemon start {name}", "desc": "Launch daemon with updated schedule configuration"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon list", "desc": "Inspect daemon blueprints catalog"},
-        ])
-        return 0
-
-    elif action == "start":
-        name = args.name or "fix-worker"
-        interval = getattr(args, "interval", None)
-        max_iter = getattr(args, "max_iterations", None)
-        spec_target = getattr(args, "spec", None)
-        res = start_daemon(daemon_name=name, interval_minutes=interval, max_iterations=max_iter, archetype=args.archetype, spec_name=spec_target, target_dir=target_dir)
-        if args.json:
-            print(json.dumps(res, indent=2))
-            return 0
-
-        actual_interval = res.get("interval_minutes", 10)
-        print("=" * 110)
-        print(f" 🤖 DAEMON STARTED: '{name}' (Schedule: every {actual_interval}m)")
-        print("=" * 110)
-        print(f"{'PROPERTY':<24} │ VALUE")
-        print("-" * 110)
-        print(f"{'Worktree Path':<24} │ {res['worktree_path']}")
-        print(f"{'Cron Expression':<24} │ {res['cron_expression']}")
-        print(f"{'Subagent Role':<24} │ {res['subagent_directive']['role']}")
-        print("=" * 110)
-
-        print("\nℹ️  AI Agent Native Subagent Dispatch Directive:")
-        print(f"   Invoke subagent tool (invoke_subagent) with Role='{res['subagent_directive']['role']}'")
-        print(f"   Working Directory: {res['worktree_path']}")
-
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Check active daemon health & metrics"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a feature spec while worker runs"},
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py daemon pause {name}", "desc": "Freeze worker before release curation"},
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py daemon stop {name}", "desc": "Stop background worker when finished"},
-        ])
-        return 0
-
-    elif action == "pause":
-        name = args.name or "fix-worker"
-        res = pause_daemon(name, target_dir=target_dir)
-        if args.json:
-            print(json.dumps(res, indent=2))
-            return 0
-
-        print("=" * 110)
-        print(f" ⏸️  DAEMON PAUSED: '{name}' (Cron cycles suspended without destroying worktree)")
-        print("=" * 110)
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Review and compile memory while workers are paused"},
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py daemon resume {name}", "desc": "Resume background worker execution"},
-        ])
-        return 0
-
-    elif action == "resume":
-        name = args.name or "fix-worker"
-        res = resume_daemon(name, target_dir=target_dir)
-        if args.json:
-            print(json.dumps(res, indent=2))
-            return 0
-
-        print("=" * 110)
-        print(f" ▶️  DAEMON RESUMED: '{name}' (Active cron execution resumed)")
-        print("=" * 110)
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Inspect resumed worker status & metrics"},
-        ])
-        return 0
-
-    elif action == "stop":
-        if getattr(args, "all", False) or not name:
-            res = stop_all_daemons(target_dir=target_dir)
-            if args.json:
-                print(json.dumps(res, indent=2))
-                return 0
-
-            print("=" * 110)
-            print(" 🛑 ALL DAEMONS STOPPED & WORKTREES PURGED (Anti-Zombie Clean)")
-            print("=" * 110)
-            print("\nℹ️  AI Agent Stop & Cleanup Directive:")
-            print("   - Cancel all background schedule cron timers with manage_task(Action='kill')")
-            print("   - Terminate all daemon subagents with manage_subagents(Action='kill_all')")
-            print_next_steps([
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile completed worker patches into PR summary"},
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon clean", "desc": "Ensure zero orphaned processes or locks remain"},
-            ])
-        else:
-            res = stop_daemon(name, target_dir=target_dir, force=getattr(args, "force", False))
-            if args.json:
-                print(json.dumps(res, indent=2))
-                return 0
-
-            print("=" * 110)
-            print(f" 🛑 DAEMON STOPPED: '{name}' (Worktree, process & scheduled timers purged)")
-            print("=" * 110)
-            print("\nℹ️  AI Agent Stop & Cleanup Directive:")
-            print(f"   - Check running cron tasks with manage_task(Action='list') and cancel matching schedule task with manage_task(Action='kill', TaskId=...)")
-            conv_id = res.get("conversation_id")
-            if conv_id:
-                print(f"   - Terminate subagent conversation with manage_subagents(Action='kill', ConversationIds=['{conv_id}'])")
-            print_next_steps([
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile completed worker patches into PR summary"},
-                {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Verify remaining daemon status"},
-            ])
-        return 0
-
-    elif action == "clean":
-        res = clean_orphaned_daemons(target_dir=target_dir)
-        if args.json:
-            print(json.dumps(res, indent=2))
-            return 0
-
-        print("=" * 110)
-        print(f" 🧹 ANTI-ZOMBIE CLEAN COMPLETE (Purged: {len(res.get('purged_daemons', []))} items)")
-        print("=" * 110)
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Inspect clean daemon table"},
-        ])
-        return 0
-
-    elif action in ["status"]:
-        res = get_daemon_status_table(target_dir=target_dir)
-        if args.json:
-            print(json.dumps(res, indent=2))
-            return 0
-
-        print("=" * 110)
-        print(" 🤖 WORKFLOW DAEMONS STATUS (.workflow/daemons.json)")
-        print("=" * 110)
-        print(f"{'DAEMON':<18} │ {'STATUS':<9} │ {'SCHEDULE':<10} │ {'BRANCH':<22} │ {'HOST':<18} │ WORKTREE")
-        print("-" * 110)
-        if not res["daemons"]:
-            print(f"{'fix-worker':<18} │ {'STOPPED':<9} │ {'every 10m':<10} │ {'fix-worker':<22} │ {'-':<18} │ .workflow/worktrees/general/fix-worker")
-            print(f"{'refactor-worker':<18} │ {'STOPPED':<9} │ {'every 15m':<10} │ {'refactor-worker':<22} │ {'-':<18} │ .workflow/worktrees/general/refactor-worker")
-            print(f"{'doc-worker':<18} │ {'STOPPED':<9} │ {'every 30m':<10} │ {'doc-worker':<22} │ {'-':<18} │ .workflow/worktrees/general/doc-worker")
-        else:
-            for d in res["daemons"]:
-                status_str = d["status"]
-                branch_str = str(d.get("branch_name") or d["name"])
-                host_str = str(d.get("host") or "-")
-                print(f"{d['name']:<18} │ {status_str:<9} │ every {d['interval_minutes']}m   │ {branch_str:<22} │ {host_str:<18} │ {d['worktree_path']}")
-        print("=" * 110)
-
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon start fix-worker", "desc": "Launch fix-worker background worker"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon create <name>", "desc": "Create a new custom daemon blueprint"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon pause --all", "desc": "Freeze all workers for release curation"},
-        ])
-        return 0
-
-    elif action == "run":
-        name = args.name or "fix-worker"
-        res = run_daemon_cycle(
-            daemon_name=name,
-            archetype=args.archetype,
-            auto_merge=getattr(args, "auto_merge", False),
-            root_dir=target_dir
-        )
-        if args.json:
-            print(json.dumps(res, indent=2))
-            return 0
-
-        print("=" * 110)
-        print(f" 🤖 ONE-SHOT DAEMON EXECUTION [{name}]")
-        print("=" * 110)
-        print(f"{'PROPERTY':<24} │ VALUE")
-        print("-" * 110)
-        print(f"{'Status':<24} │ {res.get('status')}")
-        print(f"{'Worktree':<24} │ {res.get('worktree_path')}")
-        print(f"{'Branch':<24} │ {res.get('branch_name')}")
-        print(f"{'DAG Step':<24} │ {res.get('dag_step')}")
-        print(f"{'Tests Passing':<24} │ {res.get('all_tests_passing')}")
-        print(f"{'Merge Status':<24} │ {res.get('merge_status')}")
-        print("=" * 110)
-
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile results into release PR"},
-        ])
-        return 0
-
+    print("=" * 110)
+    print(" ℹ️  WORKFLOW SUBSYSTEM STREAMLINED")
+    print("=" * 110)
+    print("Background execution has been consolidated into the deterministic 5-Stage Orchestrator Pipeline:")
+    print("  👉 uv run skills/workflow/scripts/workflow_runner.py run <spec-name>   │ Execute 5-stage pipeline in worktree")
+    print("  👉 uv run skills/workflow/scripts/workflow_runner.py status           │ Inspect active specs & worktrees")
+    print("  👉 uv run skills/workflow/scripts/workflow_runner.py worktree list    │ Manage isolated physical worktrees")
+    print("  👉 uv run skills/workflow/scripts/workflow_runner.py clean            │ Prune stale worktrees & locks")
+    print("=" * 110)
     return 0
 
 
@@ -1485,13 +1333,6 @@ def main() -> int:
     if not args.subcommand:
         parser.print_help()
         return 0
-
-    # Automatic Post-Reboot Self-Healing Reconciliation
-    try:
-        target_dir = getattr(args, "target_dir", ".") or "."
-        reconcile_daemon_registry(target_dir)
-    except Exception:
-        pass
 
     commands = {
         "check-env": cmd_check_env,

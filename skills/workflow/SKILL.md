@@ -45,11 +45,8 @@ metadata:
 >    - Cancel background schedule cron timers with `manage_task(Action="kill")`.
 >    - Terminate active subagents with `manage_subagents(Action="kill", ConversationIds=[...])`.
 > 5. **Interactive Test Runner Selection**: When `/workflow init` or `/workflow explore` indicates that no explicit test script is defined in project manifests, the AI Agent MUST prompt the developer using `ask_question` in English to pick from the detected ecosystem candidates (e.g. `pnpm test`, `vitest run`, `jest`).
-> 6. **Multi-Machine Host Affinity**: All daemons register their machine fingerprint (`host: user@hostname`). AI Agents and scripts on other machines MUST respect remote workers and NEVER send local OS kill signals or corrupt worktrees belonging to other team members.
-> 7. **Fixed-Delay & Zero-Overlap Concurrency Lock**: Daemon intervals operate strictly under a **Fixed-Delay** model (i.e. $N$ minutes counting **after the previous execution finishes**, NEVER overlapping concurrent agents):
->    - Gate 0B rejects overlapping executions if a cycle is actively running (`is_busy: true`).
->    - Gate 0C enforces cooldown until the full $N$ minutes interval has elapsed since `last_completed_at`.
->    - Subagents and host agents complete their current cycle, record `last_completed_at`, and schedule the next cycle using `schedule(DurationSeconds=interval_minutes * 60, Prompt="...")`.
+> 6. **Cross-Platform Compatibility**: All scripts support Windows (PowerShell / `uv run`), Linux, and macOS (POSIX shell / `uv run`) using standard library path normalization and pure Python file operations.
+> 7. **Cross-Harness Interoperability**: Compatible with all major AI coding agent CLIs and harnesses (Antigravity, Claude Desktop, Cursor, Codex, OpenDevin, Aider, Gemini CLI) complying with the Agent Skills specification (`skills.sh` / `agentskills.io`).
 > 8. **Strict Hierarchical Worktrees & Worker Branch Scoping (`.workflow/worktrees/<spec>/worker/`)**: Every physical worktree is **strictly dependent on and scoped to a specification and its designated subagent**:
 >    - **Feature / Developer Branch**: Primary implementation takes place directly on `<spec-name>` (e.g. `user-login`).
 >    - **Staging Branch**: Autonomous subagents operate on dedicated staging branch `<spec-name>-worker` inside `.workflow/worktrees/<spec-name>/worker/`.
@@ -77,10 +74,9 @@ skills/workflow/
 │   ├── scaffolder.py                 # Scaffolds .workflow/ structure & specs from assets/
 │   ├── explorer.py                   # Polyglot codebase stack & test runner scanner
 │   ├── drift_detector.py             # Manifest checksums & tech drift anomaly detector
-│   ├── memory_manager.py             # Hierarchical 00-10 memory sliding window & compaction engine
-│   ├── worktree_manager.py           # Physical Git Worktree lifecycle manager with Anti-Zombie force purge
-│   ├── quality_auditor.py            # Deterministic Pre-Execution Quality Gate
-│   ├── daemon_manager.py             # Multi-daemon scheduler with cron, pause/resume & Anti-Zombie cleanup
+│   ├── memory_manager.py             # Hierarchical memory manager & indexed docs catalog
+│   ├── worktree_manager.py           # Physical Git Worktree lifecycle manager with cross-platform lock clearing
+│   ├── quality_auditor.py            # Deterministic Pre-Execution Quality Gate (100/100)
 │   └── graph/
 │       ├── state.py                  # LangGraph TypedDict state definitions
 │       ├── nodes.py                  # LangGraph node transitions (RED, GREEN, REFACTOR, GATES)

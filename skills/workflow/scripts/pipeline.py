@@ -39,12 +39,6 @@ from git_ops import (
     execute_atomic_commit,
     create_github_pull_request,
 )
-from daemon_manager import (
-    get_machine_identity,
-    load_daemon_registry,
-    save_daemon_registry,
-    normalize_rel_path,
-)
 from graph.pipeline_graph import create_pipeline_graph
 
 
@@ -301,41 +295,11 @@ class PipelineRunner:
 
         wt_path = graph_res.get("worktree_path") or os.path.join(self.wf_root, "worktrees", clean_spec, "worker")
         elapsed = round(time.time() - start_time, 2)
-        now_iso = datetime.now().isoformat()
-        machine = get_machine_identity()
+        rel_wt_path = os.path.relpath(wt_path, self.target_dir).replace("\\", "/")
 
         # Run Orchestrator evaluation and Git-Worker preparation
         orch_res = self.run_stage_orchestrator(clean_spec, wt_path)
         git_res = self.run_stage_git(clean_spec, wt_path, auto_merge=auto_merge, create_pr=create_pr)
-
-        # Handle Opt-In Background Scheduling Registration
-        if schedule_minutes and schedule_minutes > 0:
-            cron_expr = f"*/{schedule_minutes} * * * *"
-            registry = load_daemon_registry(self.target_dir)
-            pipeline_key = f"pipeline-{clean_spec}"
-            registry["daemons"][pipeline_key] = {
-                "name": pipeline_key,
-                "status": "RUNNING",
-                "archetype": "pipeline",
-                "spec_name": clean_spec,
-                "branch_name": f"{clean_spec}-worker",
-                "cron_expression": cron_expr,
-                "interval_minutes": schedule_minutes,
-                "max_iterations": max_iterations,
-                "iteration_count": 1,
-                "is_busy": False,
-                "current_run_pid": None,
-                "last_completed_at": now_iso,
-                "worktree_path": normalize_rel_path(wt_path, self.target_dir),
-                "started_at": now_iso,
-                "last_heartbeat": now_iso,
-                "last_run_at": now_iso,
-                "last_result": "SUCCESS",
-                "pid": os.getpid(),
-                "host": machine["host_tag"],
-                "os": machine["os"],
-            }
-            save_daemon_registry(registry, self.target_dir)
 
         stages = [
             {
@@ -375,7 +339,7 @@ class PipelineRunner:
             "target_base": graph_res.get("target_base", "main"),
             "current_branch": graph_res.get("current_branch", "main"),
             "on_protected_branch": graph_res.get("on_protected_branch", False),
-            "worktree_path": normalize_rel_path(wt_path, self.target_dir),
+            "worktree_path": rel_wt_path,
             "elapsed_seconds": elapsed,
             "stages": stages,
             "adr": orch_res.get("adr"),

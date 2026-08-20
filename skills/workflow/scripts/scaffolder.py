@@ -152,7 +152,7 @@ def inject_agent_rules(target_dir: str = ".") -> Dict[str, Any]:
 All AI coding agents working in this repository MUST adhere to the following mandatory workflow directives:
 
 1. **Skill Execution & References**: Always invoke workflow CLI commands using `uv run` (e.g. `uv run skills/workflow/scripts/workflow_runner.py <subcommand>` or `uv run .agents/skills/workflow/scripts/workflow_runner.py <subcommand>`). Refer to `skills/workflow/SKILL.md` (or `.agents/skills/workflow/SKILL.md`) and `skills/workflow/references/ARCHITECTURE.md`.
-2. **Methodology Invariants**: Thoroughly read `.workflow/memory/workflow_methodology.md` to understand the Spec-Driven Development (SDD), Test-Driven Development (TDD), and 4-stage sequential subagent pipeline.
+2. **Methodology Invariants**: Thoroughly read `.workflow/memory/workflow_methodology.md` to understand the Spec-Driven Development (SDD), Test-Driven Development (TDD), and 5-stage Orchestrator pipeline.
 3. **Project Context & Coding Preferences**: Inspect `.workflow/memory/project_context.md` for tech stack runtimes and `.workflow/memory/coding_preferences.md` for linters, naming conventions, and style rules before modifying any code.
 4. **Active Specifications**: In-flight feature specifications and atomic TDD tasks reside under `.workflow/specs/active/<spec-name>/`.
 5. **Architectural Decisions (ADRs)**: Consult and record all architectural decisions in `.workflow/specs/active/<spec-name>/adrs/`.
@@ -275,14 +275,25 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
             atomic_write_json(config_file, {
                 "version": "2.0",
                 "pipeline": {
+                    "supervisor": "orchestrator",
+                    "max_revisions": 3,
                     "default_interval_minutes": 30,
                     "max_iterations": None,
                     "stages": [
                         {"id": "fix", "role": "Fix-Worker Specialist", "description": "Bug stabilization and 100% green test pass"},
-                        {"id": "refactor", "role": "Refactor-Worker Specialist", "description": "Clean code, modularity, and complexity reduction"},
-                        {"id": "doc", "role": "Doc-Worker Specialist", "description": "Docstrings, OpenAPI schemas, and spec sync"},
-                        {"id": "curator", "role": "Curator Specialist", "description": "Quality gate, ADR generation, and PR synthesis"}
+                        {"id": "refactor", "role": "Refactor-Worker Specialist", "description": "Clean code, modularity, and zero comments enforcement"},
+                        {"id": "orchestrator", "role": "Orchestrator Specialist", "description": "Quality gate, routing feedback loops, and ADR generation"},
+                        {"id": "doc", "role": "Doc-Worker Specialist", "description": "Docstrings, API contracts, and spec sync"},
+                        {"id": "git", "role": "Git-Worker Specialist", "description": "Deterministic Conventional Commits, Grilling Session confirmation, and PR synthesis"}
                     ],
+                    "curator_gate": {
+                        "enabled": True,
+                        "max_revisions": 3,
+                        "block_unvetted_commits": True,
+                        "block_direct_pushes": True,
+                        "require_grilling_confirmation": True,
+                        "strict_zero_comments_check": True
+                    },
                     "auto_merge": {
                         "enabled": False,
                         "strategy": "no-ff",
