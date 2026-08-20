@@ -1,5 +1,15 @@
 # cezartdev-skills
 
+## 1.11.1
+
+### Patch Changes
+
+- [`882b1b0`](https://github.com/cezartdev/skills/commit/882b1b034bfaead9db68029459817aa72f82ff89) Thanks [@cezartdev](https://github.com/cezartdev)! - Implement automatic `.gitkeep` lifecycle reconciliation (`reconcile_all_gitkeeps`): automatically deletes `.gitkeep` placeholders whenever real files or subdirectories exist in `.workflow/` catalogs, and restores them only when folders are completely empty.
+
+- [`535b171`](https://github.com/cezartdev/skills/commit/535b17140827108b4e77b070909c1bc1689cf316) Thanks [@cezartdev](https://github.com/cezartdev)! - Set `feat/<feature-name>` as the default and recommended branch naming convention across spec scaffolding, interactive grilling prompts, and worktree synchronization.
+
+- [`df93b1e`](https://github.com/cezartdev/skills/commit/df93b1e599cecf45f9fc01c9b47304eac75bd069) Thanks [@cezartdev](https://github.com/cezartdev)! - Mandate native subagent definition (`define_subagent`) and sequential dispatch (`invoke_subagent`) for the 5 specialized subagents (`workflow-fix-worker`, `workflow-refactor-worker`, `workflow-orchestrator`, `workflow-doc-worker`, `workflow-git-worker`) with dedicated system prompts and personalities.
+
 ## 1.11.0
 
 ### Minor Changes
