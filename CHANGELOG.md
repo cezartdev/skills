@@ -1,5 +1,13 @@
 # cezartdev-skills
 
+## 1.10.0
+
+### Minor Changes
+
+- [`9057e69`](https://github.com/cezartdev/skills/commit/9057e6950e38d14c62d394daa069c86ffcadfda5) Thanks [@cezartdev](https://github.com/cezartdev)! - Generate Architectural Decision Records (ADRs) during specification grilling sessions (`/workflow specify`) to formally audit architecture, data schemas, and trade-offs co-authored in `spec.md`.
+
+- [`dfa1136`](https://github.com/cezartdev/skills/commit/dfa1136816c08e8fe193913e02ff23466f622039) Thanks [@cezartdev](https://github.com/cezartdev)! - Introduce `.workflow/specs/active/` directory hierarchy for in-flight specifications, scaffold `.workflow/memory/workflow_methodology.md`, and add intelligent detection and injection of agent rule directives into `AGENTS.md` and related instruction files upon `workflow init`.
+
 ## 1.9.0
 
 ### Minor Changes
