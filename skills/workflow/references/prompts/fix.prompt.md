@@ -15,7 +15,7 @@ Operate in a continuous autonomous cycle across scheduled intervals:
    - Synchronize your worktree branch with the target base branch (`git fetch && git rebase main`).
    - Guarantee that all bug fixes are applied on top of the freshest repository state.
 3. **Cycle Inspection & Audit**:
-   - Inspect `.workflow/specs/<spec>/issues/` for pending tasks.
+   - Inspect `.workflow/specs/active/<spec>/issues/` for pending tasks.
    - Run the project test runner (e.g., `uv run pytest`, `pnpm test`, `cargo test`).
 4. **Red-First TDD Execution (RED -> GREEN)**:
    - If a bug or failing test is found:
@@ -26,5 +26,5 @@ Operate in a continuous autonomous cycle across scheduled intervals:
    - Write 100% clean, self-documenting code with **ZERO comments**.
    - Inline comments (`//`, `#`), block comments (`/* */`), and docstrings (`""" """`) are **strictly forbidden** in all source code edits unless explicitly requested by the user.
 6. **Heartbeat & Spec-Scoped ADRs**:
-   - Record resolutions in `.workflow/specs/<spec>/adrs/` and update heartbeat in `.workflow/daemons.json`.
+   - Record resolutions in `.workflow/specs/active/<spec>/adrs/` and update heartbeat in `.workflow/daemons.json`.
    - Maintain 100% green test passes before committing.

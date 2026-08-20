@@ -66,18 +66,23 @@ def resolve_spec_path(spec_arg: str, target_dir: str = ".") -> str:
     wf_root = get_workflow_root(target_dir)
     specs_root = os.path.join(wf_root, "specs")
 
-    # 1. Direct candidate: .workflow/specs/<spec_arg>
+    # 1. Active candidate: .workflow/specs/active/<spec_arg>
+    active_cand = os.path.join(specs_root, "active", spec_arg)
+    if os.path.exists(active_cand):
+        return active_cand
+
+    # 2. Direct candidate: .workflow/specs/<spec_arg> (flat fallback)
     direct_cand = os.path.join(specs_root, spec_arg)
     if os.path.exists(direct_cand):
         return direct_cand
 
-    # 2. Fallback for legacy specs in subfolders (features, bugs, refactor, docs)
+    # 3. Fallback for legacy specs in subfolders (features, bugs, refactor, docs)
     for folder in ["features", "bugs", "refactor", "docs"]:
         candidate = os.path.join(specs_root, folder, spec_arg)
         if os.path.exists(candidate):
             return candidate
 
-    return os.path.abspath(direct_cand)
+    return os.path.abspath(active_cand)
 
 
 def cmd_check_env(args: argparse.Namespace) -> int:
@@ -167,8 +172,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     print(f"{'Workflow Root':<24} │ {res['workflow_dir']}")
     print(f"{'Configuration':<24} │ {res['config_file']}")
     print(f"{'Test Runner':<24} │ {res['test_runner']}")
-    print(f"{'Specs Directory':<24} │ {res['specs_dir']} (features & archive/)")
-    print(f"{'Memory Catalog':<24} │ {res['memory_dir']} (coding_preferences.md, project_context.md, docs/)")
+    print(f"{'Specs Directory':<24} │ {res['specs_dir']} (active/ & archive/)")
+    print(f"{'Memory Catalog':<24} │ {res['memory_dir']} (workflow_methodology.md, coding_preferences.md, project_context.md, docs/)")
     print(f"{'PRs Catalog':<24} │ {res['prs_dir']} (active, archive)")
     print("=" * 110)
 
@@ -1213,7 +1218,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_mem.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # new
-    p_new = subparsers.add_parser("new", help="Scaffold a new feature specification directory under .workflow/specs/<spec-name>/")
+    p_new = subparsers.add_parser("new", help="Scaffold a new feature specification directory under .workflow/specs/active/<spec-name>/")
     p_new.add_argument("spec_name", help="Name of the new specification")
     p_new.add_argument("--archetype", nargs="?", help="Optional legacy archetype alias (defaults to standard feature spec)")
     p_new.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
@@ -1221,7 +1226,7 @@ def build_parser() -> argparse.ArgumentParser:
     # specify
     p_spec = subparsers.add_parser("specify", help="Socratic debate & interactive interview to co-author spec.md (Spec-Kit style) and generate ADR")
     p_spec.add_argument("spec_name", help="Name or path of the spec to refine")
-    p_spec.add_argument("--generate-adr", action="store_true", help="Explicitly generate or refresh specification ADR in .workflow/specs/<spec>/adrs/")
+    p_spec.add_argument("--generate-adr", action="store_true", help="Explicitly generate or refresh specification ADR in .workflow/specs/active/<spec>/adrs/")
     p_spec.add_argument("--decisions", help="Summary of architectural decisions agreed upon during grilling")
     p_spec.add_argument("--context", help="Context or problem statement for the ADR")
     p_spec.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")

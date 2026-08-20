@@ -194,15 +194,18 @@ def generate_spec_adr(
     wf_root = get_workflow_root(target_dir)
     clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
 
-    # Find spec directory directly under specs/
-    spec_dir = os.path.join(wf_root, "specs", clean_spec)
+    # Find spec directory (active -> direct -> legacy subfolders)
+    spec_dir = os.path.join(wf_root, "specs", "active", clean_spec)
     if not os.path.exists(spec_dir):
-        # Fallback for legacy specs in subfolders (features, bugs, refactor, docs)
-        for ns in ["features", "bugs", "refactor", "docs"]:
-            candidate = os.path.join(wf_root, "specs", ns, clean_spec)
-            if os.path.exists(candidate):
-                spec_dir = candidate
-                break
+        candidate_flat = os.path.join(wf_root, "specs", clean_spec)
+        if os.path.exists(candidate_flat):
+            spec_dir = candidate_flat
+        else:
+            for ns in ["features", "bugs", "refactor", "docs"]:
+                candidate = os.path.join(wf_root, "specs", ns, clean_spec)
+                if os.path.exists(candidate):
+                    spec_dir = candidate
+                    break
 
     os.makedirs(spec_dir, exist_ok=True)
     adrs_dir = os.path.join(spec_dir, "adrs")
@@ -293,14 +296,18 @@ def generate_specify_adr(
     wf_root = get_workflow_root(target_dir)
     clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
 
-    # Find spec directory directly under specs/
-    spec_dir = os.path.join(wf_root, "specs", clean_spec)
+    # Find spec directory (active -> direct -> legacy subfolders)
+    spec_dir = os.path.join(wf_root, "specs", "active", clean_spec)
     if not os.path.exists(spec_dir):
-        for ns in ["features", "bugs", "refactor", "docs"]:
-            candidate = os.path.join(wf_root, "specs", ns, clean_spec)
-            if os.path.exists(candidate):
-                spec_dir = candidate
-                break
+        candidate_flat = os.path.join(wf_root, "specs", clean_spec)
+        if os.path.exists(candidate_flat):
+            spec_dir = candidate_flat
+        else:
+            for ns in ["features", "bugs", "refactor", "docs"]:
+                candidate = os.path.join(wf_root, "specs", ns, clean_spec)
+                if os.path.exists(candidate):
+                    spec_dir = candidate
+                    break
 
     os.makedirs(spec_dir, exist_ok=True)
     adrs_dir = os.path.join(spec_dir, "adrs")

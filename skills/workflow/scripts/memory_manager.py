@@ -100,6 +100,9 @@ def list_memory_catalog(target_dir: str = ".") -> Dict[str, Any]:
     has_context = os.path.exists(context_file) or os.path.exists(legacy_context)
     actual_context_path = context_file if os.path.exists(context_file) else (legacy_context if os.path.exists(legacy_context) else context_file)
 
+    methodology_file = os.path.join(mem_dir, "workflow_methodology.md")
+    has_methodology = os.path.exists(methodology_file)
+
     # Docs directory
     doc_items = []
     if os.path.exists(docs_dir):
@@ -127,6 +130,10 @@ def list_memory_catalog(target_dir: str = ".") -> Dict[str, Any]:
 
     return {
         "memory_dir": mem_dir,
+        "workflow_methodology": {
+            "exists": has_methodology,
+            "path": methodology_file,
+        },
         "coding_preferences": {
             "exists": has_prefs,
             "path": actual_pref_path,
@@ -145,6 +152,12 @@ def read_memory_doc(identifier: str, target_dir: str = ".") -> Optional[Dict[str
     mem_dir = get_memory_dir(target_dir)
     docs_dir = get_memory_docs_dir(target_dir)
     clean_id = identifier.strip().lower()
+
+    if clean_id in ["workflow_methodology", "methodology", "methodology.md", "workflow_methodology.md", "workflow"]:
+        p = os.path.join(mem_dir, "workflow_methodology.md")
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                return {"filename": "workflow_methodology.md", "path": p, "content": f.read()}
 
     if clean_id in ["coding_preferences", "preferences", "style", "coding_preferences.md", "00_coding_preferences.md"]:
         for cand in ["coding_preferences.md", "00_coding_preferences.md"]:

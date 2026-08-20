@@ -547,7 +547,7 @@ def generate_master_context(root_dir: str = ".") -> str:
 ---
 
 ## 3. Core Architectural Invariants & Rules
-1. **Spec-Driven Architecture**: All functional features are declared in `.workflow/specs/<spec-name>/` and executed via TDD issues.
+1. **Spec-Driven Architecture**: All functional features are declared in `.workflow/specs/active/<spec-name>/` and executed via TDD issues.
 2. **Worktree Isolation**: Background workers run strictly inside dedicated `.workflow/worktrees/` instances.
 3. **Quality Gate Compliance**: Tests must pass 100% with no security gate violations prior to merging.
 

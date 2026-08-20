@@ -29,13 +29,13 @@ metadata:
 > [!IMPORTANT]
 > **MANDATORY AGENT EXECUTION DIRECTIVES**:
 > 1. **Tool Invocation**: AI Agents MUST ALWAYS invoke workflow commands using `uv run` (e.g. `uv run skills/workflow/scripts/workflow_runner.py <subcommand>` or `uv run .agents/skills/workflow/scripts/workflow_runner.py <subcommand>`). NEVER invoke `python3` or `python` directly.
-> 2. **Specify Grilling Session & ADR Generation**: When triggering `/workflow specify <name>`, the AI Agent MUST conduct an interactive 1-by-1 Grilling Session using the interactive question tool (e.g., `ask_question`), asking questions sequentially with multiple-choice recommendations, updating `spec.md` in-place after each answer, and generating an Architectural Decision Record (ADR) in `.workflow/specs/<name>/adrs/ADR_<timestamp>_specification_design.md` capturing all agreed-upon architectural choices.
+> 2. **Specify Grilling Session & ADR Generation**: When triggering `/workflow specify <name>`, the AI Agent MUST conduct an interactive 1-by-1 Grilling Session using the interactive question tool (e.g., `ask_question`), asking questions sequentially with multiple-choice recommendations, updating `spec.md` in-place after each answer, and generating an Architectural Decision Record (ADR) in `.workflow/specs/active/<name>/adrs/ADR_<timestamp>_specification_design.md` capturing all agreed-upon architectural choices.
 > 3. **Deterministic Sequential Subagent Pipeline**: When triggering `/workflow run <spec>`, the AI Agent MUST:
 >    - Execute the deterministic 4-stage sequential pipeline in `.workflow/worktrees/<spec>/worker/` on branch `<spec>-worker`:
 >      1. **Stage 1 (Fix-Worker)**: Stabilize codebase and guarantee 100% green tests.
 >      2. **Stage 2 (Refactor-Worker)**: Clean code and optimize modularity over green tests.
 >      3. **Stage 3 (Doc-Worker)**: Synchronize docstrings, OpenAPI schemas, and specifications.
->      4. **Stage 4 (Curator-Worker)**: Run quality gates, generate formal ADR in `.workflow/specs/<spec>/adrs/`, and compile PR summary.
+>      4. **Stage 4 (Curator-Worker)**: Run quality gates, generate formal ADR in `.workflow/specs/active/<spec>/adrs/`, and compile PR summary.
 >    - If `--schedule <minutes>` is passed (e.g. 30 or 45), register the Fixed-Delay background timer with the native `schedule` tool.
 > 4. **Immediate Stop & Timer Cancellation**: When triggering `/workflow stop [spec|--all]`, the AI Agent MUST:
 >    - Execute `uv run skills/workflow/scripts/workflow_runner.py stop [spec]`.
@@ -111,7 +111,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 |---|---|---|
 | `/workflow init` | `workflow init [dir]` | Initialize encapsulated `.workflow/` structure & configs |
 | `/workflow explore` | `workflow explore [dir]` | Survey polyglot stack & extract style preferences (`coding_preferences.md`) |
-| `/workflow new` | `workflow new <spec>` | Scaffold a new feature spec directly under `.workflow/specs/<spec>/` |
+| `/workflow new` | `workflow new <spec>` | Scaffold a new feature spec directly under `.workflow/specs/active/<spec>/` |
 | `/workflow specify` | `workflow specify <spec> [--generate-adr]` | Interactive 1-by-1 Grilling Session to co-author `spec.md` & generate ADR |
 | `/workflow plan` | `workflow plan <spec>` | Decompose refined spec into atomic TDD task issues |
 | `/workflow check` | `workflow check <spec>` | Audit spec against deterministic Quality Gate (100/100) |
@@ -122,7 +122,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 | `/workflow clean` | `workflow clean` | Deep Anti-Zombie cleanup of orphaned worktrees, locks & dead PIDs |
 | `/workflow archive` | `workflow archive <spec>` | Move completed spec to `.workflow/specs/archive/<year>/` |
 | `/workflow drift` | `workflow drift [--sync]` | Detect manifest checksum drift & sync tech context |
-| `/workflow memory` | `workflow memory [list|add|show]` | Manage coding preferences, project context & indexed docs |
+| `/workflow memory` | `workflow memory [list|add|show]` | Manage methodology, coding preferences, project context & indexed docs |
 | `/workflow chat` | `workflow chat [spec]` | Macro architecture brainstorming & scoped spec debate |
 | `/workflow check-env` | `workflow check-env` | Diagnostic check of Python $\ge 3.10$, Git, uv, and dependencies |
 | `/workflow list` | `workflow list` | Display this concise command reference table |
@@ -136,9 +136,9 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 1. Survey Stack:
    Run '/workflow explore' to detect Python, Rust, Go, Node, Java, or .NET test runners.
 2. Scaffold Spec (SDD):
-   Run '/workflow new <name>' directly under '.workflow/specs/<name>/'.
+   Run '/workflow new <name>' directly under '.workflow/specs/active/<name>/'.
 3. Socratic Co-Authoring & Branch Selection (Spec-Kit Style):
-   Run '/workflow specify <name>' to co-author spec and generate ADR under '.workflow/specs/<name>/adrs/'.
+   Run '/workflow specify <name>' to co-author spec and generate ADR under '.workflow/specs/active/<name>/adrs/'.
 4. Deterministic TDD Execution:
    Run '/workflow run <name>'. Python strictly validates exit codes (RED != 0, GREEN == 0).
 5. Background Daemons:

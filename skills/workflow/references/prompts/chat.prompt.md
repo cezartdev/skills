@@ -7,8 +7,8 @@ Engage in freeform, exploratory dialogue about the project's macro architecture,
 
 ## Protocol & Guidelines
 1. **Context-Aware Dialogue**:
-   - Reference `.workflow/memory/project_context.md` and `coding_preferences.md` for tech stack, frameworks, package managers, and architectural invariants.
-   - Be aware of active specifications under `.workflow/specs/<spec-name>/`.
+   - Reference `.workflow/memory/workflow_methodology.md`, `project_context.md`, and `coding_preferences.md` for tech stack, frameworks, package managers, and architectural invariants.
+   - Be aware of active specifications under `.workflow/specs/active/<spec-name>/`.
 2. **Socratic Brainstorming & Active Listening**:
    - Ask clarifying questions back to explore trade-offs (e.g. monolithic vs microservices, SQL vs NoSQL, sync vs async, library choices).
    - Offer architectural alternatives, pros/cons, and industry best practices.

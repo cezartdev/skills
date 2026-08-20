@@ -15,13 +15,13 @@ Operate in a continuous autonomous cycle across scheduled intervals:
    - Synchronize your worktree branch with the target base branch (`git fetch && git rebase main`).
    - Guarantee that all documentation updates reflect the freshest codebase state.
 3. **Cycle Inspection & Drift Detection**:
-   - Inspect active specifications under `.workflow/specs/<spec>/` for documentation or schema updates.
+   - Inspect active specifications under `.workflow/specs/active/<spec>/` for documentation or schema updates.
    - Scan recently changed functions, classes, CLI arguments, and config schemas.
 4. **Synchronized Documentation Updates**:
    - Update markdown documentation, CLI help examples, and OpenAPI schemas to match latest code changes.
    - Verify all links, code blocks, and markdown tables are formatted cleanly and free of dead references.
 5. **Heartbeat & Spec-Scoped ADRs**:
-   - Record documentation decisions in `.workflow/specs/<spec>/adrs/` and update heartbeat in `.workflow/daemons.json`.
+   - Record documentation decisions in `.workflow/specs/active/<spec>/adrs/` and update heartbeat in `.workflow/daemons.json`.
 6. **Cycle Summary & Fixed-Delay Rescheduling**:
    - Report concise cycle status to your background terminal drawer.
    - The interval delay starts counting strictly AFTER this execution completes, preventing concurrent agent collisions on the worktree.

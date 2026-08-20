@@ -46,11 +46,22 @@ class PipelineRunner:
         self.wf_root = get_workflow_root(self.target_dir)
 
     def resolve_spec(self, spec_name: str) -> Dict[str, Any]:
-        """Resolves spec file location directly under .workflow/specs/<clean_name>/."""
+        """Resolves spec file location under .workflow/specs/active/<clean_name>/ or legacy paths."""
         clean_name = re.sub(r"[^a-zA-Z0-9_.-]+", "-", spec_name).strip("-._").lower()
         specs_root = os.path.join(self.wf_root, "specs")
         
-        # 1. Direct path: .workflow/specs/<clean_name>/spec.md
+        # 1. Active path: .workflow/specs/active/<clean_name>/spec.md
+        active_dir = os.path.join(specs_root, "active", clean_name)
+        active_spec = os.path.join(active_dir, "spec.md")
+        if os.path.exists(active_spec):
+            return {
+                "found": True,
+                "spec_name": clean_name,
+                "spec_dir": active_dir,
+                "spec_file": active_spec,
+            }
+
+        # 2. Direct flat path: .workflow/specs/<clean_name>/spec.md
         direct_dir = os.path.join(specs_root, clean_name)
         direct_spec = os.path.join(direct_dir, "spec.md")
         if os.path.exists(direct_spec):
@@ -61,7 +72,7 @@ class PipelineRunner:
                 "spec_file": direct_spec,
             }
 
-        # 2. Fallback for legacy specs in subfolders (features, bugs, refactor, docs)
+        # 3. Fallback for legacy specs in subfolders (features, bugs, refactor, docs)
         for ns in ["features", "bugs", "refactor", "docs"]:
             candidate_dir = os.path.join(specs_root, ns, clean_name)
             candidate_spec = os.path.join(candidate_dir, "spec.md")
@@ -73,12 +84,12 @@ class PipelineRunner:
                     "spec_file": candidate_spec,
                 }
         
-        # Default spec path
+        # Default spec path (active)
         return {
             "found": False,
             "spec_name": clean_name,
-            "spec_dir": direct_dir,
-            "spec_file": direct_spec,
+            "spec_dir": active_dir,
+            "spec_file": active_spec,
         }
 
     def run_stage_sync(self, spec_name: str) -> Dict[str, Any]:

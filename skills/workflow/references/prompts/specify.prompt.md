@@ -12,7 +12,7 @@ Conduct an **interactive, sequential grilling interview** (one question at a tim
 When invoked on `/workflow specify <spec-name>`:
 
 1. **Targeted Gap Discovery**:
-   - Inspect `.workflow/specs/<spec_name>/spec.md`.
+   - Inspect `.workflow/specs/active/<spec_name>/spec.md`.
    - Identify missing data schemas, unspecified error states, or vague acceptance criteria.
 
 2. **Sequential 1-by-1 Question Loop (NEVER dump all questions at once)**:
@@ -30,7 +30,7 @@ When invoked on `/workflow specify <spec-name>`:
 
 4. **Quality Gate Verification & Specification ADR Generation**:
    - After the grilling loop completes, run `uv run skills/workflow/scripts/workflow_runner.py check <spec_name>` (or `.agents/...`) to verify that the score reaches 100/100.
-   - Run `uv run skills/workflow/scripts/workflow_runner.py specify <spec_name> --generate-adr` to generate the formal Architectural Decision Record (ADR) in `.workflow/specs/<spec_name>/adrs/ADR_<timestamp>_specification_design.md` documenting the agreed-upon design, data schemas, and error strategies.
+   - Run `uv run skills/workflow/scripts/workflow_runner.py specify <spec_name> --generate-adr` to generate the formal Architectural Decision Record (ADR) in `.workflow/specs/active/<spec_name>/adrs/ADR_<timestamp>_specification_design.md` documenting the agreed-upon design, data schemas, and error strategies.
    - Report success and advise the user to proceed to `/workflow plan <spec_name>`.
 
 ---

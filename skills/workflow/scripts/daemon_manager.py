@@ -287,13 +287,7 @@ def create_daemon_blueprint(
     }
     desc = description or default_descriptions.get(archetype, f"Background worker for {clean_name}")
 
-    spec_folder_map = {
-        "fix": ".workflow/specs/bugs",
-        "refactor": ".workflow/specs/refactor",
-        "doc_sync": ".workflow/specs/docs",
-        "implement": ".workflow/specs/features",
-    }
-    spec_dir = target_spec_dir or spec_folder_map.get(archetype, ".workflow/specs/features")
+    spec_dir = target_spec_dir or ".workflow/specs/active"
 
     schedule_payload: Dict[str, Any] = {"interval_minutes": int(interval_minutes)}
     if max_iterations is not None and max_iterations > 0:
@@ -538,22 +532,15 @@ def start_daemon(
     }
     save_daemon_registry(registry, target_dir)
 
-    # 3. Build Universal Subagent Dispatch Directive
-    target_specs_folder = (
-        "bugs" if arch == "fix"
-        else ("refactor" if arch == "refactor"
-        else ("docs" if arch == "doc_sync"
-        else "features"))
-    )
     system_prompt_file = f"skills/workflow/references/prompts/{arch}.prompt.md"
     task_prompt = (
         f"You are the long-running background daemon '{clean_name}' (archetype: {arch}). "
         f"Your working directory is locked to the isolated Git Worktree at '{rel_worktree_path}'. "
         f"Execute continuous daemon cycles every {interval} minutes:\n"
         f"1. Pre-Cycle Sync: Synchronize your worktree branch with latest base branch.\n"
-        f"2. Check .workflow/specs/{target_specs_folder}/ for pending tasks or run test suites to detect regressions.\n"
+        f"2. Check .workflow/specs/active/ for pending tasks or run test suites to detect regressions.\n"
         f"3. Execute TDD fixes/updates, verifying 100% test passing.\n"
-        f"4. Log decisions to .workflow/memory/{arch}/ and update heartbeat in .workflow/daemons.json.\n"
+        f"4. Log decisions to .workflow/specs/active/<spec>/adrs/ and update heartbeat in .workflow/daemons.json.\n"
         f"5. If status in .workflow/daemons.json becomes 'STOPPED', summarize and exit cleanly."
     )
 
