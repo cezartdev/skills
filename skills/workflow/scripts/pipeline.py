@@ -35,7 +35,7 @@ from worktree_manager import (
     rollback_to_stage_checkpoint,
     list_stage_checkpoints,
 )
-from scaffolder import get_workflow_root, reconcile_gitkeep, ensure_gitignore_configured
+from scaffolder import get_workflow_root, ensure_workflow_directories, ensure_gitignore_configured
 from quality import (
     compile_scoped_pr_summary,
     generate_spec_adr,
@@ -80,7 +80,8 @@ class PipelineRunner:
 
     def __init__(self, target_dir: str = "."):
         self.target_dir = os.path.abspath(target_dir)
-        self.wf_root = get_workflow_root(self.target_dir)
+        wf_dirs = ensure_workflow_directories(self.target_dir)
+        self.wf_root = wf_dirs["root"]
 
     def resolve_spec(self, spec_name: str) -> Dict[str, Any]:
         """Resolves target spec directory under active/ or archive/."""

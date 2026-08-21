@@ -11,9 +11,9 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
 try:
-    from .scaffolder import get_workflow_root, sanitize_identifier, reconcile_gitkeep
+    from .scaffolder import get_workflow_root, sanitize_identifier
 except ImportError:
-    from scaffolder import get_workflow_root, sanitize_identifier, reconcile_gitkeep
+    from scaffolder import get_workflow_root, sanitize_identifier
 
 
 # ==============================================================================
@@ -426,9 +426,6 @@ def audit_codebase(
 
     with open(report_file, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
-
-    if report_dir:
-        reconcile_gitkeep(report_dir)
 
     results["report_file"] = report_file
     return results

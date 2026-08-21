@@ -12,10 +12,10 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 try:
-    from scaffolder import get_workflow_root, reconcile_gitkeep
+    from scaffolder import get_workflow_root
     from quality import sanitize_untrusted_text
 except ImportError:
-    from .scaffolder import get_workflow_root, reconcile_gitkeep
+    from .scaffolder import get_workflow_root
     from .quality import sanitize_untrusted_text
 
 
@@ -33,7 +33,6 @@ def get_memory_docs_dir(target_dir: str = ".") -> str:
     mem_dir = get_memory_dir(target_dir)
     docs_dir = os.path.join(mem_dir, "docs")
     os.makedirs(docs_dir, exist_ok=True)
-    reconcile_gitkeep(docs_dir)
     return docs_dir
 
 
@@ -77,8 +76,6 @@ def add_memory_doc(
 
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(header_content)
-
-    reconcile_gitkeep(docs_dir)
 
     return {
         "status": "CREATED",

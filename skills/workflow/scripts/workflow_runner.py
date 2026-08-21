@@ -17,8 +17,8 @@ from scaffolder import (
     archive_spec,
     get_workflow_root,
     sanitize_identifier,
-    reconcile_gitkeep,
-    reconcile_all_gitkeeps,
+    ensure_workflow_directories,
+    ensure_spec_directories,
 )
 from explorer import scan_codebase, generate_master_context
 from memory_manager import (
@@ -995,6 +995,9 @@ def main() -> int:
 
     handler = commands.get(args.subcommand)
     if handler:
+        target_dir = getattr(args, "target_dir", None) or getattr(args, "dir", None) or "."
+        if os.path.exists(os.path.join(os.path.abspath(target_dir), ".workflow")) or args.subcommand == "init":
+            ensure_workflow_directories(target_dir)
         return handler(args)
 
     parser.print_help()

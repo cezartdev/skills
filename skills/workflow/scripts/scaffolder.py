@@ -76,53 +76,71 @@ def atomic_write_json(file_path: str, data: Dict[str, Any]) -> None:
         raise e
 
 
+def ensure_workflow_directories(target_dir: str = ".") -> Dict[str, str]:
+    """Deterministically ensures and creates the entire canonical .workflow/ directory tree on disk."""
+    wf_root = get_workflow_root(target_dir)
+    directories = {
+        "root": wf_root,
+        "specs_active": os.path.join(wf_root, "specs", "active"),
+        "specs_archive": os.path.join(wf_root, "specs", "archive"),
+        "prs_active": os.path.join(wf_root, "prs", "active"),
+        "prs_archive": os.path.join(wf_root, "prs", "archive"),
+        "memory": os.path.join(wf_root, "memory"),
+        "memory_docs": os.path.join(wf_root, "memory", "docs"),
+        "worktrees": os.path.join(wf_root, "worktrees"),
+        "reports_security": os.path.join(wf_root, "reports", "security"),
+    }
+    for d in directories.values():
+        os.makedirs(d, exist_ok=True)
+    return directories
+
+
+def ensure_spec_directories(spec_dir: str) -> Dict[str, str]:
+    """Deterministically ensures and creates issues/ and adrs/ folders inside a specification directory."""
+    spec_dir = os.path.abspath(spec_dir)
+    dirs = {
+        "spec_dir": spec_dir,
+        "issues": os.path.join(spec_dir, "issues"),
+        "adrs": os.path.join(spec_dir, "adrs"),
+    }
+    for d in dirs.values():
+        os.makedirs(d, exist_ok=True)
+    return dirs
+
+
 def ensure_dir_with_gitkeep(dir_path: str) -> str:
-    """Ensures directory exists and places an empty .gitkeep file so git preserves the directory structure."""
+    """Ensures directory exists on disk."""
     os.makedirs(dir_path, exist_ok=True)
-    reconcile_gitkeep(dir_path)
     return dir_path
 
 
 def reconcile_gitkeep(dir_path: str) -> None:
-    """Ensures .gitkeep is deleted if directory contains real files/dirs, or restored if completely empty."""
+    """Removes any stale .gitkeep files; folders are created directly as real directories."""
     if not os.path.exists(dir_path) or not os.path.isdir(dir_path):
         return
     gitkeep_file = os.path.join(dir_path, ".gitkeep")
-    entries = [e for e in os.listdir(dir_path) if e != ".gitkeep"]
-    if len(entries) > 0:
-        if os.path.exists(gitkeep_file):
-            try:
-                os.remove(gitkeep_file)
-            except OSError:
-                pass
-    else:
-        if not os.path.exists(gitkeep_file):
-            try:
-                with open(gitkeep_file, "w", encoding="utf-8") as f:
-                    f.write("")
-            except OSError:
-                pass
+    if os.path.exists(gitkeep_file):
+        try:
+            os.remove(gitkeep_file)
+        except OSError:
+            pass
 
 
 def reconcile_all_gitkeeps(target_dir: str = ".") -> int:
-    """Recursively walks .workflow/ tree and reconciles .gitkeep files across all folders:
-    - Removes .gitkeep if folder contains other real files or subdirectories.
-    - Adds .gitkeep if folder is completely empty.
-    Returns the number of reconciled directories.
-    """
+    """Removes any legacy .gitkeep files across the entire .workflow/ hierarchy."""
     target_dir = os.path.abspath(target_dir)
     wf_root = get_workflow_root(target_dir)
     if not os.path.exists(wf_root) or not os.path.isdir(wf_root):
         return 0
 
     count = 0
-    # Walk bottom-up so leaf directories are reconciled first
-    for root, dirs, files in os.walk(wf_root, topdown=False):
-        rel = os.path.relpath(root, target_dir)
-        if "worktrees" in rel.split(os.sep) or ".git" in rel.split(os.sep):
-            continue
-        reconcile_gitkeep(root)
-        count += 1
+    for root, _, files in os.walk(wf_root):
+        if ".gitkeep" in files:
+            try:
+                os.remove(os.path.join(root, ".gitkeep"))
+                count += 1
+            except OSError:
+                pass
 
     return count
 
@@ -290,23 +308,16 @@ def ensure_gitignore_configured(target_dir: str = ".") -> Dict[str, Any]:
 
 
 def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) -> Dict[str, Any]:
-    """Initializes encapsulated .workflow structure in target directory with .gitkeep placeholders."""
+    """Initializes encapsulated .workflow directory structure in target directory without .gitkeep files."""
     target_dir = os.path.abspath(target_dir)
-    wf_root = get_workflow_root(target_dir)
+    wf_dirs = ensure_workflow_directories(target_dir)
+    wf_root = wf_dirs["root"]
     assets_dir = get_skill_assets_dir()
 
-    # 1. Create .workflow/specs/ directory with active/ and archive/ placeholders
     specs_dir = os.path.join(wf_root, "specs")
-    os.makedirs(specs_dir, exist_ok=True)
-    active_specs_dir = os.path.join(specs_dir, "active")
-    archive_specs_dir = os.path.join(specs_dir, "archive")
-    ensure_dir_with_gitkeep(active_specs_dir)
-    ensure_dir_with_gitkeep(archive_specs_dir)
-
-    # 2. Create clean .workflow/memory/ directory with docs/ subfolder and workflow_methodology.md
-    memory_dir = os.path.join(wf_root, "memory")
-    os.makedirs(memory_dir, exist_ok=True)
-    ensure_dir_with_gitkeep(os.path.join(memory_dir, "docs"))
+    active_specs_dir = wf_dirs["specs_active"]
+    archive_specs_dir = wf_dirs["specs_archive"]
+    memory_dir = wf_dirs["memory"]
 
     methodology_file = os.path.join(memory_dir, "workflow_methodology.md")
     methodology_created = False
@@ -326,14 +337,7 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
     context_file = generate_master_context(target_dir)
     pref_file = os.path.join(memory_dir, "coding_preferences.md")
 
-    # 4. Create .workflow/prs/ catalog with .gitkeep (active, archive)
     prs_dir = os.path.join(wf_root, "prs")
-    ensure_dir_with_gitkeep(os.path.join(prs_dir, "active"))
-    ensure_dir_with_gitkeep(os.path.join(prs_dir, "archive"))
-
-    # 5. Create .workflow/worktrees/ placeholder
-    worktrees_dir = os.path.join(wf_root, "worktrees")
-    os.makedirs(worktrees_dir, exist_ok=True)
 
     # 6. Determine test runner dynamically via polyglot scan
     if not test_runner_cmd:
@@ -374,18 +378,16 @@ def scaffold_new_spec(
     archetype: Optional[str] = None,
     target_dir: str = "."
 ) -> Dict[str, Any]:
-    """Creates a new spec directory under .workflow/specs/active/<spec_name>/."""
+    """Creates a new spec directory under .workflow/specs/active/<spec_name>/ with issues/ and adrs/."""
     target_dir = os.path.abspath(target_dir)
-    wf_root = get_workflow_root(target_dir)
+    wf_dirs = ensure_workflow_directories(target_dir)
+    wf_root = wf_dirs["root"]
     assets_dir = get_skill_assets_dir()
 
     clean_name = sanitize_identifier(spec_name)
-    active_specs_dir = os.path.join(wf_root, "specs", "active")
+    active_specs_dir = wf_dirs["specs_active"]
     spec_dir = os.path.join(active_specs_dir, clean_name)
-    issues_dir = os.path.join(spec_dir, "issues")
-    adrs_dir = os.path.join(spec_dir, "adrs")
-    ensure_dir_with_gitkeep(issues_dir)
-    ensure_dir_with_gitkeep(adrs_dir)
+    ensure_spec_directories(spec_dir)
 
     # 1. Create spec.md from assets/spec.template.md
     spec_file = os.path.join(spec_dir, "spec.md")
@@ -399,7 +401,6 @@ def scaffold_new_spec(
     with open(spec_file, "w", encoding="utf-8") as f:
         f.write(spec_content)
 
-    reconcile_gitkeep(active_specs_dir)
     ensure_gitignore_configured(target_dir)
 
     return {
@@ -412,7 +413,9 @@ def scaffold_new_spec(
 
 def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
     """Moves a completed spec folder into .workflow/specs/archive/<year>/<spec_name>/."""
-    wf_root = get_workflow_root(target_dir)
+    target_dir = os.path.abspath(target_dir)
+    wf_dirs = ensure_workflow_directories(target_dir)
+    wf_root = wf_dirs["root"]
     specs_root = os.path.join(wf_root, "specs")
     clean_name = sanitize_identifier(spec_name)
 
@@ -449,10 +452,7 @@ def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
         safe_rmtree(archive_dest)
 
     shutil.move(found_src, archive_dest)
-
-    reconcile_gitkeep(os.path.join(specs_root, "active"))
-    reconcile_gitkeep(os.path.join(specs_root, "archive"))
-    reconcile_gitkeep(os.path.dirname(archive_dest))
+    ensure_workflow_directories(target_dir)
 
     return {
         "status": "ARCHIVED",
@@ -520,7 +520,7 @@ def scaffold_spec_tasks(spec_name: str, target_dir: str = ".") -> Dict[str, Any]
             f.write(content)
         tasks_created = True
 
-    existing_issues = sorted([f for f in os.listdir(issues_dir) if f.endswith(".md") and f != ".gitkeep"])
+    existing_issues = sorted([f for f in os.listdir(issues_dir) if f.endswith(".md")])
     if not existing_issues:
         tasks = [
             ("001_domain_models.md", "Domain Models & Schema Setup", "Implement required domain types, data models, and validation schemas."),
@@ -532,8 +532,7 @@ def scaffold_spec_tasks(spec_name: str, target_dir: str = ".") -> Dict[str, Any]
             content = f"# Issue: {title}\n\nTarget Spec: `{clean_name}`\n\n## Description\n{desc}\n\n## Tasks\n- [ ] Implement code changes according to specification and technical plan.\n- [ ] Run test suite and ensure 100% green exit code.\n"
             with open(task_path, "w", encoding="utf-8") as f:
                 f.write(content)
-        existing_issues = sorted([f for f in os.listdir(issues_dir) if f.endswith(".md") and f != ".gitkeep"])
-        reconcile_gitkeep(issues_dir)
+        existing_issues = sorted([f for f in os.listdir(issues_dir) if f.endswith(".md")])
 
     return {
         "status": "SUCCESS",

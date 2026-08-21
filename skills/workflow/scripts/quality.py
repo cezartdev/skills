@@ -12,11 +12,11 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 try:
-    from .scaffolder import reconcile_gitkeep, reconcile_all_gitkeeps
+    from .scaffolder import ensure_workflow_directories, ensure_spec_directories
     from .git_ops import scan_pre_commit_security
     from .security_auditor import audit_codebase
 except ImportError:
-    from scaffolder import reconcile_gitkeep, reconcile_all_gitkeeps
+    from scaffolder import ensure_workflow_directories, ensure_spec_directories
     from git_ops import scan_pre_commit_security
     from security_auditor import audit_codebase
 
@@ -225,8 +225,6 @@ def compile_scoped_pr_summary(
     with open(pr_file_path, "w", encoding="utf-8") as f:
         f.write(content)
 
-    reconcile_gitkeep(prs_active_dir)
-
     return {
         "status": "SUCCESS",
         "pr_title": pr_title,
@@ -313,8 +311,6 @@ def generate_spec_adr(
     with open(adr_path, "w", encoding="utf-8") as f:
         f.write(adr_content)
 
-    reconcile_gitkeep(adrs_dir)
-
     return {
         "status": "SUCCESS",
         "adr_path": adr_path,
@@ -388,8 +384,6 @@ def generate_specify_adr(
     adr_content = "\n".join(lines)
     with open(adr_path, "w", encoding="utf-8") as f:
         f.write(adr_content)
-
-    reconcile_gitkeep(adrs_dir)
 
     return {
         "status": "SUCCESS",
@@ -501,8 +495,6 @@ def archive_merged_pr(pr_filename: str, target_dir: str = ".") -> Dict[str, Any]
     destination = os.path.join(archive_dir, pr_filename)
 
     shutil.move(active_path, destination)
-    reconcile_gitkeep(os.path.join(wf_root, "prs", "active"))
-    reconcile_gitkeep(archive_dir)
 
     return {
         "status": "ARCHIVED",
