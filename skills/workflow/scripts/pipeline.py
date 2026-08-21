@@ -403,7 +403,7 @@ class PipelineRunner:
                     "stage": "Stage 1 (Implement)",
                     "type": "workflow-implement-worker",
                     "role": "Implement Subagent",
-                    "prompt_file": "skills/workflow/references/prompts/implement.prompt.md",
+                    "prompt_file": "skills/workflow/references/prompts/implement_worker.prompt.md",
                     "action": f"define_subagent(name='workflow-implement-worker', description='Feature & SDD/TDD Engineer', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-implement-worker', 'Role': 'Implement Subagent', 'Prompt': 'Build out spec requirements and task issues for {clean_spec} in {wt_path}. Follow TDD Red-Green cycle and zero-comments policy.'}}])",
                 },
                 {

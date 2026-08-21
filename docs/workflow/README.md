@@ -197,15 +197,15 @@ uv run skills/workflow/scripts/workflow_runner.py pr \
 ### 9. Native Subagent Archetypes & Dedicated System Prompts
 When `/workflow run <spec>` is executed, the AI Agent registers and launches 7 specialized subagents via native agent tools (`define_subagent` and `invoke_subagent`), each with its own role, function, and personality:
 
-| Subagent Type | Specialist Role | System Prompt Reference | Key Function |
+| Subagent Type | Subagent Role | System Prompt Reference | Key Function |
 |---|---|---|---|
-| `workflow-implement-worker` | **Implementer Specialist** | `references/prompts/implement.prompt.md` | Builds out core domain models, specifications, and initial test files following TDD Red-Green principles. |
-| `workflow-fix-worker` | **Fix-Worker Specialist** | `references/prompts/fix.prompt.md` | Diagnoses test failures, writes reproduction tests (Red Phase), and fixes bugs to 100% green tests. |
-| `workflow-refactor-worker` | **Refactor-Worker Specialist** | `references/prompts/refactor.prompt.md` | Eliminates code smells, reduces cognitive complexity, strips redundant comments, and preserves 100% green tests. |
-| `workflow-security-worker` | **Cybersecurity Specialist** | `references/prompts/security_worker.prompt.md` | Scans OWASP Top 10 SAST patterns, secret leaks, and dependency CVEs. |
-| `workflow-quality-worker` | **Quality Assurance Specialist** | `references/prompts/quality.prompt.md` | Evaluates holistic quality score (100/100, zero comments, security clearance), writes formal ADRs, and routes feedback loops. |
-| `workflow-doc-worker` | **Doc-Worker Specialist** | `references/prompts/doc_sync.prompt.md` | Synchronizes markdown documentation, README files, API schemas, and `spec.md` acceptance criteria checkboxes. |
-| `workflow-git-worker` | **Git-Worker Specialist** | `references/prompts/git_worker.prompt.md` | Conducts interactive Grilling Sessions (`ask_question`) with developer before commits/pushes, executing deterministic Conventional Commits and PRs. Local commits only by default unless `--push` is provided. |
+| `workflow-implement-worker` | **Implement Subagent** | `references/prompts/implement_worker.prompt.md` | Builds out core domain models, specifications, and initial test files following TDD Red-Green principles. |
+| `workflow-fix-worker` | **Fix Subagent** | `references/prompts/fix_worker.prompt.md` | Diagnoses test failures, writes reproduction tests (Red Phase), and fixes bugs to 100% green tests. |
+| `workflow-refactor-worker` | **Refactor Subagent** | `references/prompts/refactor_worker.prompt.md` | Eliminates code smells, reduces cognitive complexity, strips redundant comments, and preserves 100% green tests. |
+| `workflow-security-worker` | **Security Subagent** | `references/prompts/security_worker.prompt.md` | Scans OWASP Top 10 SAST patterns, secret leaks, and dependency CVEs. |
+| `workflow-quality-worker` | **Quality Subagent** | `references/prompts/quality_worker.prompt.md` | Evaluates holistic quality score (100/100, zero comments, security clearance), writes formal ADRs, and routes feedback loops. |
+| `workflow-doc-worker` | **Doc Subagent** | `references/prompts/doc_worker.prompt.md` | Synchronizes markdown documentation, README files, API schemas, and `spec.md` acceptance criteria checkboxes. |
+| `workflow-git-worker` | **Git Subagent** | `references/prompts/git_worker.prompt.md` | Conducts interactive Grilling Sessions (`ask_question`) with developer before commits/pushes, executing deterministic Conventional Commits and PRs. Local commits only by default unless `--push` is provided. |
 
 ### 10. Strict Hierarchical Worktrees & Subagent Branch Scoping
 Every physical worktree is **strictly dependent on and scoped to a specification and its designated subagent**:

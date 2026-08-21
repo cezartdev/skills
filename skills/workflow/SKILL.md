@@ -36,7 +36,7 @@ metadata:
 > 3. **Deterministic 7-Stage Multi-Subagent Pipeline**: When triggering `/workflow run <spec>`, the AI Agent MUST NOT execute all stages in a single monolithic turn. Instead, the AI Agent MUST:
 >    - First run `uv run skills/workflow/scripts/workflow_runner.py run <spec>` to initialize and sync the physical worktree (`.workflow/worktrees/<spec>/worker/`).
 >    - Define the 7 specialized subagent types using `define_subagent` (reading their system prompts from `skills/workflow/references/prompts/`):
->      * `workflow-implement-worker` (System prompt: `references/prompts/implement.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-implement-worker` (System prompt: `references/prompts/implement_worker.prompt.md`, `enable_write_tools=True`)
 >      * `workflow-fix-worker` (System prompt: `references/prompts/fix_worker.prompt.md`, `enable_write_tools=True`)
 >      * `workflow-refactor-worker` (System prompt: `references/prompts/refactor_worker.prompt.md`, `enable_write_tools=True`)
 >      * `workflow-security-worker` (System prompt: `references/prompts/security_worker.prompt.md`, `enable_write_tools=True`)
@@ -102,7 +102,7 @@ skills/workflow/
 │       ├── plan.prompt.md            # Technical design engineer prompt (plan.md)
 │       ├── tasks.prompt.md           # Task breakdown specialist prompt (tasks.md & issues/)
 │       ├── analyze.prompt.md         # Static consistency auditor prompt
-│       ├── implement.prompt.md       # Implementation worker prompt (implement-worker)
+│       ├── implement_worker.prompt.md # Implementation worker prompt (implement-worker)
 │       ├── explorer.prompt.md        # Codebase discovery scout prompt (explorer-specialist)
 │       ├── fix_worker.prompt.md      # BugFix & Auto-Heal prompt (fix-worker)
 │       ├── refactor_worker.prompt.md # Architecture & code health prompt (refactor-worker)
@@ -116,7 +116,7 @@ skills/workflow/
     ├── plan.template.md              # Technical Design Plan template (architecture & schemas)
     ├── tasks.template.md             # Atomic Task Breakdown template
     ├── issue.template.md             # Atomic TDD Issue template (Red -> Green -> Refactor)
-    ├── memory_00.template.md         # Initial master context template
+    ├── memory.template.md            # Initial master context template
     └── workflow_methodology.template.md # Methodology guide template
 ```
 
