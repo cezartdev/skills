@@ -208,11 +208,11 @@ def cmd_init(args: argparse.Namespace) -> int:
     print(f"{'Memory Catalog':<24} │ {res['memory_dir']} (workflow_methodology.md, coding_preferences.md, project_context.md, docs/)")
     print(f"{'PRs Catalog':<24} │ {res['prs_dir']} (active, archive)")
     if res.get("gitignore_created"):
-        print(f"{'Gitignore Status':<24} │ Created .gitignore (worktrees/worker ignored)")
+        print(f"{'Gitignore Status':<24} │ Created .gitignore (.workflow/worktrees/ ignored)")
     elif res.get("gitignore_updated"):
-        print(f"{'Gitignore Status':<24} │ Updated .gitignore (worktrees/worker ignored)")
+        print(f"{'Gitignore Status':<24} │ Updated .gitignore (.workflow/worktrees/ ignored)")
     else:
-        print(f"{'Gitignore Status':<24} │ Verified (worktrees/worker ignored)")
+        print(f"{'Gitignore Status':<24} │ Verified (.workflow/worktrees/ ignored)")
     print("=" * 110)
 
     print("\nℹ️  AI Agent Interactive Question Directive:")
@@ -222,7 +222,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     print_next_steps([
         {"cmd": "/workflow explore", "desc": "Survey polyglot stack & update context"},
         {"cmd": "/workflow new <spec-name>", "desc": "Scaffold your first feature specification"},
-        {"cmd": "/workflow run <spec-name>", "desc": "Run 6-stage sequential subagent pipeline"},
+        {"cmd": "/workflow run <spec-name>", "desc": "Run 7-stage sequential subagent pipeline"},
     ])
     return 0
 
@@ -587,7 +587,7 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    """Executes the deterministic 6-stage sequential subagent pipeline for a spec."""
+    """Executes the deterministic 7-stage sequential subagent pipeline for a spec."""
     target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
     spec_name = getattr(args, "spec_name", None) or getattr(args, "spec", None) or getattr(args, "spec_dir", None)
 
@@ -777,7 +777,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 
     print_next_steps([
         {"cmd": "/workflow new <spec-name>", "desc": "Scaffold a new feature specification"},
-        {"cmd": "/workflow run <spec-name>", "desc": "Execute 6-stage Quality pipeline"},
+        {"cmd": "/workflow run <spec-name>", "desc": "Execute 7-stage Quality pipeline"},
     ])
     return 0
 

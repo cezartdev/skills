@@ -47,7 +47,7 @@ from graph.pipeline_graph import create_pipeline_graph
 
 
 class PipelineRunner:
-    """Orchestrates the deterministic 6-stage multi-worker pipeline governed by Quality Gatekeeper."""
+    """Orchestrates the deterministic 7-stage multi-worker pipeline governed by Quality Gatekeeper."""
 
     def __init__(self, target_dir: str = "."):
         self.target_dir = os.path.abspath(target_dir)

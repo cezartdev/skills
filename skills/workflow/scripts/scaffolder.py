@@ -175,7 +175,7 @@ def inject_agent_rules(target_dir: str = ".") -> Dict[str, Any]:
 All AI coding agents working in this repository MUST adhere to the following mandatory workflow directives:
 
 1. **Skill Execution & References**: Always invoke workflow CLI commands using `uv run` (e.g. `uv run skills/workflow/scripts/workflow_runner.py <subcommand>` or `uv run .agents/skills/workflow/scripts/workflow_runner.py <subcommand>`). Refer to `skills/workflow/SKILL.md` (or `.agents/skills/workflow/SKILL.md`) and `skills/workflow/references/ARCHITECTURE.md`.
-2. **Methodology Invariants**: Thoroughly read `.workflow/memory/workflow_methodology.md` to understand the Spec-Driven Development (SDD), Test-Driven Development (TDD), and 6-stage Quality Gatekeeper pipeline.
+2. **Methodology Invariants**: Thoroughly read `.workflow/memory/workflow_methodology.md` to understand the Spec-Driven Development (SDD), Test-Driven Development (TDD), and 7-stage Quality Gatekeeper pipeline.
 3. **Project Context & Coding Preferences**: Inspect `.workflow/memory/project_context.md` for tech stack runtimes and `.workflow/memory/coding_preferences.md` for linters, naming conventions, and style rules before modifying any code.
 4. **Active Specifications**: In-flight feature specifications and atomic TDD tasks reside under `.workflow/specs/active/<spec-name>/`.
 5. **Architectural Decisions (ADRs)**: Consult and record all architectural decisions in `.workflow/specs/active/<spec-name>/adrs/`.
@@ -232,14 +232,12 @@ This document establishes the mandatory operating standards, execution workflow,
 
 
 def ensure_gitignore_configured(target_dir: str = ".") -> Dict[str, Any]:
-    """Analyzes .gitignore in the workspace, creates it if missing, and ensures worktrees/worker are ignored."""
+    """Analyzes .gitignore in the workspace, creates it if missing, and ensures ephemeral worktrees and logs are ignored."""
     target_dir = os.path.abspath(target_dir)
     gitignore_path = os.path.join(target_dir, ".gitignore")
 
     needed_entries = [
         ".workflow/worktrees/",
-        ".workflow/worktrees/**/worker/",
-        "worktrees/worker/",
         ".workflow/logs/",
     ]
 
@@ -251,6 +249,18 @@ def ensure_gitignore_configured(target_dir: str = ".") -> Dict[str, Any]:
         try:
             with open(gitignore_path, "r", encoding="utf-8") as f:
                 content = f.read()
+
+            # If root .workflow/ is already ignored, all nested paths are already ignored
+            lines = [line.strip() for line in content.splitlines()]
+            if ".workflow/" in lines or ".workflow" in lines:
+                return {
+                    "status": "SUCCESS",
+                    "gitignore_path": gitignore_path,
+                    "created": False,
+                    "updated": False,
+                    "entries_added": [],
+                }
+
             for entry in needed_entries:
                 if entry not in content:
                     added_entries.append(entry)
