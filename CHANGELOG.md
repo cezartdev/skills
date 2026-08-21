@@ -1,5 +1,35 @@
 # cezartdev-skills
 
+## 1.13.0
+
+### Minor Changes
+
+- [`0cfc038`](https://github.com/cezartdev/skills/commit/0cfc038f8ea342aa219a11e1c9c45715dafbb508) Thanks [@cezartdev](https://github.com/cezartdev)! - feat(workflow): implement context command to manage business domain knowledge in project_context.md
+
+- [`badc5d1`](https://github.com/cezartdev/skills/commit/badc5d12d83965937ed0c71e700b7bd8c07e9abf) Thanks [@cezartdev](https://github.com/cezartdev)! - feat(workflow): align SDD lifecycle with GitHub Spec-Kit standard (specify, clarify, plan, tasks, analyze)
+
+- [`76c1ae7`](https://github.com/cezartdev/skills/commit/76c1ae781101626759b52f12bbe56da35ef48a4e) Thanks [@cezartdev](https://github.com/cezartdev)! - feat(workflow): enhance explore command and explorer specialist to automatically detect and ingest CONTEXT.md, AGENTS.md, CLAUDE.md, copilot-instructions.md, GEMINI.md, PRODUCT.md, DESIGN.md, and CODING_STANDARDS.md into project memory
+
+### Patch Changes
+
+- [`992359a`](https://github.com/cezartdev/skills/commit/992359aa6e2eeb6ec5fa3d6eda6534ee8b16415c) Thanks [@cezartdev](https://github.com/cezartdev)! - feat(workflow): integrate implementer archetype as Stage 1 and streamline obsolete commands
+
+- [`dc18d01`](https://github.com/cezartdev/skills/commit/dc18d0153c90cd36bbe3299bca1dfe4b1adcf9cc) Thanks [@cezartdev](https://github.com/cezartdev)! - refactor(workflow): standardize Subagent for workers and Specialist for commands, rename worker prompt files, and add subagent dispatch directives across all commands
+
+- [`738b569`](https://github.com/cezartdev/skills/commit/738b5693ddd278e9510d78aaf37ab3ccea323de2) Thanks [@cezartdev](https://github.com/cezartdev)! - fix(workflow): clean up gitignore generator to only include encapsulated .workflow/ paths
+
+- [`488647b`](https://github.com/cezartdev/skills/commit/488647bb4ffc09b24d6f8546debf092876b88ff9) Thanks [@cezartdev](https://github.com/cezartdev)! - refactor(workflow): remove obsolete state.json and workflow.json in favor of pure markdown architecture
+
+- [`2206f75`](https://github.com/cezartdev/skills/commit/2206f75e3b0d634881558fdac6659bd87d060364) Thanks [@cezartdev](https://github.com/cezartdev)! - fix(workflow): format all suggested next steps exclusively as clean /workflow slash commands
+
+- [`7b8c1ca`](https://github.com/cezartdev/skills/commit/7b8c1ca0f70ab2af7e4ab2236a3a4ea7212c8dea) Thanks [@cezartdev](https://github.com/cezartdev)! - refactor(workflow): remove obsolete check command in favor of analyze
+
+- [`3e1f401`](https://github.com/cezartdev/skills/commit/3e1f40163fcd1032c7b722396c6b710807477b4e) Thanks [@cezartdev](https://github.com/cezartdev)! - refactor(workflow): rename implement_worker.prompt.md and memory.template.md for consistent layout naming
+
+- [`52b7aa3`](https://github.com/cezartdev/skills/commit/52b7aa321fbc304087ad5401fc85049051d8bf59) Thanks [@cezartdev](https://github.com/cezartdev)! - docs(workflow): rename OWASP_TOP_10.md, harmonize subagent worker nomenclature, and polish workflow references and standalone tooling
+
+- [`8f5490e`](https://github.com/cezartdev/skills/commit/8f5490e526969c5a24488be3b84cbefa624fc92e) Thanks [@cezartdev](https://github.com/cezartdev)! - refactor(workflow): streamline user-facing CLI commands to essential SDD and pipeline lifecycle, removing redundant low-level subcommands
+
 ## 1.12.0
 
 ### Minor Changes
