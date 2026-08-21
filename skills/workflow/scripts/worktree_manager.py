@@ -151,32 +151,30 @@ def resolve_worktree_path(
 
     # Sanitize inputs to prevent path traversal
     if spec_name:
-        clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
-        clean_worker = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename((worker_name or name).rstrip("/\\"))).strip("-._").lower() or "worker"
+        clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(str(spec_name).rstrip("/\\"))).strip("-._").lower() or "spec"
+        clean_worker = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(str(worker_name or name).rstrip("/\\"))).strip("-._").lower() or "worker"
         candidate = os.path.join(sandbox_base, clean_spec, clean_worker)
     else:
-        name_clean = name.replace("\\", "/").strip("/")
-        if name_clean.startswith(".workflow/worktrees/"):
-            name_clean = name_clean.replace(".workflow/worktrees/", "")
+        name_str = str(name).replace("\\", "/")
+        if ".workflow/worktrees/" in name_str:
+            name_str = name_str.split(".workflow/worktrees/")[-1]
         
-        parts = [re.sub(r"[^a-zA-Z0-9_.-]+", "-", p).strip("-._").lower() for p in name_clean.split("/") if p]
+        parts = [re.sub(r"[^a-zA-Z0-9_.-]+", "-", p).strip("-._").lower() for p in name_str.split("/") if p and p not in (".", "..")]
         if not parts:
-            parts = ["unnamed"]
+            parts = ["unnamed", "worker"]
+        elif len(parts) == 1:
+            parts = [parts[0], "worker"]
         
-        if len(parts) == 1:
-            # Check if exists as flat directory or hierarchical
-            flat_cand = os.path.join(sandbox_base, parts[0])
-            hier_cand = os.path.join(sandbox_base, parts[0], parts[0])
-            if os.path.exists(flat_cand) and not os.path.exists(hier_cand):
-                candidate = flat_cand
-            else:
-                candidate = hier_cand
-        else:
-            candidate = os.path.join(sandbox_base, *parts)
+        candidate = os.path.join(sandbox_base, *parts)
 
-    # Strict Sandbox Security Validation
+    # Strict Sandbox Security Validation: Must be a sub-path strictly inside sandbox_base
     resolved = os.path.realpath(candidate)
-    if not (resolved == sandbox_base or resolved.startswith(sandbox_base + os.sep)):
+    try:
+        common = os.path.commonpath([resolved, sandbox_base])
+    except ValueError:
+        raise ValueError(f"Security sandbox violation: Path '{resolved}' is on a different drive than '{sandbox_base}'.")
+
+    if common != sandbox_base or resolved == sandbox_base or not resolved.startswith(sandbox_base + os.sep):
         raise ValueError(f"Security sandbox violation: Path '{resolved}' is outside allowed worktrees directory '{sandbox_base}'.")
 
     return resolved
@@ -418,21 +416,23 @@ def sync_worktree_with_base(
     if not os.path.exists(worktree_path):
         return {"status": "NOT_FOUND", "worktree_path": worktree_path}
 
-    # 1. Fetch from remotes if configured
-    run_git(["fetch", "--all"], cwd=repo_dir)
+    # 1. Fetch latest refs from remotes if remote origin exists
+    remotes_check = run_git(["remote"], cwd=repo_dir)
+    if remotes_check.returncode == 0 and remotes_check.stdout.strip():
+        run_git(["fetch", "--all"], cwd=repo_dir)
 
     # 2. Dynamically resolve base branch
     target_ref = base_branch or get_default_branch(repo_dir)
 
-    # 3. Execute safe rebase inside worktree
-    rebase_res = run_git(["rebase", target_ref], cwd=worktree_path)
-    if rebase_res.returncode != 0:
-        # Abort rebase to maintain pristine working tree state
-        run_git(["rebase", "--abort"], cwd=worktree_path)
+    # 3. Execute safe non-destructive merge inside worktree (no history rewriting)
+    merge_res = run_git(["merge", "--no-edit", target_ref], cwd=worktree_path)
+    if merge_res.returncode != 0:
+        # Abort merge to maintain pristine working tree state on conflict
+        run_git(["merge", "--abort"], cwd=worktree_path)
         return {
             "status": "CONFLICT",
-            "message": f"Conflict detected while rebasing worktree onto '{target_ref}'. Rebase aborted safely.",
-            "error": rebase_res.stderr.strip() or rebase_res.stdout.strip(),
+            "message": f"Conflict detected while merging base branch '{target_ref}' into worktree. Merge aborted safely.",
+            "error": merge_res.stderr.strip() or merge_res.stdout.strip(),
             "worktree_path": worktree_path,
             "base_branch": target_ref,
         }

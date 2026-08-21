@@ -28,6 +28,13 @@ except ImportError:
     from scaffolder import get_workflow_root
 
 
+ALLOWED_TEST_EXECUTABLES = {
+    "pnpm", "npm", "npx", "yarn", "bun", "uv", "pytest", "python", "python3",
+    "cargo", "go", "mvn", "gradle", "dotnet", "vitest", "jest", "deno",
+    "composer", "mvnw", "gradlew", "make", "task", "turbo"
+}
+
+
 def safe_run_test_command(test_cmd: str, cwd: str, timeout: int = 120) -> Tuple[int, str, str]:
     """Executes a test command safely without shell=True, sanitizing tokens and resolving binaries."""
     if not test_cmd or test_cmd.strip() == "true":
@@ -41,16 +48,27 @@ def safe_run_test_command(test_cmd: str, cwd: str, timeout: int = 120) -> Tuple[
     if not args:
         return 0, "", ""
 
-    # Security check: Disallow shell chaining operators
-    forbidden_tokens = {";", "&&", "||", "|", "`", "$", ">", "<"}
+    # Security check: Disallow shell chaining operators and redirection
+    forbidden_tokens = {";", "&&", "||", "|", "`", "$", ">", "<", "\n", "\r"}
     for arg in args:
         if any(tok in arg for tok in forbidden_tokens):
             return 1, "", f"Security error: Command contains forbidden shell operators: '{arg}'"
 
+    raw_exe = os.path.basename(args[0].lower()).replace(".exe", "")
+    if raw_exe not in ALLOWED_TEST_EXECUTABLES:
+        # Check if it starts with one of the allowed runners (e.g. ./mvnw or node_modules/.bin/vitest)
+        if not any(raw_exe.endswith(allowed) for allowed in ALLOWED_TEST_EXECUTABLES):
+            return 1, "", f"Security restriction: '{args[0]}' is not in the approved test runner whitelist."
+
     executable = args[0]
     resolved_bin = shutil.which(executable)
     if not resolved_bin:
-        return 1, "", f"Test runner binary '{executable}' not found in PATH."
+        # Try finding in target working directory
+        local_bin = os.path.abspath(os.path.join(cwd, executable))
+        if os.path.exists(local_bin) and os.access(local_bin, os.X_OK):
+            resolved_bin = local_bin
+        else:
+            return 1, "", f"Test runner binary '{executable}' not found in PATH or project directory."
 
     args[0] = resolved_bin
 
@@ -348,8 +366,9 @@ def node_pr_delivery(state: Dict[str, Any]) -> Dict[str, Any]:
     target_base = state["target_base"]
     pr_file = state.get("pr_summary", {}).get("pr_file", f".workflow/prs/active/PR_spec_{spec_name}.md")
 
-    suggested_gh = f"gh pr create --head {worker_branch} --base {target_base} --title \"feat({spec_name}): integrate automated pipeline improvements\" --body-file \"{pr_file}\""
-    suggested_git = f"git checkout {target_base} && git merge --no-ff {worker_branch}"
+    title_str = f"feat({spec_name}): integrate automated pipeline improvements"
+    suggested_gh = f"gh pr create --head {shlex.quote(worker_branch)} --base {shlex.quote(target_base)} --title {shlex.quote(title_str)} --body-file {shlex.quote(pr_file)}"
+    suggested_git = f"git checkout {shlex.quote(target_base)} && git merge --no-ff {shlex.quote(worker_branch)}"
 
     return {
         **state,

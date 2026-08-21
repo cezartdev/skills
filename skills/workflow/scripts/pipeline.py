@@ -17,6 +17,7 @@ import json
 import time
 import shutil
 import subprocess
+import shlex
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -293,6 +294,12 @@ class PipelineRunner:
             if pr_res.get("success"):
                 pr_url = pr_res.get("url")
 
+        pr_title_val = pr_summary.get("pr_title", f"feat({clean_spec}): integrate automated pipeline improvements")
+        pr_body_val = pr_summary.get("pr_file_path", "")
+        suggested_push = f"git push -u origin {shlex.quote(worker_branch)}"
+        suggested_gh = f"gh pr create --head {shlex.quote(worker_branch)} --base {shlex.quote(target_base)} --title {shlex.quote(pr_title_val)} --body-file {shlex.quote(pr_body_val)}"
+        suggested_git = f"git checkout {shlex.quote(target_base)} && git merge --no-ff {shlex.quote(worker_branch)}"
+
         return {
             "stage": "7_git_worker",
             "status": "READY_FOR_GRILLING_CONFIRMATION",
@@ -301,6 +308,9 @@ class PipelineRunner:
             "push_status": push_status,
             "auto_merge_status": merge_status,
             "pr_url": pr_url,
+            "suggested_push_command": suggested_push,
+            "suggested_gh_command": suggested_gh,
+            "suggested_git_merge": suggested_git,
         }
 
     def run_pipeline(

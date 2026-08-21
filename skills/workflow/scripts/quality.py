@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import shlex
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -452,8 +453,9 @@ def create_quality_pr(
     head_branch = f"{clean_spec}-worker" if clean_spec else "worker"
     base_branch = target_branch or (f"feat/{clean_spec}" if clean_spec else "main")
 
-    suggested_gh = f"gh pr create --head {head_branch} --base {base_branch} --title \"{pr_res.get('pr_title')}\" --body-file \"{pr_file_path}\""
-    suggested_git = f"git checkout {base_branch} && git merge --no-ff {head_branch}"
+    pr_title_val = pr_res.get("pr_title", "")
+    suggested_gh = f"gh pr create --head {shlex.quote(head_branch)} --base {shlex.quote(base_branch)} --title {shlex.quote(pr_title_val)} --body-file {shlex.quote(pr_file_path or '')}"
+    suggested_git = f"git checkout {shlex.quote(base_branch)} && git merge --no-ff {shlex.quote(head_branch)}"
 
     pr_url = None
     status = "PR_COMPILED"
