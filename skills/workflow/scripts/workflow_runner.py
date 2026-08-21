@@ -28,7 +28,7 @@ from memory_manager import (
     update_project_business_context,
     read_project_business_context,
 )
-from worktree_manager import prune_worktrees, run_git
+from worktree_manager import prune_worktrees, run_git, ensure_git_repository
 from quality_auditor import audit_spec, audit_plan, audit_tasks, analyze_spec_consistency
 from quality import generate_specify_adr
 from pipeline import PipelineRunner
@@ -996,6 +996,7 @@ def main() -> int:
     handler = commands.get(args.subcommand)
     if handler:
         target_dir = getattr(args, "target_dir", None) or getattr(args, "dir", None) or "."
+        ensure_git_repository(target_dir)
         if os.path.exists(os.path.join(os.path.abspath(target_dir), ".workflow")) or args.subcommand == "init":
             ensure_workflow_directories(target_dir)
         return handler(args)

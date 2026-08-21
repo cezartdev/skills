@@ -10,8 +10,10 @@ from datetime import datetime
 
 try:
     from .explorer import scan_codebase, generate_master_context, generate_coding_preferences
+    from .worktree_manager import ensure_git_repository, create_spec_branch
 except ImportError:
     from explorer import scan_codebase, generate_master_context, generate_coding_preferences
+    from worktree_manager import ensure_git_repository, create_spec_branch
 
 
 import stat
@@ -310,6 +312,7 @@ def ensure_gitignore_configured(target_dir: str = ".") -> Dict[str, Any]:
 def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) -> Dict[str, Any]:
     """Initializes encapsulated .workflow directory structure in target directory without .gitkeep files."""
     target_dir = os.path.abspath(target_dir)
+    ensure_git_repository(target_dir)
     wf_dirs = ensure_workflow_directories(target_dir)
     wf_root = wf_dirs["root"]
     assets_dir = get_skill_assets_dir()
@@ -378,13 +381,16 @@ def scaffold_new_spec(
     archetype: Optional[str] = None,
     target_dir: str = "."
 ) -> Dict[str, Any]:
-    """Creates a new spec directory under .workflow/specs/active/<spec_name>/ with issues/ and adrs/."""
+    """Ensures .git repo exists, creates branch feat/<spec_name>, and scaffolds spec folder with issues/ and adrs/."""
     target_dir = os.path.abspath(target_dir)
+    ensure_git_repository(target_dir)
+    clean_name = sanitize_identifier(spec_name)
+    branch_res = create_spec_branch(clean_name, target_dir=target_dir)
+
     wf_dirs = ensure_workflow_directories(target_dir)
     wf_root = wf_dirs["root"]
     assets_dir = get_skill_assets_dir()
 
-    clean_name = sanitize_identifier(spec_name)
     active_specs_dir = wf_dirs["specs_active"]
     spec_dir = os.path.join(active_specs_dir, clean_name)
     ensure_spec_directories(spec_dir)
@@ -408,6 +414,8 @@ def scaffold_new_spec(
         "spec_name": clean_name,
         "spec_dir": spec_dir,
         "spec_file": spec_file,
+        "branch_name": branch_res.get("branch_name", f"feat/{clean_name}"),
+        "branch_status": branch_res.get("status", "BRANCH_READY"),
     }
 
 

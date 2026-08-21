@@ -82,26 +82,45 @@ def is_protected_branch(branch_name: str) -> bool:
 
 
 def ensure_git_repository(repo_dir: str = ".") -> Dict[str, Any]:
-    """Ensures target directory is a valid Git repository with at least one commit on HEAD."""
+    """Ensures target directory is a valid Git repository without creating any commits."""
     repo_dir = os.path.abspath(repo_dir)
     res = run_git(["rev-parse", "--is-inside-work-tree"], cwd=repo_dir)
     initialized = False
-    initial_commit_created = False
 
     if res.returncode != 0:
-        run_git(["init", "-b", "main"], cwd=repo_dir)
+        init_res = run_git(["init", "-b", "main"], cwd=repo_dir)
+        if init_res.returncode != 0:
+            run_git(["init"], cwd=repo_dir)
         initialized = True
-
-    head_check = run_git(["rev-parse", "--verify", "HEAD"], cwd=repo_dir)
-    if head_check.returncode != 0:
-        run_git(["commit", "--allow-empty", "-m", "chore: initialize repository"], cwd=repo_dir)
-        initial_commit_created = True
 
     return {
         "status": "READY",
         "initialized": initialized,
-        "initial_commit_created": initial_commit_created,
         "default_branch": get_default_branch(repo_dir),
+    }
+
+
+def create_spec_branch(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
+    """Ensures git repository exists and creates or activates feat/<spec_name> branch without making commits."""
+    target_dir = os.path.abspath(target_dir)
+    ensure_git_repository(target_dir)
+    clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
+    branch_name = f"feat/{clean_spec}"
+
+    head_check = run_git(["rev-parse", "--verify", "HEAD"], cwd=target_dir)
+    if head_check.returncode == 0:
+        # Commits exist on HEAD
+        branch_check = run_git(["rev-parse", "--verify", f"refs/heads/{branch_name}"], cwd=target_dir)
+        if branch_check.returncode != 0:
+            run_git(["branch", branch_name], cwd=target_dir)
+    else:
+        # No commits exist yet on a fresh git init repo (unborn HEAD)
+        run_git(["symbolic-ref", "HEAD", f"refs/heads/{branch_name}"], cwd=target_dir)
+
+    return {
+        "status": "BRANCH_READY",
+        "branch_name": branch_name,
+        "spec_name": clean_spec,
     }
 
 
@@ -211,6 +230,9 @@ def create_worktree(
     """Creates a physical git worktree under .workflow/worktrees/<branch_name>/<worker_name> with its isolated branch."""
     repo_dir = os.path.abspath(repo_dir)
     ensure_git_repository(repo_dir)
+    head_check = run_git(["rev-parse", "--verify", "HEAD"], cwd=repo_dir)
+    if head_check.returncode != 0:
+        run_git(["commit", "--allow-empty", "-m", "chore: initialize repository"], cwd=repo_dir)
     wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
 
     # 1. Resolve spec/branch and worker name
