@@ -30,7 +30,7 @@ from worktree_manager import (
     ensure_git_repository,
     sync_worktree_with_base,
 )
-from scaffolder import get_workflow_root, reconcile_gitkeep
+from scaffolder import get_workflow_root, reconcile_gitkeep, ensure_gitignore_configured
 from quality import (
     compile_scoped_pr_summary,
     generate_spec_adr,
@@ -86,6 +86,9 @@ class PipelineRunner:
 
     def run_stage_sync(self, spec_name: str) -> Dict[str, Any]:
         """Stage 0: Prepares isolated worktree, detects protected branches, and rebases staging branch."""
+        # 0. Analyze and configure .gitignore to ignore worktrees/worker artifacts
+        ensure_gitignore_configured(self.target_dir)
+
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         worker_branch = f"{clean_spec}-worker"
 

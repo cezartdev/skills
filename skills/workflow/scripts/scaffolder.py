@@ -231,6 +231,54 @@ This document establishes the mandatory operating standards, execution workflow,
     }
 
 
+def ensure_gitignore_configured(target_dir: str = ".") -> Dict[str, Any]:
+    """Analyzes .gitignore in the workspace, creates it if missing, and ensures worktrees/worker are ignored."""
+    target_dir = os.path.abspath(target_dir)
+    gitignore_path = os.path.join(target_dir, ".gitignore")
+
+    needed_entries = [
+        ".workflow/worktrees/",
+        ".workflow/worktrees/**/worker/",
+        "worktrees/worker/",
+        ".workflow/logs/",
+    ]
+
+    existed = os.path.exists(gitignore_path)
+    created = False
+    added_entries = []
+
+    if existed:
+        try:
+            with open(gitignore_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            for entry in needed_entries:
+                if entry not in content:
+                    added_entries.append(entry)
+            if added_entries:
+                with open(gitignore_path, "a", encoding="utf-8") as f:
+                    if content and not content.endswith("\n"):
+                        f.write("\n")
+                    f.write("\n# Workflow Ephemeral Worktrees & Artifacts\n" + "\n".join(added_entries) + "\n")
+        except Exception as e:
+            return {"status": "ERROR", "message": str(e), "path": gitignore_path}
+    else:
+        try:
+            with open(gitignore_path, "w", encoding="utf-8") as f:
+                f.write("# Workflow Ephemeral Worktrees & Artifacts\n" + "\n".join(needed_entries) + "\n")
+            created = True
+            added_entries = needed_entries[:]
+        except Exception as e:
+            return {"status": "ERROR", "message": str(e), "path": gitignore_path}
+
+    return {
+        "status": "SUCCESS",
+        "gitignore_path": gitignore_path,
+        "created": created,
+        "updated": len(added_entries) > 0,
+        "entries_added": added_entries,
+    }
+
+
 def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) -> Dict[str, Any]:
     """Initializes encapsulated .workflow structure in target directory with .gitkeep placeholders."""
     target_dir = os.path.abspath(target_dir)
@@ -339,22 +387,8 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
             })
         config_created = True
 
-    # 8. Add .workflow/worktrees to .gitignore if not present
-    gitignore_path = os.path.join(target_dir, ".gitignore")
-    gitignore_updated = False
-    if os.path.exists(gitignore_path):
-        with open(gitignore_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        needed_entries = [".workflow/worktrees/", ".workflow/logs/"]
-        to_add = [e for e in needed_entries if e not in content]
-        if to_add:
-            with open(gitignore_path, "a", encoding="utf-8") as f:
-                f.write("\n# Workflow Ephemeral Artifacts\n" + "\n".join(to_add) + "\n")
-            gitignore_updated = True
-    else:
-        with open(gitignore_path, "w", encoding="utf-8") as f:
-            f.write("# Workflow Ephemeral Artifacts\n.workflow/worktrees/\n.workflow/logs/\n")
-        gitignore_updated = True
+    # 8. Analyze and configure .gitignore
+    gitignore_res = ensure_gitignore_configured(target_dir)
 
     # 9. Inject agent rules & pointers into AGENTS.md, CLAUDE.md, etc.
     rules_injection = inject_agent_rules(target_dir)
@@ -375,7 +409,9 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
         "config_file": config_file,
         "test_runner": test_cmd,
         "config_created": config_created,
-        "gitignore_updated": gitignore_updated,
+        "gitignore_updated": gitignore_res.get("updated", False),
+        "gitignore_created": gitignore_res.get("created", False),
+        "gitignore_entries_added": gitignore_res.get("entries_added", []),
         "rules_injection": rules_injection,
     }
 
@@ -432,6 +468,7 @@ def scaffold_new_spec(
     atomic_write_json(state_file, initial_state)
 
     reconcile_gitkeep(active_specs_dir)
+    ensure_gitignore_configured(target_dir)
 
     return {
         "status": "SUCCESS",

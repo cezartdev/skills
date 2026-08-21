@@ -199,6 +199,12 @@ def cmd_init(args: argparse.Namespace) -> int:
     print(f"{'Specs Directory':<24} │ {res['specs_dir']} (active/ & archive/)")
     print(f"{'Memory Catalog':<24} │ {res['memory_dir']} (workflow_methodology.md, coding_preferences.md, project_context.md, docs/)")
     print(f"{'PRs Catalog':<24} │ {res['prs_dir']} (active, archive)")
+    if res.get("gitignore_created"):
+        print(f"{'Gitignore Status':<24} │ Created .gitignore (worktrees/worker ignored)")
+    elif res.get("gitignore_updated"):
+        print(f"{'Gitignore Status':<24} │ Updated .gitignore (worktrees/worker ignored)")
+    else:
+        print(f"{'Gitignore Status':<24} │ Verified (worktrees/worker ignored)")
     print("=" * 110)
 
     print("\nℹ️  AI Agent Interactive Question Directive:")
@@ -208,7 +214,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     print_next_steps([
         {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Survey polyglot stack & update context"},
         {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold your first feature specification"},
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py run <spec-name>", "desc": "Run 4-stage sequential subagent pipeline"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py run <spec-name>", "desc": "Run 6-stage sequential subagent pipeline"},
     ])
     return 0
 
