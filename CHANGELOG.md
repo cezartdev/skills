@@ -1,5 +1,17 @@
 # cezartdev-skills
 
+## 1.14.0
+
+### Minor Changes
+
+- [`5997e51`](https://github.com/cezartdev/skills/commit/5997e516da47b91aacd34c1899903644f931cb85) Thanks [@cezartdev](https://github.com/cezartdev)! - feat(workflow): implement deterministic code auto-formatter, granular pipeline control, git checkpoints, and reactive task sync
+  
+  - Add `formatter_manager.py` with polyglot support for Biome, Prettier, Ruff, rustfmt, and gofmt.
+  - Add `--only <stage>`, `--from <stage>`, and `--dry-run` simulation flags to `/workflow run`.
+  - Add ephemeral Git staging checkpoints and automated rollback in `worktree_manager.py`.
+  - Add real-time task and acceptance criteria checkbox synchronization in `quality_auditor.py`.
+  - Guarantee deterministic default branch `feat/<spec>` with zero grilling on `/workflow new`.
+
 ## 1.13.0
 
 ### Minor Changes
