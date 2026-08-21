@@ -8,7 +8,7 @@ Statically verify that no contradictions, omissions, or architectural drift exis
 ---
 
 ## 🔬 Static Consistency Audit Rules
-When executing `/workflow analyze <spec-name>` (or `/workflow check <spec-name>`):
+When executing `/workflow analyze <spec-name>`:
 
 1. **Cross-Layer Integrity Checks**:
    - **Spec vs. Constitution**: Ensure requirements don't violate principles in `workflow_methodology.md` or `coding_preferences.md`.

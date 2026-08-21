@@ -650,11 +650,6 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     return 0 if res["passed"] else 1
 
 
-def cmd_check(args: argparse.Namespace) -> int:
-    """Alias for cmd_analyze (Pre-Execution Quality Gate)."""
-    return cmd_analyze(args)
-
-
 def cmd_run(args: argparse.Namespace) -> int:
     """Executes the deterministic 7-stage sequential subagent pipeline for a spec."""
     target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
@@ -1228,7 +1223,6 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Convert approved spec.md into technical design (plan.md)"},
         {"slash": "/workflow tasks", "syntax": "workflow tasks <name>", "desc": "Decompose technical plan into atomic tasks (tasks.md & issues/)"},
         {"slash": "/workflow analyze", "syntax": "workflow analyze <name>", "desc": "Auditoría previa: static consistency audit across spec, plan & tasks"},
-        {"slash": "/workflow check", "syntax": "workflow check <name>", "desc": "Alias for /workflow analyze (Quality Gate 100/100)"},
         {"slash": "/workflow security", "syntax": "workflow security [spec] [--json]", "desc": "Run OWASP Top 10 SAST, secret leak & dependency CVE audit"},
         {"slash": "/workflow audit-deps", "syntax": "workflow audit-deps [dir]", "desc": "Audit project package manifests for known CVEs"},
         {"slash": "/workflow quality", "syntax": "workflow quality [spec] [--create-pr]", "desc": "Quality Gatekeeper: audit quality score & OWASP report, generate ADR"},
@@ -1330,11 +1324,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_ana.add_argument("spec_name", help="Path or shorthand name of the spec")
     p_ana.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
-    # check (alias to analyze)
-    p_chk = subparsers.add_parser("check", help="Alias for /workflow analyze (Pre-Execution Quality Gate)")
-    p_chk.add_argument("spec_dir", help="Path or shorthand name of the spec")
-    p_chk.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
-
     # security
     p_sec = subparsers.add_parser("security", help="Run OWASP Top 10 SAST, secret leak, and dependency vulnerability audit")
     p_sec.add_argument("spec_name", nargs="?", default=None, help="Target specification name")
@@ -1432,7 +1421,6 @@ def main() -> int:
         "plan": cmd_plan,
         "tasks": cmd_tasks,
         "analyze": cmd_analyze,
-        "check": cmd_check,
         "security": cmd_security,
         "audit-deps": cmd_audit_deps,
         "quality": cmd_quality,

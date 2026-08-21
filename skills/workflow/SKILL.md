@@ -32,7 +32,7 @@ metadata:
 >    - **`clarify`** (`/workflow clarify <name>`): Ambiguity Checkpoint detecting omissions and conducting a 1-by-1 Socratic interview using `ask_question`, writing an ADR in `.workflow/specs/active/<name>/adrs/ADR_<timestamp>_clarifications.md`.
 >    - **`plan`** (`/workflow plan <name>`): Convert approved `spec.md` into technical design (`plan.md`) defining data models, DB schemas, interfaces, library selection, and architecture.
 >    - **`tasks`** (`/workflow tasks <name>`): Decompose `plan.md` into ordered atomic tasks in `tasks.md` and individual issue files under `.workflow/specs/active/<name>/issues/`.
->    - **`analyze`** (`/workflow analyze <name>`, alias `/workflow check <name>`): Static consistency audit comparing Constitution/Memory, `spec.md`, `plan.md`, and `tasks.md`, scoring 0-100 before code execution.
+>    - **`analyze`** (`/workflow analyze <name>`): Static consistency audit comparing Constitution/Memory, `spec.md`, `plan.md`, and `tasks.md`, scoring 0-100 before code execution.
 > 3. **Deterministic 7-Stage Multi-Subagent Pipeline**: When triggering `/workflow run <spec>`, the AI Agent MUST NOT execute all stages in a single monolithic turn. Instead, the AI Agent MUST:
 >    - First run `uv run skills/workflow/scripts/workflow_runner.py run <spec>` to initialize and sync the physical worktree (`.workflow/worktrees/<spec>/worker/`).
 >    - Define the 7 specialized subagent types using `define_subagent` (reading their system prompts from `skills/workflow/references/prompts/`):
@@ -135,7 +135,6 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 | `/workflow plan` | `workflow plan <spec>` | Convert approved `spec.md` into technical design (`plan.md`) |
 | `/workflow tasks` | `workflow tasks <spec>` | Decompose technical plan into atomic tasks (`tasks.md` & `issues/`) |
 | `/workflow analyze` | `workflow analyze <spec>` | Auditoría previa: static consistency audit across spec, plan & tasks |
-| `/workflow check` | `workflow check <spec>` | Alias for `/workflow analyze` (Pre-Execution Quality Gate 100/100) |
 | `/workflow security` | `workflow security [spec] [--json]` | Run OWASP Top 10 SAST, secret leak & dependency CVE audit |
 | `/workflow audit-deps` | `workflow audit-deps [dir]` | Audit project package manifests for known CVEs |
 | `/workflow quality` | `workflow quality [spec] [--create-pr]` | Quality Gatekeeper: audit quality score & OWASP report, generate ADR |
