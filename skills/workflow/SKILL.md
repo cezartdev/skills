@@ -65,6 +65,7 @@ metadata:
 > 11. **Protected Branch Gate & Grilling on `main`/`master`**: When `/workflow run <spec>` is executed while the active branch is `main` or `master` (or protected branches), direct commits or pushes to `main` are **deterministically blocked**. The pipeline automatically creates and isolates the feature branch `feat/<spec>`. The AI Agent MUST conduct a grilling session using `ask_question` asking the developer to confirm their desired feature branch before any remote push or merge.
 > 12. **100% Self-Contained Skill & Zero External Skill Dependency**: The `workflow` skill is completely independent and contains internal tools for Git operations (`git_ops.py`), security scanning (`security_auditor.py`), and PR synthesis. AI Agents MUST NEVER invoke external skills (e.g. `skills/git/`) from within the workflow harness.
 > 13. **Default Security Gate (Local Commits by Default)**: By default, all pipeline runs stop after the local commit inside the worktree. Autonomous subagents and CLI commands MUST NOT push to remote `origin` or open public PRs unless the explicit `--push` flag was provided (e.g. `/workflow run <spec> --push`) or the human developer explicitly authorizes remote push during the interactive grilling session.
+> 14. **Clean Slash Command Suggestions (`/workflow <subcommand>`)**: When displaying suggested next steps or recommending follow-up actions to the developer in chat or CLI output, AI Agents MUST ALWAYS format them as clean slash commands (e.g., `/workflow explore`, `/workflow new <spec-name>`, `/workflow specify <spec-name>`, `/workflow plan <spec-name>`, `/workflow run <spec-name>`). Never present raw internal script paths (e.g. `uv run skills/workflow/scripts/workflow_runner.py ...`) as suggested user steps.
 
 ---
 
@@ -74,14 +75,12 @@ metadata:
 skills/workflow/
 ├── SKILL.md                          # [REQUIRED] Skill specification & agent prompt instructions
 ├── pyproject.toml                    # [OPTIONAL] Python dependencies managed via uv
-├── scripts/                          # [OPTIONAL] Executable automation code & launchers
+├── scripts/                          # [OPTIONAL] Executable automation code & runners
 │   ├── workflow_runner.py            # Central CLI entry point with Smart Path Resolver
 │   ├── pipeline.py                   # Deterministic 6-stage Quality pipeline runner
 │   ├── security_auditor.py           # Deterministic OWASP Top 10 SAST, secret scanner & dependency CVE auditor
 │   ├── quality.py                    # Quality Gatekeeper, holistic evaluator & ADR generator
 │   ├── git_ops.py                    # Self-contained Git engine, security gates & Conventional Commits
-│   ├── workflow.ps1                  # Windows PowerShell launcher with auto-bootstrap
-│   ├── workflow.sh                   # Linux/macOS POSIX shell launcher
 │   ├── scaffolder.py                 # Scaffolds .workflow/ structure & specs from assets/
 │   ├── explorer.py                   # Polyglot codebase stack & test runner scanner
 │   ├── drift_detector.py             # Manifest checksums & tech drift anomaly detector

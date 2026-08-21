@@ -48,13 +48,21 @@ from graph.engine import WorkflowEngine
 
 
 def print_next_steps(suggestions: List[Dict[str, str]]) -> None:
-    """Renders actionable subsequent CLI commands in a styled border box."""
+    """Renders actionable subsequent /workflow slash commands in a styled border box."""
     if not suggestions:
         return
     print("\n💡 SUGGESTED NEXT STEPS")
     print("-" * 110)
     for s in suggestions:
-        print(f"  👉 {s['cmd']:<70} │ {s['desc']}")
+        cmd = s.get("cmd", "").strip()
+        if "workflow_runner.py" in cmd:
+            idx = cmd.find("workflow_runner.py")
+            sub_part = cmd[idx + len("workflow_runner.py"):].strip()
+            cmd = f"/workflow {sub_part}".strip()
+        elif not cmd.startswith("/workflow"):
+            if not cmd.startswith("git ") and not cmd.startswith("gh "):
+                cmd = f"/workflow {cmd}".strip()
+        print(f"  👉 {cmd:<70} │ {s['desc']}")
     print("=" * 110)
 
 
@@ -212,9 +220,9 @@ def cmd_init(args: argparse.Namespace) -> int:
     print("   Candidates: pytest, cargo test, go test ./..., pnpm test")
 
     print_next_steps([
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Survey polyglot stack & update context"},
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold your first feature specification"},
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py run <spec-name>", "desc": "Run 6-stage sequential subagent pipeline"},
+        {"cmd": "/workflow explore", "desc": "Survey polyglot stack & update context"},
+        {"cmd": "/workflow new <spec-name>", "desc": "Scaffold your first feature specification"},
+        {"cmd": "/workflow run <spec-name>", "desc": "Run 6-stage sequential subagent pipeline"},
     ])
     return 0
 
@@ -242,8 +250,8 @@ def cmd_explore(args: argparse.Namespace) -> int:
     print("=" * 110)
 
     print_next_steps([
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py memory list", "desc": "Inspect generated coding preferences & project context"},
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a new feature specification"},
+        {"cmd": "/workflow memory list", "desc": "Inspect generated coding preferences & project context"},
+        {"cmd": "/workflow new <spec-name>", "desc": "Scaffold a new feature specification"},
     ])
     return 0
 
@@ -278,7 +286,7 @@ def cmd_drift(args: argparse.Namespace) -> int:
     print("=" * 110)
 
     print_next_steps([
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py drift --sync", "desc": "Reconcile drift and update project context"},
+        {"cmd": "/workflow drift --sync", "desc": "Reconcile drift and update project context"},
     ])
     return 0
 
@@ -326,8 +334,8 @@ def cmd_memory(args: argparse.Namespace) -> int:
             print("\nℹ️  No custom memory documentation notes found under .workflow/memory/docs/.")
 
         print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py memory add <title> --content \"...\"", "desc": "Add indexed note to memory/docs/"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py explore", "desc": "Re-survey stack and update project context"},
+            {"cmd": "/workflow memory add <title> --content \"...\"", "desc": "Add indexed note to memory/docs/"},
+            {"cmd": "/workflow explore", "desc": "Re-survey stack and update project context"},
         ])
         return 0
 
@@ -352,8 +360,8 @@ def cmd_memory(args: argparse.Namespace) -> int:
         print(f"{'File Path':<12} │ {res['path']}")
         print("=" * 110)
         print_next_steps([
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py memory show {res['index']:02d}", "desc": "View recorded memory note"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py memory list", "desc": "View full memory catalog"},
+            {"cmd": f"/workflow memory show {res['index']:02d}", "desc": "View recorded memory note"},
+            {"cmd": "/workflow memory list", "desc": "View full memory catalog"},
         ])
         return 0
 
@@ -407,8 +415,8 @@ def cmd_new(args: argparse.Namespace) -> int:
     print(f"   Candidates: (Recommended) feat/{spec_clean} | {spec_clean} | fix/{spec_clean} | refactor/{spec_clean}")
 
     print_next_steps([
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py specify {args.spec_name}", "desc": "Interactive Grilling Session to co-author spec"},
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py plan {args.spec_name}", "desc": "Decompose spec into atomic TDD task issues"},
+        {"cmd": f"/workflow specify {args.spec_name}", "desc": "Interactive Grilling Session to co-author spec"},
+        {"cmd": f"/workflow plan {args.spec_name}", "desc": "Decompose spec into atomic TDD task issues"},
     ])
     return 0
 
@@ -468,8 +476,8 @@ def cmd_specify(args: argparse.Namespace) -> int:
     print("=" * 110)
 
     print_next_steps([
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py check {spec_name}", "desc": "Verify 100/100 Quality Gate score"},
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py plan {spec_name}", "desc": "Decompose refined spec into task issues"},
+        {"cmd": f"/workflow check {spec_name}", "desc": "Verify 100/100 Quality Gate score"},
+        {"cmd": f"/workflow plan {spec_name}", "desc": "Decompose refined spec into task issues"},
     ])
     return 0
 
@@ -538,8 +546,8 @@ def cmd_plan(args: argparse.Namespace) -> int:
     print("=" * 110)
 
     print_next_steps([
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py check {data['spec_name']}", "desc": "Audit spec against Quality Gate"},
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py run {data['spec_name']}", "desc": "Execute LangGraph TDD DAG (Red -> Green -> Refactor)"},
+        {"cmd": f"/workflow check {data['spec_name']}", "desc": "Audit spec against Quality Gate"},
+        {"cmd": f"/workflow run {data['spec_name']}", "desc": "Execute LangGraph TDD DAG (Red -> Green -> Refactor)"},
     ])
     return 0
 
@@ -569,11 +577,11 @@ def cmd_check(args: argparse.Namespace) -> int:
 
     if res["passed"]:
         print_next_steps([
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py run {spec_name}", "desc": "Execute deterministic LangGraph TDD runner"},
+            {"cmd": f"/workflow run {spec_name}", "desc": "Execute deterministic LangGraph TDD runner"},
         ])
     else:
         print_next_steps([
-            {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py specify {spec_name}", "desc": "Refine missing criteria & edge cases"},
+            {"cmd": f"/workflow specify {spec_name}", "desc": "Refine missing criteria & edge cases"},
         ])
     return 0 if res["passed"] else 1
 
@@ -652,13 +660,13 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     if res.get("scheduled_interval"):
         print(f"\n⏰ Opt-In Recurring Daemon Registered: Runs every {res['scheduled_interval']}m (Fixed-Delay)")
-        print(f"   To stop: uv run skills/workflow/scripts/workflow_runner.py stop {res['spec_name']}")
+        print(f"   To stop: /workflow stop {res['spec_name']}")
 
     print_next_steps([
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py quality {res['spec_name']} --create-pr", "desc": "Evaluate quality gates and open pull request directly via gh CLI"},
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py security {res['spec_name']}", "desc": "Run OWASP Top 10 SAST and vulnerability audit"},
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py status", "desc": "Check active pipeline status & worktrees"},
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py archive {res['spec_name']}", "desc": "Archive completed specification when merged"},
+        {"cmd": f"/workflow quality {res['spec_name']} --create-pr", "desc": "Evaluate quality gates and open pull request directly via gh CLI"},
+        {"cmd": f"/workflow security {res['spec_name']}", "desc": "Run OWASP Top 10 SAST and vulnerability audit"},
+        {"cmd": "/workflow status", "desc": "Check active pipeline status & worktrees"},
+        {"cmd": f"/workflow archive {res['spec_name']}", "desc": "Archive completed specification when merged"},
     ])
     return 0
 
@@ -764,8 +772,8 @@ def cmd_status(args: argparse.Namespace) -> int:
     print("=" * 110)
 
     print_next_steps([
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a new feature specification"},
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py run <spec-name>", "desc": "Execute 6-stage Quality pipeline"},
+        {"cmd": "/workflow new <spec-name>", "desc": "Scaffold a new feature specification"},
+        {"cmd": "/workflow run <spec-name>", "desc": "Execute 6-stage Quality pipeline"},
     ])
     return 0
 
@@ -783,7 +791,7 @@ def cmd_stop(args: argparse.Namespace) -> int:
     print(f" 🛑 WORKFLOW WORKTREES RESET {'FOR ' + spec_name if spec_name else ''}")
     print("=" * 110)
     print_next_steps([
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py status", "desc": "Inspect active specs and worktrees"},
+        {"cmd": "/workflow status", "desc": "Inspect active specs and worktrees"},
     ])
     return 0
 
@@ -815,7 +823,7 @@ def cmd_clean(args: argparse.Namespace) -> int:
     print("=" * 110)
 
     print_next_steps([
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py status", "desc": "View clean status"},
+        {"cmd": "/workflow status", "desc": "View clean status"},
     ])
     return 0
 
@@ -838,8 +846,8 @@ def cmd_archive(args: argparse.Namespace) -> int:
         print("=" * 110)
 
         print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py quality", "desc": "Compile memory decisions into release PR"},
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <next-spec>", "desc": "Scaffold your next specification"},
+            {"cmd": "/workflow quality", "desc": "Compile memory decisions into release PR"},
+            {"cmd": "/workflow new <next-spec>", "desc": "Scaffold your next specification"},
         ])
     else:
         print(f"❌ Archive Error: {res.get('message')}")
@@ -890,8 +898,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
     print("=" * 110)
 
     print_next_steps([
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <name> --archetype feat", "desc": "Turn brainstormed idea into a feature spec"},
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py specify <name>", "desc": "Refine architectural decisions into spec.md"},
+        {"cmd": "/workflow new <name> --archetype feat", "desc": "Turn brainstormed idea into a feature spec"},
+        {"cmd": "/workflow specify <name>", "desc": "Refine architectural decisions into spec.md"},
     ])
     return 0
 
@@ -1013,8 +1021,8 @@ def cmd_quality(args: argparse.Namespace) -> int:
         print(f"   👉 Git Merge: {res.get('suggested_git_merge')}")
 
     print_next_steps([
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py quality {spec_name or '<spec>'} --create-pr", "desc": "Open pull request directly on GitHub via gh CLI"},
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py quality --archive {file_slug}", "desc": "Archive merged PR summary to history"},
+        {"cmd": f"/workflow quality {spec_name or '<spec>'} --create-pr", "desc": "Open pull request directly on GitHub via gh CLI"},
+        {"cmd": f"/workflow quality --archive {file_slug}", "desc": "Archive merged PR summary to history"},
     ])
     return 0
 
@@ -1128,7 +1136,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print(json.dumps({
             "status": "STREAMLINED",
             "message": "Background daemons upgraded to native subagent 6-stage pipeline runner.",
-            "pipeline_cmd": "uv run skills/workflow/scripts/workflow_runner.py run <spec>"
+            "pipeline_cmd": "/workflow run <spec>"
         }, indent=2))
         return 0
 
@@ -1136,10 +1144,10 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     print(" ℹ️  WORKFLOW SUBSYSTEM STREAMLINED")
     print("=" * 110)
     print("Background execution has been consolidated into the deterministic 6-Stage Quality Pipeline:")
-    print("  👉 uv run skills/workflow/scripts/workflow_runner.py run <spec-name>   │ Execute 6-stage pipeline in worktree")
-    print("  👉 uv run skills/workflow/scripts/workflow_runner.py status           │ Inspect active specs & worktrees")
-    print("  👉 uv run skills/workflow/scripts/workflow_runner.py worktree list    │ Manage isolated physical worktrees")
-    print("  👉 uv run skills/workflow/scripts/workflow_runner.py clean            │ Prune stale worktrees & locks")
+    print("  👉 /workflow run <spec-name>   │ Execute 6-stage pipeline in worktree")
+    print("  👉 /workflow status           │ Inspect active specs & worktrees")
+    print("  👉 /workflow worktree list    │ Manage isolated physical worktrees")
+    print("  👉 /workflow clean            │ Prune stale worktrees & locks")
     print("=" * 110)
     return 0
 
@@ -1189,7 +1197,7 @@ def cmd_worktree(args: argparse.Namespace) -> int:
         print("   Subagents dispatched to this worktree MUST execute exclusively within this isolated directory.")
 
     print_next_steps([
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py daemon status", "desc": "Check active daemon worktrees"},
+        {"cmd": "/workflow status", "desc": "Check active worktrees & specs"},
     ])
     return 0
 
