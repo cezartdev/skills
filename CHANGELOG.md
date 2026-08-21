@@ -1,5 +1,19 @@
 # cezartdev-skills
 
+## 1.12.0
+
+### Minor Changes
+
+- [`3e743af`](https://github.com/cezartdev/skills/commit/3e743aff455d8a984a2f5e0a041ec8619813f2f8) Thanks [@cezartdev](https://github.com/cezartdev)! - Add Cybersecurity Worker with OWASP Top 10 SAST auditor, dependency CVE scanner, and rename Orchestrator to Quality Gatekeeper in workflow skill.
+
+### Patch Changes
+
+- [`fc940e5`](https://github.com/cezartdev/skills/commit/fc940e5d0143f1ca235c566a6dec4b306ed21c37) Thanks [@cezartdev](https://github.com/cezartdev)! - feat(workflow): analyze and create .gitignore automatically with worktrees/worker ignore entries
+
+- [`d7dfdf3`](https://github.com/cezartdev/skills/commit/d7dfdf3a225882dc8045da32f513ff5a8500d186) Thanks [@cezartdev](https://github.com/cezartdev)! - feat(workflow): configure Git-Worker to stop at local commit by default with opt-in --push flag
+
+- [`622a86e`](https://github.com/cezartdev/skills/commit/622a86e6463db6855f36bfc583c1777a65eeb515) Thanks [@cezartdev](https://github.com/cezartdev)! - fix(workflow): harden security against command injection, prompt injection, sandboxing breakout, and pipe-to-shell URLs
+
 ## 1.11.1
 
 ### Patch Changes
