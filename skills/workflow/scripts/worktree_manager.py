@@ -144,42 +144,42 @@ def resolve_worktree_path(
     worker_name: Optional[str] = None,
     repo_dir: str = ".",
 ) -> str:
-    """Resolves hierarchical worktree directory path: .workflow/worktrees/<branch_name>/<worker_name>."""
+    """Resolves hierarchical worktree directory path within strict .workflow/worktrees sandbox."""
     repo_dir = os.path.abspath(repo_dir)
     wf_root = os.path.join(repo_dir, ".workflow") if os.path.basename(repo_dir) != ".workflow" else repo_dir
+    sandbox_base = os.path.realpath(os.path.join(wf_root, "worktrees"))
 
-    if os.path.isabs(name) and os.path.exists(name):
-        return name
-
-    name_clean = name.replace("\\", "/").strip("/")
-    if name_clean.startswith(".workflow/worktrees/"):
-        return os.path.join(repo_dir, name_clean)
-
+    # Sanitize inputs to prevent path traversal
     if spec_name:
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         clean_worker = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename((worker_name or name).rstrip("/\\"))).strip("-._").lower() or "worker"
-        return os.path.join(wf_root, "worktrees", clean_spec, clean_worker)
-
-    if "/" in name_clean:
+        candidate = os.path.join(sandbox_base, clean_spec, clean_worker)
+    else:
+        name_clean = name.replace("\\", "/").strip("/")
+        if name_clean.startswith(".workflow/worktrees/"):
+            name_clean = name_clean.replace(".workflow/worktrees/", "")
+        
         parts = [re.sub(r"[^a-zA-Z0-9_.-]+", "-", p).strip("-._").lower() for p in name_clean.split("/") if p]
-        return os.path.join(wf_root, "worktrees", *parts)
+        if not parts:
+            parts = ["unnamed"]
+        
+        if len(parts) == 1:
+            # Check if exists as flat directory or hierarchical
+            flat_cand = os.path.join(sandbox_base, parts[0])
+            hier_cand = os.path.join(sandbox_base, parts[0], parts[0])
+            if os.path.exists(flat_cand) and not os.path.exists(hier_cand):
+                candidate = flat_cand
+            else:
+                candidate = hier_cand
+        else:
+            candidate = os.path.join(sandbox_base, *parts)
 
-    clean_target = re.sub(r"[^a-zA-Z0-9_.-]+", "-", name_clean).strip("-._").lower()
+    # Strict Sandbox Security Validation
+    resolved = os.path.realpath(candidate)
+    if not (resolved == sandbox_base or resolved.startswith(sandbox_base + os.sep)):
+        raise ValueError(f"Security sandbox violation: Path '{resolved}' is outside allowed worktrees directory '{sandbox_base}'.")
 
-    # Search if hierarchical worktree exists under .workflow/worktrees/*/<clean_target>
-    base_wt_dir = os.path.join(wf_root, "worktrees")
-    if os.path.exists(base_wt_dir):
-        for root, dirs, files in os.walk(base_wt_dir):
-            if os.path.basename(root) == clean_target and root != base_wt_dir:
-                return root
-
-    # Check flat path for backward compatibility
-    flat_path = os.path.join(base_wt_dir, clean_target)
-    if os.path.exists(flat_path):
-        return flat_path
-
-    # Default hierarchical path: worktrees/<target>/<target>
-    return os.path.join(base_wt_dir, clean_target, clean_target)
+    return resolved
 
 
 def generate_branch_name(
@@ -334,7 +334,10 @@ def remove_worktree(
 ) -> Dict[str, Any]:
     """Removes a physical worktree and cleans up git references."""
     repo_dir = os.path.abspath(repo_dir)
-    worktree_dir = resolve_worktree_path(name, spec_name=spec_name, repo_dir=repo_dir)
+    try:
+        worktree_dir = resolve_worktree_path(name, spec_name=spec_name, repo_dir=repo_dir)
+    except ValueError as e:
+        return {"status": "SECURITY_ERROR", "error": str(e), "worktree_path": name}
 
     args = ["worktree", "remove", worktree_dir]
     if force:
@@ -364,7 +367,10 @@ def force_purge_worktree(
 ) -> Dict[str, Any]:
     """Anti-Zombie Deep Purge: forces removal of worktree, lockfiles, and git references."""
     repo_dir = os.path.abspath(repo_dir)
-    worktree_dir = resolve_worktree_path(name, spec_name=spec_name, repo_dir=repo_dir)
+    try:
+        worktree_dir = resolve_worktree_path(name, spec_name=spec_name, repo_dir=repo_dir)
+    except ValueError as e:
+        return {"status": "SECURITY_ERROR", "error": str(e), "worktree_path": name}
 
     # 1. Attempt standard git worktree remove with --force
     run_git(["worktree", "remove", "--force", worktree_dir], cwd=repo_dir)

@@ -20,6 +20,39 @@ except ImportError:
     from security_auditor import audit_codebase
 
 
+PROMPT_INJECTION_PATTERNS = [
+    r"(?i)\bignore\s+(?:all\s+)?(?:previous|prior|above)\s+instructions\b",
+    r"(?i)\bdisregard\s+(?:all\s+)?(?:previous|prior|above)\s+instructions\b",
+    r"(?i)\byou\s+are\s+now\b",
+    r"(?i)\bsystem\s+prompt\s*:",
+    r"(?i)\bassistant\s*:",
+    r"(?i)\bdeveloper\s+mode\b",
+    r"(?i)\bdo\s+anything\s+now\b",
+]
+
+
+def sanitize_untrusted_text(text: str, max_chars: int = 300) -> str:
+    """Sanitizes untrusted text by neutralizing prompt injections, control chars, and code block breakouts."""
+    if not text:
+        return ""
+    
+    # 1. Remove non-printable / control characters (except newline, tab, space)
+    sanitized = "".join(ch for ch in str(text) if ch.isprintable() or ch in ("\n", "\t", " "))
+    
+    # 2. Escape markdown breakouts (backticks and HTML comment delimiters)
+    sanitized = sanitized.replace("```", "'''").replace("<!--", "&lt;!--").replace("-->", "--&gt;")
+    
+    # 3. Neutralize common prompt injection payloads
+    for pattern in PROMPT_INJECTION_PATTERNS:
+        sanitized = re.sub(pattern, "[FILTERED_INSTRUCTION]", sanitized)
+        
+    # 4. Truncate to maximum length safely
+    if len(sanitized) > max_chars:
+        sanitized = sanitized[:max_chars].rstrip() + "..."
+        
+    return sanitized.strip()
+
+
 def get_workflow_root(target_dir: str = ".") -> str:
     """Returns absolute path to .workflow directory."""
     target_dir = os.path.abspath(target_dir)
@@ -50,6 +83,8 @@ def collect_memory_decisions(target_dir: str = ".") -> Dict[str, List[Dict[str, 
         if not os.path.isdir(spec_path):
             continue
 
+        clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", spec_name).strip("-._")
+
         adrs_dir = os.path.join(spec_path, "adrs")
         if os.path.exists(adrs_dir):
             for adr_file in os.listdir(adrs_dir):
@@ -78,12 +113,15 @@ def collect_memory_decisions(target_dir: str = ".") -> Dict[str, List[Dict[str, 
                                 title = line.replace("# ", "").strip()
                                 break
 
+                        clean_title = sanitize_untrusted_text(title, max_chars=100)
+                        clean_snippet = sanitize_untrusted_text(content, max_chars=250)
+
                         decisions[arch].append({
-                            "spec": spec_name,
+                            "spec": clean_spec,
                             "adr_file": adr_file,
                             "path": file_full_path,
-                            "title": title,
-                            "content_snippet": content[:300].strip(),
+                            "title": clean_title,
+                            "content_snippet": clean_snippet,
                             "timestamp": datetime.fromtimestamp(os.path.getmtime(file_full_path)).isoformat(),
                         })
                     except Exception:

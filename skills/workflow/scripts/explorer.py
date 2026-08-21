@@ -9,6 +9,39 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 
+PROMPT_INJECTION_PATTERNS = [
+    r"(?i)\bignore\s+(?:all\s+)?(?:previous|prior|above)\s+instructions\b",
+    r"(?i)\bdisregard\s+(?:all\s+)?(?:previous|prior|above)\s+instructions\b",
+    r"(?i)\byou\s+are\s+now\b",
+    r"(?i)\bsystem\s+prompt\s*:",
+    r"(?i)\bassistant\s*:",
+    r"(?i)\bdeveloper\s+mode\b",
+    r"(?i)\bdo\s+anything\s+now\b",
+]
+
+
+def sanitize_untrusted_text(text: str, max_chars: int = 300) -> str:
+    """Sanitizes untrusted text by neutralizing prompt injections, control chars, and code block breakouts."""
+    if not text:
+        return ""
+    
+    # 1. Remove non-printable / control characters (except newline, tab, space)
+    sanitized = "".join(ch for ch in str(text) if ch.isprintable() or ch in ("\n", "\t", " "))
+    
+    # 2. Escape markdown breakouts (backticks and HTML comment delimiters)
+    sanitized = sanitized.replace("```", "'''").replace("<!--", "&lt;!--").replace("-->", "--&gt;")
+    
+    # 3. Neutralize common prompt injection payloads
+    for pattern in PROMPT_INJECTION_PATTERNS:
+        sanitized = re.sub(pattern, "[FILTERED_INSTRUCTION]", sanitized)
+        
+    # 4. Truncate to maximum length safely
+    if len(sanitized) > max_chars:
+        sanitized = sanitized[:max_chars].rstrip() + "..."
+        
+    return sanitized.strip()
+
+
 def compute_file_hash(file_path: str) -> str:
     """Computes SHA-256 fingerprint for a given manifest file."""
     if not os.path.exists(file_path):
@@ -482,11 +515,16 @@ def scan_codebase(root_dir: str = ".") -> Dict[str, Any]:
     linters = detect_linters_and_formatters(root_dir)
     conventions = detect_codebase_conventions(root_dir)
 
+    clean_project_name = sanitize_untrusted_text(os.path.basename(root_dir), max_chars=80)
+    clean_languages = sanitize_untrusted_text(", ".join(list(dict.fromkeys(languages))), max_chars=120)
+    clean_frameworks = sanitize_untrusted_text(", ".join(list(dict.fromkeys(frameworks))) if frameworks else "Custom / Standard", max_chars=150)
+    clean_pkg_mgr = sanitize_untrusted_text(", ".join(list(dict.fromkeys(package_managers))), max_chars=100)
+
     return {
-        "project_name": os.path.basename(root_dir),
-        "languages": ", ".join(list(dict.fromkeys(languages))),
-        "frameworks": ", ".join(list(dict.fromkeys(frameworks))) if frameworks else "Custom / Standard",
-        "package_manager": ", ".join(list(dict.fromkeys(package_managers))),
+        "project_name": clean_project_name,
+        "languages": clean_languages,
+        "frameworks": clean_frameworks,
+        "package_manager": clean_pkg_mgr,
         "test_runner": primary_test_runner,
         "test_candidates": list(dict.fromkeys(test_candidates)),
         "has_explicit_test_script": has_explicit_test_script,

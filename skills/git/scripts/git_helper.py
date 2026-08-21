@@ -962,7 +962,7 @@ def cmd_check_env(as_json: bool = False) -> int:
     if uv_detected:
         print(f"uv Runner      : {uv_version} [DETECTED]")
     else:
-        print("uv Runner      : Not installed (optional, install with: curl -LsSf https://astral.sh/uv/install.sh | sh or 'winget install --id=astral-sh.uv -e')")
+        print("uv Runner      : Not installed (optional, install with: 'pip install uv' or 'winget install --id=astral-sh.uv -e')")
 
     print("=" * 70)
     print("All core runtime requirements checked.")

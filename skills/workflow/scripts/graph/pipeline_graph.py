@@ -9,7 +9,9 @@ import re
 import json
 import subprocess
 import time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
+import shlex
+import shutil
 from datetime import datetime
 
 try:
@@ -24,6 +26,49 @@ except ImportError:
     from quality import compile_scoped_pr_summary, generate_spec_adr
     from worktree_manager import create_worktree, sync_worktree_with_base, run_git, get_default_branch, get_current_branch, is_protected_branch
     from scaffolder import get_workflow_root
+
+
+def safe_run_test_command(test_cmd: str, cwd: str, timeout: int = 120) -> Tuple[int, str, str]:
+    """Executes a test command safely without shell=True, sanitizing tokens and resolving binaries."""
+    if not test_cmd or test_cmd.strip() == "true":
+        return 0, "No test runner configured; passing by default.", ""
+
+    try:
+        args = shlex.split(test_cmd.strip())
+    except Exception as e:
+        return 1, "", f"Invalid test command syntax: {str(e)}"
+
+    if not args:
+        return 0, "", ""
+
+    # Security check: Disallow shell chaining operators
+    forbidden_tokens = {";", "&&", "||", "|", "`", "$", ">", "<"}
+    for arg in args:
+        if any(tok in arg for tok in forbidden_tokens):
+            return 1, "", f"Security error: Command contains forbidden shell operators: '{arg}'"
+
+    executable = args[0]
+    resolved_bin = shutil.which(executable)
+    if not resolved_bin:
+        return 1, "", f"Test runner binary '{executable}' not found in PATH."
+
+    args[0] = resolved_bin
+
+    try:
+        proc = subprocess.run(
+            args,
+            shell=False,
+            cwd=os.path.abspath(cwd),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+        return proc.returncode, proc.stdout.strip(), proc.stderr.strip()
+    except subprocess.TimeoutExpired:
+        return 1, "", f"Test execution timed out after {timeout}s."
+    except Exception as e:
+        return 1, "", f"Execution failure: {str(e)}"
 
 
 def get_configured_test_command(target_dir: str) -> str:
@@ -49,7 +94,28 @@ def get_configured_test_command(target_dir: str) -> str:
         return "cargo test"
     elif os.path.exists(os.path.join(target_dir, "go.mod")):
         return "go test ./..."
-    return "true"
+    elif os.path.exists(os.path.join(target_dir, "pom.xml")):
+        return "mvn test"
+    elif os.path.exists(os.path.join(target_dir, "build.gradle")):
+        return "gradle test"
+    return "pytest"
+
+
+def safe_atomic_commit(
+    repo_dir: str,
+    ctype: str,
+    scope: str,
+    description: str,
+    body_bullets: List[str]
+) -> Dict[str, Any]:
+    """Wraps git_ops execute_atomic_commit with deterministic security validation."""
+    return execute_atomic_commit(
+        commit_type=ctype,
+        scope=scope,
+        message=description,
+        body_bullets=body_bullets,
+        target_dir=repo_dir,
+    )
 
 
 # ==============================================================================
@@ -108,40 +174,14 @@ def node_run_tests(state: Dict[str, Any]) -> Dict[str, Any]:
     wt_path = state["worktree_path"]
     test_cmd = get_configured_test_command(state["target_dir"])
 
-    if test_cmd == "true":
-        return {
-            **state,
-            "tests_pass": True,
-            "test_exit_code": 0,
-            "test_output": "No test runner configured; passing by default.",
-            "step": "TESTS_EVALUATED",
-        }
-
-    try:
-        proc = subprocess.run(
-            test_cmd,
-            shell=True,
-            cwd=wt_path,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=120,
-        )
-        tests_pass = (proc.returncode == 0)
-        output = (proc.stdout + "\n" + proc.stderr).strip()
-    except subprocess.TimeoutExpired:
-        tests_pass = False
-        proc = None
-        output = "Test execution timed out after 120s."
-    except Exception as e:
-        tests_pass = False
-        proc = None
-        output = f"Test execution error: {str(e)}"
+    code, stdout, stderr = safe_run_test_command(test_cmd, cwd=wt_path, timeout=120)
+    tests_pass = (code == 0)
+    output = (stdout + "\n" + stderr).strip()
 
     return {
         **state,
         "tests_pass": tests_pass,
-        "test_exit_code": proc.returncode if proc else 1,
+        "test_exit_code": code,
         "test_output": output[:2000],
         "step": "TESTS_EVALUATED",
     }
@@ -183,10 +223,10 @@ def node_refactor_gate(state: Dict[str, Any]) -> Dict[str, Any]:
     refactor_status = "REFACTOR_COMPLETE"
 
     if status_res.stdout.strip():
-        # Verify tests are still green after refactor
+        # Verify tests are still green after refactor safely without shell=True
         if test_cmd != "true":
-            proc = subprocess.run(test_cmd, shell=True, cwd=wt_path, capture_output=True, text=True, check=False)
-            if proc.returncode != 0:
+            code, _, _ = safe_run_test_command(test_cmd, cwd=wt_path, timeout=120)
+            if code != 0:
                 # Regressions detected! Rollback to maintain green state
                 run_git(["checkout", "--", "."], cwd=wt_path)
                 run_git(["clean", "-fd"], cwd=wt_path)
