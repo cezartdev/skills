@@ -6,7 +6,8 @@ import json
 import os
 import sys
 import subprocess
-from typing import Dict, Any, List, Optional
+import shutil
+from typing import Dict, Any, List, Optional, Tuple
 
 from scaffolder import (
     scaffold_init,
@@ -44,7 +45,6 @@ from git_ops import (
     scan_pre_commit_security,
 )
 from pipeline import PipelineRunner
-from graph.engine import WorkflowEngine
 
 
 def print_next_steps(suggestions: List[Dict[str, str]]) -> None:
@@ -202,7 +202,6 @@ def cmd_init(args: argparse.Namespace) -> int:
     print(f"{'PROPERTY':<24} │ VALUE")
     print("-" * 110)
     print(f"{'Workflow Root':<24} │ {res['workflow_dir']}")
-    print(f"{'Configuration':<24} │ {res['config_file']}")
     print(f"{'Test Runner':<24} │ {res['test_runner']}")
     print(f"{'Specs Directory':<24} │ {res['specs_dir']} (active/ & archive/)")
     print(f"{'Memory Catalog':<24} │ {res['memory_dir']} (workflow_methodology.md, coding_preferences.md, project_context.md, docs/)")
@@ -405,7 +404,6 @@ def cmd_new(args: argparse.Namespace) -> int:
     print(f"{'Spec Document':<24} │ {res['spec_file']}")
     print(f"{'Issues Directory':<24} │ {os.path.join(res['spec_dir'], 'issues')} (Clean, ready for /workflow plan)")
     print(f"{'ADRs Directory':<24} │ {os.path.join(res['spec_dir'], 'adrs')} (Decision audit trail)")
-    print(f"{'State Checkpoint':<24} │ {res['state_file']}")
     print(f"{'Default Branch':<24} │ feat/{spec_clean}")
     print(f"{'Hierarchical Worktree':<24} │ .workflow/worktrees/{spec_clean}/worker")
     print("=" * 110)
@@ -506,22 +504,6 @@ def cmd_plan(args: argparse.Namespace) -> int:
                 f.write(content)
         existing_issues = sorted([f for f in os.listdir(issues_dir) if f.endswith(".md")])
         reconcile_gitkeep(issues_dir)
-
-        # Update state.json with parsed issues
-        state_file = os.path.join(resolved_path, "state.json")
-        if os.path.exists(state_file):
-            try:
-                with open(state_file, "r", encoding="utf-8") as f:
-                    st = json.load(f)
-                st["issues"] = [
-                    {"issue_id": f.replace(".md", ""), "title": f.replace(".md", "").replace("_", " ").title(), "status": "PENDING", "tests_written": [], "files_modified": []}
-                    for f in existing_issues
-                ]
-                st["dag_step"] = "ISSUES_PLANNED"
-                with open(state_file, "w", encoding="utf-8") as f:
-                    json.dump(st, f, indent=2)
-            except Exception:
-                pass
 
     data = {
         "status": "SUCCESS",
@@ -715,19 +697,21 @@ def cmd_status(args: argparse.Namespace) -> int:
             if os.path.isdir(spec_path):
                 issues_dir = os.path.join(spec_path, "issues")
                 adrs_dir = os.path.join(spec_path, "adrs")
-                state_file = os.path.join(spec_path, "state.json")
                 
                 issues_count = len([f for f in os.listdir(issues_dir) if f.endswith(".md") and f != ".gitkeep"]) if os.path.exists(issues_dir) else 0
                 adrs_count = len([f for f in os.listdir(adrs_dir) if f.endswith(".md") and f != ".gitkeep"]) if os.path.exists(adrs_dir) else 0
                 
-                dag_step = "READY"
-                if os.path.exists(state_file):
-                    try:
-                        with open(state_file, "r", encoding="utf-8") as f:
-                            st = json.load(f)
-                            dag_step = st.get("dag_step", "READY")
-                    except Exception:
-                        pass
+                prs_active_dir = os.path.join(wf_root, "prs", "active")
+                has_pr = any(f.startswith(f"PR_spec_{name}_") for f in os.listdir(prs_active_dir)) if os.path.exists(prs_active_dir) else False
+
+                if has_pr:
+                    dag_step = "PR_SYNTHESIZED"
+                elif adrs_count > 0:
+                    dag_step = "ADR_ACCEPTED"
+                elif issues_count > 0:
+                    dag_step = f"{issues_count} TASKS"
+                else:
+                    dag_step = "SPEC_DRAFT"
 
                 audit = audit_spec(spec_path)
                 specs_data.append({
@@ -786,10 +770,15 @@ def cmd_stop(args: argparse.Namespace) -> int:
     """Stops/resets active worktrees for a specification."""
     spec_name, target_dir = resolve_spec_and_target_dir(args)
 
-    res = prune_worktrees(target_dir)
+    success = prune_worktrees(target_dir)
+    data = {
+        "status": "STOPPED" if success else "ERROR",
+        "spec_name": spec_name,
+        "target_dir": target_dir,
+    }
     if getattr(args, "json", False):
-        print(json.dumps(res, indent=2))
-        return 0
+        print(json.dumps(data, indent=2))
+        return 0 if success else 1
 
     print("=" * 110)
     print(f" 🛑 WORKFLOW WORKTREES RESET {'FOR ' + spec_name if spec_name else ''}")
@@ -805,13 +794,28 @@ def cmd_clean(args: argparse.Namespace) -> int:
     _, target_dir = resolve_spec_and_target_dir(args)
     wf_root = get_workflow_root(target_dir)
 
-    wt_res = prune_worktrees(target_dir)
+    success = prune_worktrees(target_dir)
+
+    # Clean orphaned worktrees inside .workflow/worktrees/
+    wt_dir = os.path.join(wf_root, "worktrees")
+    pruned_count = 0
+    if os.path.exists(wt_dir):
+        for item in os.listdir(wt_dir):
+            item_path = os.path.join(wt_dir, item)
+            if os.path.isdir(item_path):
+                try:
+                    run_git(["worktree", "remove", "--force", item_path], cwd=target_dir)
+                except Exception:
+                    pass
+                if os.path.exists(item_path):
+                    shutil.rmtree(item_path, ignore_errors=True)
+                pruned_count += 1
 
     reconcile_all_gitkeeps(target_dir)
 
     data = {
         "status": "CLEANED",
-        "worktrees_pruned": wt_res.get("pruned", 0),
+        "worktrees_pruned": pruned_count,
         "target_dir": target_dir,
     }
 
@@ -822,7 +826,7 @@ def cmd_clean(args: argparse.Namespace) -> int:
     print("=" * 110)
     print(" 🧹 WORKFLOW CLEAN COMPLETE")
     print("=" * 110)
-    print(f"Worktrees Pruned: {wt_res.get('pruned', 0)}")
+    print(f"Worktrees Pruned: {pruned_count}")
     print(f"Directory Tree:   {wf_root}")
     print("=" * 110)
 
@@ -1183,7 +1187,7 @@ def build_parser() -> argparse.ArgumentParser:
     # init
     p_init = subparsers.add_parser("init", help="Initialize encapsulated .workflow/ structure in target repo")
     p_init.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
-    p_init.add_argument("--test-runner", help="Explicit test runner command to set in workflow.json")
+    p_init.add_argument("--test-runner", help="Explicit test runner command to record in project_context.md")
 
     # explore
     p_exp = subparsers.add_parser("explore", help="Scan codebase polyglot stack and generate master context in .workflow/memory/")

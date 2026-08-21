@@ -16,21 +16,18 @@ metadata:
 - **Astral `uv`**: Ultra-fast Python package manager for virtual environments and runner dependencies (`langgraph`, `langchain-core`, `pydantic`). If `langgraph` is not yet installed, a pure-Python standard library fallback runner executes automatically.
 - **GitHub CLI (`gh`)**: Required for reading GitHub issues, opening pull requests (`/workflow quality --create-pr`), and repository automation. Authenticate via `gh auth login` with necessary scopes (`repo`, `workflow`, `read:org`, `read:project`). Verify with `gh auth status` or `/workflow check-env`.
 - **Polyglot Stacks Supported**: Automatically adapts to Python (`uv`/`pytest`), Rust (`cargo`), Go (`go test`), TypeScript/JavaScript (`pnpm`/`bun`/`npm`), Java (`maven`/`gradle`), and C# (`dotnet`).
-- **Encapsulated Architecture**: All project artifacts reside in the target project's **`.workflow/`** directory (`workflow.json`, `daemons.json`, `specs/`, `memory/`, `prs/`, `worktrees/`).
+- **Encapsulated Architecture**: All project artifacts reside in the target project's **`.workflow/`** directory (`specs/`, `memory/`, `prs/`, `worktrees/`, `logs/`).
 - **Universal Execution (Tier 1 — Recommended across Linux, Windows, macOS)**:
   ```bash
   uv run skills/workflow/scripts/workflow_runner.py <subcommand>
   ```
-- **Native Platform Launchers (Tier 2)**:
-  - **Linux / macOS**: `bash skills/workflow/scripts/workflow.sh <subcommand>`
-  - **Windows (PowerShell / CMD)**: `pwsh skills/workflow/scripts/workflow.ps1 <subcommand>`
-- **Fallback Execution (Tier 3 — Minimal environments without uv)**:
+- **Fallback Execution (Tier 2 — Minimal environments without uv)**:
   - **Linux / macOS**: `python3 skills/workflow/scripts/workflow_runner.py <subcommand>`
   - **Windows**: `python skills/workflow/scripts/workflow_runner.py <subcommand>`
 
 > [!IMPORTANT]
 > **MANDATORY AGENT EXECUTION DIRECTIVES**:
-> 1. **Deterministic Tool Invocation (NEVER Manual Creation)**: AI Agents MUST ALWAYS invoke workflow commands using `uv run` (e.g. `uv run skills/workflow/scripts/workflow_runner.py <subcommand>` or `uv run .agents/skills/workflow/scripts/workflow_runner.py <subcommand>`). NEVER invoke `python3` or `python` directly, and NEVER attempt to manually write or reconstruct the `.workflow/` directory tree or memory files by hand. Running `workflow init` deterministically creates `.workflow/specs/active/`, `.workflow/specs/archive/`, `.workflow/prs/active/`, `.workflow/prs/archive/`, `.workflow/memory/docs/`, `.workflow/memory/workflow_methodology.md`, analyzes the codebase to generate `.workflow/memory/project_context.md` and `.workflow/memory/coding_preferences.md`, scaffolds `.workflow/workflow.json`, and updates `AGENTS.md` automatically.
+> 1. **Deterministic Tool Invocation (NEVER Manual Creation)**: AI Agents MUST ALWAYS invoke workflow commands using `uv run` (e.g. `uv run skills/workflow/scripts/workflow_runner.py <subcommand>` or `uv run .agents/skills/workflow/scripts/workflow_runner.py <subcommand>`). NEVER invoke `python3` or `python` directly, and NEVER attempt to manually write or reconstruct the `.workflow/` directory tree or memory files by hand. Running `workflow init` deterministically creates `.workflow/specs/active/`, `.workflow/specs/archive/`, `.workflow/prs/active/`, `.workflow/prs/archive/`, `.workflow/memory/docs/`, `.workflow/memory/workflow_methodology.md`, analyzes the codebase to generate `.workflow/memory/project_context.md` and `.workflow/memory/coding_preferences.md`, configures `.gitignore`, and updates `AGENTS.md` automatically.
 > 2. **Specify Grilling Session & ADR Generation**: When triggering `/workflow specify <name>`, the AI Agent MUST conduct an interactive 1-by-1 Grilling Session using the interactive question tool (e.g., `ask_question`), asking questions sequentially with multiple-choice recommendations, updating `spec.md` in-place after each answer, and generating an Architectural Decision Record (ADR) in `.workflow/specs/active/<name>/adrs/ADR_<timestamp>_specification_design.md` capturing all agreed-upon architectural choices.
 > 3. **Deterministic 7-Stage Multi-Subagent Pipeline**: When triggering `/workflow run <spec>`, the AI Agent MUST NOT execute all stages in a single monolithic turn. Instead, the AI Agent MUST:
 >    - First run `uv run skills/workflow/scripts/workflow_runner.py run <spec>` to initialize and sync the physical worktree (`.workflow/worktrees/<spec>/worker/`).
@@ -112,8 +109,7 @@ skills/workflow/
     ├── spec.template.md              # Matt Pocock-inspired Spec template
     ├── issue.template.md             # Atomic TDD Issue template (Red -> Green -> Refactor)
     ├── memory_00.template.md         # Initial master context template
-    ├── workflow_methodology.template.md # Methodology guide template
-    └── workflow.config.json          # Default workflow.json scaffold template
+    └── workflow_methodology.template.md # Methodology guide template
 ```
 
 ---

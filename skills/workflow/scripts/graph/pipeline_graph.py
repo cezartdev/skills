@@ -72,16 +72,17 @@ def safe_run_test_command(test_cmd: str, cwd: str, timeout: int = 120) -> Tuple[
 
 
 def get_configured_test_command(target_dir: str) -> str:
-    """Reads configured test runner command from workflow.json or detects default."""
+    """Reads test runner command from memory/project_context.md or auto-detects from manifests."""
     target_dir = os.path.abspath(target_dir)
-    wf_config_file = os.path.join(get_workflow_root(target_dir), "workflow.json")
-    if os.path.exists(wf_config_file):
+    context_file = os.path.join(get_workflow_root(target_dir), "memory", "project_context.md")
+    if os.path.exists(context_file):
         try:
-            with open(wf_config_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            cmd = data.get("test_runner", {}).get("command")
-            if cmd and cmd != "{{TEST_COMMAND}}":
-                return cmd
+            with open(context_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.lower().startswith("test runner:") or line.lower().startswith("- **test runner**:"):
+                        cmd = line.split(":", 1)[1].strip().strip("`")
+                        if cmd and cmd != "None":
+                            return cmd
         except Exception:
             pass
 

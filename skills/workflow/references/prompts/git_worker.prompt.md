@@ -38,7 +38,7 @@ Once confirmed by the human developer:
      -t feat \
      -s <spec-name> \
      -m "<imperative description derived from spec.md>" \
-     -b "- <bullet summary from ADR and state.json>" \
+     -b "- <bullet summary from ADR and spec.md>" \
      --target-dir ".workflow/worktrees/<spec-name>/worker"
    ```
 

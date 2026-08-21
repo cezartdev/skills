@@ -17,4 +17,4 @@ Execute feature specifications located under `.workflow/specs/active/<spec-name>
    - Write 100% clean, self-documenting code with **ZERO comments**.
    - Inline comments (`//`, `#`), block comments (`/* */`), and docstrings (`""" """`) are **strictly forbidden** unless explicitly requested by the user.
 4. **Continuous Checkpointing & ADRs**:
-   - Update `state.json` at each stage transition and record key decisions for the ADR.
+   - Record key architectural decisions and test passes for the ADR in `.workflow/specs/active/<spec>/adrs/`.

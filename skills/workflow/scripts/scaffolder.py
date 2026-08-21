@@ -342,65 +342,10 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
     else:
         test_cmd = test_runner_cmd
 
-    # 7. Scaffold .workflow/workflow.json if not present
-    config_file = os.path.join(wf_root, "workflow.json")
-    config_created = False
-    if not os.path.exists(config_file):
-        template_config = os.path.join(assets_dir, "workflow.config.json")
-        if os.path.exists(template_config):
-            with open(template_config, "r", encoding="utf-8") as f:
-                cfg_data = json.load(f)
-            cfg_data.setdefault("test_runner", {})["command"] = test_cmd
-            atomic_write_json(config_file, cfg_data)
-        else:
-            atomic_write_json(config_file, {
-                "version": "2.0",
-                "pipeline": {
-                    "supervisor": "quality",
-                    "max_revisions": 3,
-                    "default_interval_minutes": 30,
-                    "max_iterations": None,
-                    "stages": [
-                        {"id": "fix", "role": "Fix-Worker Specialist", "description": "Bug stabilization and 100% green test pass"},
-                        {"id": "refactor", "role": "Refactor-Worker Specialist", "description": "Clean code, modularity, and zero comments enforcement"},
-                        {"id": "security", "role": "Cybersecurity Specialist", "description": "OWASP Top 10 SAST and dependency CVE audit"},
-                        {"id": "quality", "role": "Quality Assurance Specialist", "description": "Quality gate, routing feedback loops, and ADR generation"},
-                        {"id": "doc", "role": "Doc-Worker Specialist", "description": "Docstrings, API contracts, and spec sync"},
-                        {"id": "git", "role": "Git-Worker Specialist", "description": "Deterministic Conventional Commits, Grilling Session confirmation, and PR synthesis"}
-                    ],
-                    "quality_gate": {
-                        "enabled": True,
-                        "max_revisions": 3,
-                        "block_unvetted_commits": True,
-                        "block_direct_pushes": True,
-                        "require_grilling_confirmation": True,
-                        "strict_zero_comments_check": True,
-                        "require_zero_high_vulns": True
-                    },
-                    "auto_merge": {
-                        "enabled": False,
-                        "strategy": "no-ff",
-                        "require_all_tests_pass": True,
-                        "require_security_scan": True
-                    },
-                    "adrs": {
-                        "enabled": True,
-                        "format": "MADR",
-                        "directory": ".workflow/specs/active/{spec}/adrs"
-                    }
-                },
-                "test_runner": {"command": test_cmd, "args": ["--run"], "coverage_threshold": 80},
-                "drift_detection": {"enabled": True, "auto_reexplore": True},
-                "memory": {"directory": ".workflow/memory", "max_episodic_files_per_archetype": 10},
-                "prs": {"directory": ".workflow/prs"},
-                "worktrees": {"directory": ".workflow/worktrees", "auto_clean_on_merge": True}
-            })
-        config_created = True
-
-    # 8. Analyze and configure .gitignore
+    # 7. Analyze and configure .gitignore
     gitignore_res = ensure_gitignore_configured(target_dir)
 
-    # 9. Inject agent rules & pointers into AGENTS.md, CLAUDE.md, etc.
+    # 8. Inject agent rules & pointers into AGENTS.md, CLAUDE.md, etc.
     rules_injection = inject_agent_rules(target_dir)
 
     return {
@@ -416,9 +361,7 @@ def scaffold_init(target_dir: str = ".", test_runner_cmd: Optional[str] = None) 
         "project_context_file": context_file,
         "coding_preferences_file": pref_file,
         "prs_dir": prs_dir,
-        "config_file": config_file,
         "test_runner": test_cmd,
-        "config_created": config_created,
         "gitignore_updated": gitignore_res.get("updated", False),
         "gitignore_created": gitignore_res.get("created", False),
         "gitignore_entries_added": gitignore_res.get("entries_added", []),
@@ -456,27 +399,6 @@ def scaffold_new_spec(
     with open(spec_file, "w", encoding="utf-8") as f:
         f.write(spec_content)
 
-    # 2. Create initial state.json
-    state_file = os.path.join(spec_dir, "state.json")
-    rel_spec_dir = os.path.join(".workflow", "specs", "active", clean_name).replace("\\", "/")
-    
-    initial_state = {
-        "spec_name": clean_name,
-        "spec_path": rel_spec_dir,
-        "worktree_path": None,
-        "branch_name": f"feat/{clean_name}",
-        "current_issue_index": 0,
-        "issues": [],
-        "dag_step": "NEW_SPEC_INITIALIZED",
-        "checkpoint_history": [],
-        "quality_gate_passed": False,
-        "user_confirmed": False,
-        "all_tests_passing": False,
-        "spec_verified": False,
-        "can_auto_merge": False,
-    }
-    atomic_write_json(state_file, initial_state)
-
     reconcile_gitkeep(active_specs_dir)
     ensure_gitignore_configured(target_dir)
 
@@ -485,7 +407,6 @@ def scaffold_new_spec(
         "spec_name": clean_name,
         "spec_dir": spec_dir,
         "spec_file": spec_file,
-        "state_file": state_file,
     }
 
 

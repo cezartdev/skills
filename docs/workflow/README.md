@@ -12,7 +12,7 @@
 
 The **`workflow`** skill provides a deterministic, state-machine driven development suite for software projects. Encapsulated inside a single modular **`.workflow/`** directory in target repositories, it is fully standardized according to the **[Agent Skills Specification](https://agentskills.io/specification)** and integrates best practices from **[GitHub Spec-Kit](https://github.com/github/spec-kit)** and **[Fission-AI OpenSpec](https://github.com/Fission-AI/OpenSpec)**:
 
-- **Encapsulated `.workflow/` Architecture**: Centralizes all specifications (`.workflow/specs/`), memory (`.workflow/memory/`), configurations (`.workflow/workflow.json`), active daemons (`.workflow/daemons.json`), PRs catalog (`.workflow/prs/`), and worktrees (`.workflow/worktrees/`).
+- **Encapsulated `.workflow/` Architecture**: Centralizes all specifications (`.workflow/specs/`), memory (`.workflow/memory/`), PRs catalog (`.workflow/prs/`), and worktrees (`.workflow/worktrees/`).
 - **Deterministic 7-Stage Subagent Pipeline**: Sequentially executes `Implement` $\rightarrow$ `Fix` $\rightarrow$ `Refactor` $\rightarrow$ `Security` $\rightarrow$ `Quality` $\rightarrow$ `Doc` $\rightarrow$ `Git-Worker` across isolated physical Git Worktrees.
 - **OWASP Top 10 Cybersecurity & Vulnerability Auditor (`/workflow security`)**: Integrated SAST pattern scanner, secret leak detector, and polyglot dependency CVE auditor (`pnpm audit`, `pip-audit`, `cargo audit`).
 - **Quality Gatekeeper (`/workflow quality`)**: Evaluates holistic quality score (100/100 tests, OWASP clearance, zero comments), authors formal **Architectural Decision Records (ADRs)**, and compiles pull requests.
