@@ -134,6 +134,85 @@ def detect_linters_and_formatters(root_dir: str = ".") -> Dict[str, Any]:
     }
 
 
+def detect_project_and_agent_docs(root_dir: str = ".") -> Dict[str, Any]:
+    """Detects standard agent instructions, guidelines, and project documentation files (e.g. CONTEXT.md, AGENTS.md, CLAUDE.md, etc.)."""
+    root_dir = os.path.abspath(root_dir)
+
+    target_specs = [
+        ("CONTEXT.md", "Domain Context", ["CONTEXT.md", "context.md", ".context.md", "docs/CONTEXT.md", "docs/context.md"], "Business & system domain context"),
+        ("AGENTS.md", "Agent Directives", ["AGENTS.md", "agents.md", ".agents.md", "docs/AGENTS.md", "docs/agents.md"], "Agent operating guidelines & repository standards"),
+        ("CLAUDE.md", "Agent Directives", ["CLAUDE.md", "claude.md", ".claude.md", ".claude/CLAUDE.md", ".anthropic/CLAUDE.md"], "Claude assistant operating manual & commands"),
+        ("copilot-instructions.md", "Agent Directives", [".github/copilot-instructions.md", "copilot-instructions.md", ".copilot-instructions.md"], "GitHub Copilot repository instructions"),
+        ("GEMINI.md", "Agent Directives", ["GEMINI.md", "gemini.md", ".gemini.md", ".gemini/GEMINI.md", "GEMINI_RULES.md", ".gemini/antigravity.json"], "Gemini & Antigravity assistant guidelines"),
+        ("PRODUCT.md", "Product & Vision", ["PRODUCT.md", "product.md", "docs/PRODUCT.md", "docs/product.md"], "Product requirements, vision & roadmap"),
+        ("DESIGN.md", "Technical Design", ["DESIGN.md", "design.md", "docs/DESIGN.md", "docs/design.md"], "System architecture & UI/UX design blueprints"),
+        ("CODING_STANDARDS.md", "Style & Conventions", ["CODING_STANDARDS.md", "coding_standards.md", "STANDARDS.md", "standards.md", "STYLEGUIDE.md", "styleguide.md", "CONTRIBUTING.md", "contributing.md"], "Coding standards, linting & contribution rules"),
+    ]
+
+    discovered: List[Dict[str, Any]] = []
+    found_names = set()
+
+    for doc_name, category, candidate_paths, default_desc in target_specs:
+        for candidate in candidate_paths:
+            full_path = os.path.join(root_dir, candidate)
+            if os.path.exists(full_path) and os.path.isfile(full_path):
+                rel_path = os.path.relpath(full_path, root_dir).replace("\\", "/")
+                
+                title = doc_name
+                snippet = ""
+                try:
+                    with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+                        lines = [line.strip() for line in f.readlines() if line.strip()]
+                    
+                    for line in lines:
+                        if line.startswith("# "):
+                            title = line.replace("# ", "").strip()
+                            break
+                    
+                    non_header_lines = [l for l in lines if not l.startswith("#") and not l.startswith("```")]
+                    if non_header_lines:
+                        snippet = " ".join(non_header_lines[:2])
+                except Exception:
+                    pass
+
+                clean_title = sanitize_untrusted_text(title, max_chars=80)
+                clean_snippet = sanitize_untrusted_text(snippet, max_chars=180)
+
+                discovered.append({
+                    "name": doc_name,
+                    "path": rel_path,
+                    "category": category,
+                    "title": clean_title or doc_name,
+                    "description": default_desc,
+                    "summary": clean_snippet or default_desc,
+                })
+                found_names.add(doc_name)
+                break
+
+    # Check for agent configuration files
+    rule_files = [
+        (".cursorrules", "Cursor IDE AI rules"),
+        (".windsurfrules", "Windsurf IDE AI rules"),
+        (".clinerules", "Cline autonomous agent rules"),
+    ]
+    for rf, desc in rule_files:
+        full_rf = os.path.join(root_dir, rf)
+        if os.path.exists(full_rf) and os.path.isfile(full_rf):
+            discovered.append({
+                "name": rf,
+                "path": rf,
+                "category": "Agent Directives",
+                "title": rf,
+                "description": desc,
+                "summary": desc,
+            })
+
+    return {
+        "total_found": len(discovered),
+        "docs": discovered,
+    }
+
+
 def detect_codebase_conventions(root_dir: str = ".") -> Dict[str, Any]:
     """Samples source files to analyze coding style, naming conventions, indentation, and imports."""
     root_dir = os.path.abspath(root_dir)
@@ -297,6 +376,14 @@ def generate_coding_preferences(root_dir: str = ".") -> str:
 
     config_lines = "\n".join([f"- **{k}**: `{v}`" for k, v in linters["configs"].items()]) if linters["configs"] else "- *No explicit linter configs found; inferred from codebase.*"
 
+    # Discovered Agent Directives and Coding Standards
+    docs_data = detect_project_and_agent_docs(root_dir)
+    standards_docs = [d for d in docs_data.get("docs", []) if d.get("category") in ["Agent Directives", "Style & Conventions"]]
+    if standards_docs:
+        standards_lines = "\n".join([f"- **{d['name']}** (`{d['path']}`): {d['summary']}" for d in standards_docs])
+    else:
+        standards_lines = "- *No explicit external agent rules or coding standard files detected.*"
+
     content = f"""# Codebase Style & Writing Preferences (Extracted by /workflow explore)
 
 **Project Root**: `{os.path.basename(root_dir)}`  
@@ -340,6 +427,11 @@ def generate_coding_preferences(root_dir: str = ".") -> str:
 ## 6. Type Safety & Testing Invariants
 - **Type Annotations**: `{conventions['type_annotations']}`
 - **TDD Workflow**: Always write failing unit/integration tests first before implementing green logic.
+
+---
+
+## 7. Integrated Agent Directives & Repository Standards
+{standards_lines}
 """
     with open(pref_file, "w", encoding="utf-8") as f:
         f.write(content)
@@ -514,6 +606,7 @@ def scan_codebase(root_dir: str = ".") -> Dict[str, Any]:
 
     linters = detect_linters_and_formatters(root_dir)
     conventions = detect_codebase_conventions(root_dir)
+    agent_docs = detect_project_and_agent_docs(root_dir)
 
     clean_project_name = sanitize_untrusted_text(os.path.basename(root_dir), max_chars=80)
     clean_languages = sanitize_untrusted_text(", ".join(list(dict.fromkeys(languages))), max_chars=120)
@@ -531,6 +624,7 @@ def scan_codebase(root_dir: str = ".") -> Dict[str, Any]:
         "manifest_hashes": manifest_hashes,
         "linters": linters,
         "conventions": conventions,
+        "agent_docs": agent_docs,
         "scanned_at": datetime.now().isoformat(),
     }
 
@@ -555,6 +649,16 @@ def generate_master_context(root_dir: str = ".") -> str:
 
     manifest_lines = [f"{k}: `{v}`" for k, v in scan["manifest_hashes"].items()]
     manifest_str = " | ".join(manifest_lines) if manifest_lines else "None"
+
+    # Format discovered project and agent docs table
+    docs_list = scan.get("agent_docs", {}).get("docs", [])
+    if docs_list:
+        doc_rows = []
+        for d in docs_list:
+            doc_rows.append(f"| `{d['name']}` | {d['category']} | [`{d['path']}`]({d['path']}) | {d['summary']} |")
+        docs_table = "| Document | Category | Path | Summary / Description |\n|---|---|---|---|\n" + "\n".join(doc_rows)
+    else:
+        docs_table = "- *No root agent rule files (e.g. AGENTS.md, CLAUDE.md, CONTEXT.md) detected.*"
 
     content = f"""# Project Master Context & Architectural Invariants
 
@@ -584,14 +688,19 @@ def generate_master_context(root_dir: str = ".") -> str:
 
 ---
 
-## 3. Core Architectural Invariants & Rules
+## 3. Discovered Agent Directives & Project Documentation
+{docs_table}
+
+---
+
+## 4. Core Architectural Invariants & Rules
 1. **Spec-Driven Architecture**: All functional features are declared in `.workflow/specs/active/<spec-name>/` and executed via TDD issues.
 2. **Worktree Isolation**: Background workers run strictly inside dedicated `.workflow/worktrees/` instances.
 3. **Quality Gate Compliance**: Tests must pass 100% with no security gate violations prior to merging.
 
 ---
 
-## 4. Cumulative Decisions & Historical Rollup Log
+## 5. Cumulative Decisions & Historical Rollup Log
 
 | Date | Archetype | Decision / Milestone | Summary & Impact |
 |---|---|---|---|

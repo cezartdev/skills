@@ -140,8 +140,18 @@ def cmd_explore(args: argparse.Namespace) -> int:
     print(f"{'Master Context':<24} │ {master_path}")
     print("=" * 110)
 
+    docs_info = scan.get("agent_docs", {}).get("docs", [])
+    if docs_info:
+        print("\n 📜 DISCOVERED AGENT DIRECTIVES & PROJECT DOCS")
+        print("=" * 110)
+        print(f"{'DOCUMENT':<24} │ {'CATEGORY':<20} │ {'PATH':<28} │ SUMMARY")
+        print("-" * 110)
+        for d in docs_info:
+            print(f"{d['name']:<24} │ {d['category']:<20} │ {d['path']:<28} │ {d['summary']}")
+        print("=" * 110)
+
     print("\nℹ️  AI Agent Native Subagent Dispatch Directive:")
-    print("   - Explorer Specialist: define_subagent(name='workflow-explorer-specialist', description='Codebase & polyglot stack discovery specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{'TypeName': 'workflow-explorer-specialist', 'Role': 'Explorer Specialist', 'Prompt': 'Survey codebase polyglot stack, test runner, linters and update .workflow/memory/project_context.md and coding_preferences.md.'}])")
+    print("   - Explorer Specialist: define_subagent(name='workflow-explorer-specialist', description='Codebase, agent rules & polyglot stack discovery specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{'TypeName': 'workflow-explorer-specialist', 'Role': 'Explorer Specialist', 'Prompt': 'Survey codebase polyglot stack, agent rules (AGENTS.md, CLAUDE.md, CONTEXT.md), test runner, linters and update .workflow/memory/project_context.md and coding_preferences.md.'}])")
 
     print_next_steps([
         {"cmd": "/workflow memory list", "desc": "Inspect generated coding preferences & project context"},
