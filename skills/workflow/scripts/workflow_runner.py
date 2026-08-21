@@ -573,7 +573,7 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    """Executes the deterministic 4-stage sequential subagent pipeline for a spec."""
+    """Executes the deterministic 6-stage sequential subagent pipeline for a spec."""
     target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
     spec_name = getattr(args, "spec_name", None) or getattr(args, "spec", None) or getattr(args, "spec_dir", None)
 
@@ -584,6 +584,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     schedule_minutes = getattr(args, "schedule", None) or getattr(args, "interval", None)
     auto_merge = getattr(args, "auto_merge", False)
     create_pr = getattr(args, "create_pr", False)
+    push = getattr(args, "push", False)
 
     runner = PipelineRunner(target_dir=target_dir)
     res = runner.run_pipeline(
@@ -591,6 +592,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         schedule_minutes=schedule_minutes,
         auto_merge=auto_merge,
         create_pr=create_pr,
+        push=push,
     )
 
     if getattr(args, "json", False):
@@ -608,6 +610,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"{'Staging Branch':<24} │ {res['staging_branch']}")
     print(f"{'Target Base Branch':<24} │ {res['target_base']}")
     print(f"{'Worktree Path':<24} │ {res['worktree_path']}")
+    if res.get("push_flag_active"):
+        print(f"{'Push Status':<24} │ 🚀 Pushed to origin ({res.get('push_status')})")
+    else:
+        print(f"{'Push Status':<24} │ 🔒 Local Commit Only (Default Security: pass --push to push to origin)")
     if res.get("adr") and res["adr"].get("adr_file"):
         print(f"{'ADR Record':<24} │ {res['adr']['adr_file']}")
     if res.get("pr_summary") and res["pr_summary"].get("pr_file"):
@@ -620,6 +626,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"   - {d['stage']} ({d['role']}): {d['action']}")
 
     print("\n💡 Suggested PR & Integration Commands:")
+    if not res.get("push_flag_active"):
+        print(f"   👉 Git Push: {res.get('suggested_push_command')}")
     print(f"   👉 GitHub PR: {res.get('suggested_gh_command')}")
     print(f"   👉 Git Merge: {res.get('suggested_git_merge')}")
 
@@ -1074,7 +1082,7 @@ def cmd_pr(args: argparse.Namespace) -> int:
         title=title,
         body_file=body_file,
         target_dir=target_dir,
-        push_before_pr=getattr(args, "push", True),
+        push_before_pr=getattr(args, "push", False),
     )
 
     if getattr(args, "json", False):
@@ -1192,9 +1200,9 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow security", "syntax": "workflow security [spec] [--json]", "desc": "Run OWASP Top 10 SAST, secret leak & dependency CVE audit"},
         {"slash": "/workflow audit-deps", "syntax": "workflow audit-deps [dir]", "desc": "Audit project package manifests for known CVEs"},
         {"slash": "/workflow quality", "syntax": "workflow quality [spec] [--create-pr]", "desc": "Quality Gatekeeper: audit quality score & OWASP report, generate ADR"},
-        {"slash": "/workflow run", "syntax": "workflow run <spec> [--schedule <m>]", "desc": "Primary Engine: Run 6-stage subagent pipeline (Fix -> Refactor -> Security -> Quality -> Doc -> Git-Worker)"},
+        {"slash": "/workflow run", "syntax": "workflow run <spec> [--push] [--schedule <m>]", "desc": "Primary Engine: Run 6-stage subagent pipeline (Default: local commit; add --push for remote)"},
         {"slash": "/workflow commit", "syntax": "workflow commit -t <t> -s <s> -m <m>", "desc": "Git-Worker deterministic Conventional Commit with pre-commit security gates"},
-        {"slash": "/workflow pr", "syntax": "workflow pr --spec <spec>", "desc": "Git-Worker deterministic GitHub PR creation via gh CLI"},
+        {"slash": "/workflow pr", "syntax": "workflow pr --spec <spec> [--push]", "desc": "Git-Worker deterministic GitHub PR creation via gh CLI (Default: no push; add --push)"},
         {"slash": "/workflow status", "syntax": "workflow status [spec]", "desc": "View active pipeline status, worktrees & security audits"},
         {"slash": "/workflow stop", "syntax": "workflow stop [spec]", "desc": "Terminate background pipeline subagents and cancel timers"},
         {"slash": "/workflow clean", "syntax": "workflow clean", "desc": "Deep Anti-Zombie cleanup of orphaned worktrees, locks & dead PIDs"},
@@ -1305,6 +1313,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--schedule", "--interval", dest="schedule", type=int, default=None, help="Opt-in recurring interval in minutes (e.g. 30 or 45)")
     p_run.add_argument("--auto-merge", action="store_true", help="Auto-merge pipeline branch into feature branch if tests pass")
     p_run.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
+    p_run.add_argument("--push", action="store_true", default=False, help="Push staging branch to remote origin upon commit (Default: False for security)")
     p_run.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # commit (for git-worker)
@@ -1323,7 +1332,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_pr.add_argument("--title", help="PR title")
     p_pr.add_argument("--body-file", help="Path to markdown PR body file")
     p_pr.add_argument("--target-dir", default=".", help="Target repository directory")
-    p_pr.add_argument("--no-push", dest="push", action="store_false", help="Skip remote branch push before opening PR")
+    p_pr.add_argument("--push", action="store_true", default=False, help="Push branch to remote origin before creating PR (Default: False for security)")
 
     # status
     p_status = subparsers.add_parser("status", help="Display active specifications, pipeline worktrees, and running daemons")

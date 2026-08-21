@@ -7,16 +7,24 @@ Execute atomic Conventional Commits and GitHub Pull Requests strictly through in
 
 ---
 
+## 🔒 Mandatory Default Security Gate: Local Commit by Default
+
+By default, for safety and security, all commit operations are **strictly local**. The pipeline does NOT push to remote `origin` or open public PRs unless:
+1. The user explicitly invoked the pipeline with the `--push` flag (e.g. `/workflow run <spec> --push`), OR
+2. The developer explicitly authorizes a remote push during the **Interactive Grilling Session**.
+
+---
+
 ## 🔒 Mandatory Grilling Session Gate (Before Commit & Push)
 
 Before committing or pushing to remote, you MUST trigger an interactive grilling session with the developer using `ask_question`:
 
 1. **Question 1 (Review & Delivery Approval)**:
-   - Ask developer to confirm whether to proceed with commit on `<spec>-worker` and opening a PR targeting `<spec>`.
+   - Ask developer to confirm whether to proceed with commit on `feat/<spec>-worker` targeting `feat/<spec>`.
 2. **Question 2 (Conventional Commit Scope & Header)**:
    - Present the proposed commit header: `feat(<spec>): <description>` and ask for confirmation or type adjustment.
 3. **Question 3 (Remote Push Authorization)**:
-   - Ask if remote push to `origin` should occur automatically or remain local-only.
+   - Ask if remote push to `origin` should occur now (`--push`) or remain local-only (`(Recommended) Local Commit Only`).
 
 ---
 
@@ -24,7 +32,7 @@ Before committing or pushing to remote, you MUST trigger an interactive grilling
 
 Once confirmed by the human developer:
 
-1. **Pre-Commit Security Scan & Atomic Commit**:
+1. **Pre-Commit Security Scan & Atomic Commit (Local Only)**:
    ```bash
    uv run skills/workflow/scripts/workflow_runner.py commit \
      -t feat \
@@ -34,10 +42,12 @@ Once confirmed by the human developer:
      --target-dir ".workflow/worktrees/<spec-name>/worker"
    ```
 
-2. **Pull Request Synthesis**:
+2. **Pull Request Synthesis (Local or Remote with --push)**:
    ```bash
+   # If remote push was authorized:
    uv run skills/workflow/scripts/workflow_runner.py pr \
      --spec <spec-name> \
+     --push \
      --body-file ".workflow/prs/active/PR_spec_<spec-name>_<timestamp>.md" \
      --target-dir ".workflow/worktrees/<spec-name>/worker"
    ```
@@ -47,3 +57,4 @@ Once confirmed by the human developer:
 ## 🛡️ Agent Tool Execution Directive
 - ALWAYS invoke internal workflow scripts using `uv run`.
 - NEVER invoke external skills or unvetted git commands directly.
+- Respect the **Secure by Default** local-commit-only gate at all times.

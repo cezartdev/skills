@@ -122,8 +122,11 @@ uv run skills/workflow/scripts/workflow_runner.py plan user-login
 # Deterministic Pre-Execution Quality Gate audit (100/100 score)
 uv run skills/workflow/scripts/workflow_runner.py check user-login
 
-# Primary Engine: Execute deterministic 6-stage pipeline (Fix -> Refactor -> Security -> Quality -> Doc -> Git-Worker)
+# Primary Engine: Execute deterministic 6-stage pipeline (Default: Local commit only for security)
 uv run skills/workflow/scripts/workflow_runner.py run user-login
+
+# Run pipeline with automatic remote push to origin:
+uv run skills/workflow/scripts/workflow_runner.py run user-login --push
 
 # Opt-In Recurring Background Execution (runs every 30m with Fixed-Delay):
 uv run skills/workflow/scripts/workflow_runner.py run user-login --schedule 30
@@ -179,9 +182,10 @@ uv run skills/workflow/scripts/workflow_runner.py commit \
   -b "- Add JWT token signing and refresh verification.\n- Guarantee 100% green unit tests." \
   --target-dir ".workflow/worktrees/user-login/worker"
 
-# Deterministic GitHub Pull Request creation:
+# Deterministic GitHub Pull Request creation (Default: no push; add --push to push to origin):
 uv run skills/workflow/scripts/workflow_runner.py pr \
   --spec user-login \
+  --push \
   --body-file ".workflow/prs/active/PR_spec_user_login_20260819_234000.md" \
   --target-dir ".workflow/worktrees/user-login/worker"
 ```
@@ -196,7 +200,7 @@ When `/workflow run <spec>` is executed, the AI Agent registers and launches 6 s
 | `workflow-security-worker` | **Cybersecurity Specialist** | `references/prompts/security_worker.prompt.md` | Scans OWASP Top 10 SAST patterns, secret leaks, and dependency CVEs. |
 | `workflow-quality-worker` | **Quality Assurance Specialist** | `references/prompts/quality.prompt.md` | Evaluates holistic quality score (100/100, zero comments, security clearance), writes formal ADRs, and routes feedback loops. |
 | `workflow-doc-worker` | **Doc-Worker Specialist** | `references/prompts/doc_sync.prompt.md` | Synchronizes markdown documentation, README files, API schemas, and `spec.md` acceptance criteria checkboxes. |
-| `workflow-git-worker` | **Git-Worker Specialist** | `references/prompts/git_worker.prompt.md` | Conducts interactive Grilling Sessions (`ask_question`) with developer before commits/pushes, executing deterministic Conventional Commits and PRs. |
+| `workflow-git-worker` | **Git-Worker Specialist** | `references/prompts/git_worker.prompt.md` | Conducts interactive Grilling Sessions (`ask_question`) with developer before commits/pushes, executing deterministic Conventional Commits and PRs. Local commits only by default unless `--push` is provided. |
 
 ### 10. Strict Hierarchical Worktrees & Subagent Branch Scoping
 Every physical worktree is **strictly dependent on and scoped to a specification and its designated subagent**:
@@ -206,8 +210,11 @@ Every physical worktree is **strictly dependent on and scoped to a specification
 - **ADR Audit Trail**: Versioned ADRs stored in `.workflow/specs/active/<spec>/adrs/ADR_<timestamp>_pipeline_decisions.md`.
 
 ```bash
-# Execute the full pipeline on-demand:
+# Execute the full pipeline on-demand (local commit by default):
 uv run skills/workflow/scripts/workflow_runner.py run user-login
+
+# Or execute with automatic remote push:
+uv run skills/workflow/scripts/workflow_runner.py run user-login --push
 # => Worktree: .workflow/worktrees/user-login/worker/ (Branch: user-login-worker)
 # => Spawns Fix-Worker -> Refactor-Worker -> Security-Worker -> Quality-Worker -> Doc-Worker -> Git-Worker
 # => Quality-Worker audits 100% tests, OWASP security clearance & zero comments

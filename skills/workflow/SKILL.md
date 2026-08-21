@@ -48,7 +48,7 @@ metadata:
 >      4. **Stage 4 (Quality-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-quality-worker', 'Role': 'Quality Specialist', 'Prompt': 'Audit holistic quality gates (100/100, zero comments, OWASP clearance) and compile ADR in .workflow/specs/active/<spec>/adrs/.'}])`
 >         * If Quality-Worker returns `NEEDS_FIX` or `NEEDS_REFACTOR`, loop back to that subagent (up to `max_revisions: 3`).
 >      5. **Stage 5 (Doc-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-doc-worker', 'Role': 'Doc-Worker Specialist', 'Prompt': 'Sync markdown docs and verify spec acceptance criteria in worktree.'}])`
->      6. **Stage 6 (Git-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-git-worker', 'Role': 'Git-Worker Specialist', 'Prompt': 'Conduct interactive Grilling Session confirmation via ask_question with developer, then invoke workflow commit and PR tools deterministically.'}])`
+>      6. **Stage 6 (Git-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-git-worker', 'Role': 'Git-Worker Specialist', 'Prompt': 'Conduct interactive Grilling Session confirmation via ask_question with developer. Default Security: Commit locally and do NOT push to remote unless --push flag is passed or explicitly authorized.'}])`
 > 4. **Immediate Stop & Timer Cancellation**: When triggering `/workflow stop [spec|--all]`, the AI Agent MUST:
 >    - Execute `uv run skills/workflow/scripts/workflow_runner.py stop [spec]`.
 >    - Cancel background schedule cron timers with `manage_task(Action="kill")`.
@@ -64,6 +64,7 @@ metadata:
 > 10. **Strict Zero-Comments Code Policy**: When writing, editing, or refactoring code in this workflow (across all subagent phases: Fix-Worker, Refactor-Worker, Implementer), AI Agents MUST produce 100% clean, self-documenting code with **ZERO comments**. Inline comments (`//`, `#`), block comments (`/* */`), and unrequested docstrings (`""" """`) are **strictly prohibited**, with the sole exception being when the user explicitly requests comments or documentation annotations.
 > 11. **Protected Branch Gate & Grilling on `main`/`master`**: When `/workflow run <spec>` is executed while the active branch is `main` or `master` (or protected branches), direct commits or pushes to `main` are **deterministically blocked**. The pipeline automatically creates and isolates the feature branch `feat/<spec>`. The AI Agent MUST conduct a grilling session using `ask_question` asking the developer to confirm their desired feature branch before any remote push or merge.
 > 12. **100% Self-Contained Skill & Zero External Skill Dependency**: The `workflow` skill is completely independent and contains internal tools for Git operations (`git_ops.py`), security scanning (`security_auditor.py`), and PR synthesis. AI Agents MUST NEVER invoke external skills (e.g. `skills/git/`) from within the workflow harness.
+> 13. **Default Security Gate (Local Commits by Default)**: By default, all pipeline runs stop after the local commit inside the worktree. Autonomous subagents and CLI commands MUST NOT push to remote `origin` or open public PRs unless the explicit `--push` flag was provided (e.g. `/workflow run <spec> --push`) or the human developer explicitly authorizes remote push during the interactive grilling session.
 
 ---
 
@@ -130,9 +131,9 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 | `/workflow security` | `workflow security [spec] [--json]` | Run OWASP Top 10 SAST, secret leak & dependency CVE audit |
 | `/workflow audit-deps` | `workflow audit-deps [dir]` | Audit project package manifests for known CVEs |
 | `/workflow quality` | `workflow quality [spec] [--create-pr]` | Quality Gatekeeper: audit quality score & OWASP report, generate ADR |
-| `/workflow run` | `workflow run <spec> [--schedule <m>]` | **Primary Engine**: Run 6-stage subagent pipeline (Fix -> Refactor -> Security -> Quality -> Doc -> Git-Worker) |
+| `/workflow run` | `workflow run <spec> [--push] [--schedule <m>]` | **Primary Engine**: Run 6-stage pipeline (Default: local commit only; add `--push` for remote) |
 | `/workflow commit` | `workflow commit -t <type> -s <spec> -m <msg>` | Git-Worker deterministic Conventional Commit with pre-commit security gates |
-| `/workflow pr` | `workflow pr --spec <spec>` | Git-Worker deterministic GitHub PR creation via gh CLI |
+| `/workflow pr` | `workflow pr --spec <spec> [--push]` | Git-Worker deterministic GitHub PR creation via gh CLI (Default: no push; add `--push`) |
 | `/workflow status` | `workflow status [spec]` | View active pipeline status, worktrees & security audits |
 | `/workflow stop` | `workflow stop [spec]` | Terminate background pipeline subagents and cancel timers |
 | `/workflow clean` | `workflow clean` | Deep Anti-Zombie cleanup of orphaned worktrees, locks & dead PIDs |

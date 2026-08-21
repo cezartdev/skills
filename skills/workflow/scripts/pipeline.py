@@ -212,6 +212,7 @@ class PipelineRunner:
         wt_path: str,
         auto_merge: bool = False,
         create_pr: bool = False,
+        push: bool = False,
     ) -> Dict[str, Any]:
         """Stage 6: Git-Worker (Prepares PR summary, formats Conventional Commit, and handles PR delivery)."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
@@ -230,8 +231,14 @@ class PipelineRunner:
 
         pr_url = None
         merge_status = "PENDING_GRILLING_CONFIRMATION"
+        push_status = "LOCAL_COMMIT_ONLY"
 
-        # 3. Optional Auto-Merge into target feature branch
+        # 3. Optional Remote Push (Default Security: Only pushes if push=True)
+        if push:
+            push_res = run_git(["push", "-u", "origin", worker_branch], cwd=self.target_dir)
+            push_status = "PUSHED_TO_ORIGIN" if push_res.returncode == 0 else f"PUSH_FAILED: {push_res.stderr.strip()}"
+
+        # 4. Optional Auto-Merge into target feature branch
         if auto_merge:
             status_main = run_git(["status", "--porcelain"], cwd=self.target_dir)
             if status_main.stdout.strip():
@@ -240,7 +247,7 @@ class PipelineRunner:
                 merge_cmd = run_git(["merge", "--no-ff", worker_branch, "-m", f"chore({clean_spec}): auto-merge pipeline improvements"], cwd=self.target_dir)
                 merge_status = "AUTO_MERGED" if merge_cmd.returncode == 0 else f"MERGE_FAILED: {merge_cmd.stderr.strip()}"
 
-        # 4. Optional GitHub PR creation
+        # 5. Optional GitHub PR creation
         if create_pr and gh_available:
             pr_res = create_github_pull_request(
                 head_branch=worker_branch,
@@ -248,10 +255,12 @@ class PipelineRunner:
                 title=pr_summary.get("pr_title"),
                 body_file=pr_summary.get("pr_file_path"),
                 target_dir=self.target_dir,
+                push_before_pr=push,
             )
             if pr_res.get("success"):
                 pr_url = pr_res.get("url")
 
+        suggested_push = f"git push -u origin {worker_branch}"
         suggested_gh = f"gh pr create --head {worker_branch} --base {target_base} --title \"{pr_summary.get('pr_title')}\" --body-file \"{pr_summary.get('pr_file_path')}\""
         suggested_git = f"git checkout {target_base} && git merge --no-ff {worker_branch}"
 
@@ -262,8 +271,11 @@ class PipelineRunner:
             "staging_branch": worker_branch,
             "target_base": target_base,
             "pr_summary": pr_summary,
+            "push_status": push_status,
+            "push_flag_active": push,
             "auto_merge_status": merge_status,
             "pr_url": pr_url,
+            "suggested_push_command": suggested_push,
             "suggested_gh_command": suggested_gh,
             "suggested_git_merge": suggested_git,
         }
@@ -274,6 +286,7 @@ class PipelineRunner:
         schedule_minutes: Optional[int] = None,
         auto_merge: bool = False,
         create_pr: bool = False,
+        push: bool = False,
     ) -> Dict[str, Any]:
         """Runs the deterministic 6-stage sequential subagent pipeline."""
         start_time = time.time()
@@ -297,13 +310,14 @@ class PipelineRunner:
             "schedule_minutes": schedule_minutes,
             "auto_merge": auto_merge,
             "create_pr": create_pr,
+            "push": push,
         }
         graph_res = graph.invoke(initial_state)
 
         # Step 2: Security & Quality Audit Execution
         sec_res = self.run_stage_security(clean_spec, wt_path)
         quality_res = self.run_stage_quality(clean_spec, wt_path, security_results=sec_res)
-        git_res = self.run_stage_git(clean_spec, wt_path, auto_merge=auto_merge, create_pr=create_pr)
+        git_res = self.run_stage_git(clean_spec, wt_path, auto_merge=auto_merge, create_pr=create_pr, push=push)
 
         elapsed = round(time.time() - start_time, 2)
 
@@ -340,6 +354,7 @@ class PipelineRunner:
                 "stage": "6_git_worker",
                 "status": "READY_FOR_GRILLING_CONFIRMATION",
                 "subagent_role": "Git-Worker Specialist",
+                "push_status": git_res.get("push_status"),
                 "pr_summary": git_res.get("pr_summary"),
             },
         ]
@@ -354,9 +369,12 @@ class PipelineRunner:
             "worktree_path": rel_wt_path,
             "elapsed_seconds": elapsed,
             "stages": stages,
+            "push_flag_active": push,
+            "push_status": git_res.get("push_status"),
             "adr": quality_res.get("adr"),
             "security_report": sec_res.get("report_file"),
             "pr_summary": git_res.get("pr_summary"),
+            "suggested_push_command": git_res.get("suggested_push_command"),
             "suggested_gh_command": git_res.get("suggested_gh_command"),
             "suggested_git_merge": git_res.get("suggested_git_merge"),
             "scheduled_interval": schedule_minutes,
@@ -401,7 +419,7 @@ class PipelineRunner:
                     "type": "workflow-git-worker",
                     "role": "Git-Worker Specialist",
                     "prompt_file": "skills/workflow/references/prompts/git_worker.prompt.md",
-                    "action": f"define_subagent(name='workflow-git-worker', description='Deterministic Conventional Commits and GitHub PR specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-git-worker', 'Role': 'Git-Worker Specialist', 'Prompt': 'Conduct Grilling Session confirmation with developer, then invoke workflow commit and PR tools deterministically.'}}])",
+                    "action": f"define_subagent(name='workflow-git-worker', description='Deterministic Conventional Commits and GitHub PR specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-git-worker', 'Role': 'Git-Worker Specialist', 'Prompt': 'Conduct Grilling Session confirmation with developer. Commit locally. Default Security: DO NOT push to origin unless --push flag is passed or developer explicitly requests remote push.'}}])",
                 },
             ],
         }
