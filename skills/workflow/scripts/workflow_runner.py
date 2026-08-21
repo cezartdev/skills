@@ -26,6 +26,8 @@ from memory_manager import (
     add_memory_doc,
     list_memory_catalog,
     read_memory_doc,
+    update_project_business_context,
+    read_project_business_context,
 )
 from worktree_manager import list_worktrees, create_worktree, remove_worktree, force_purge_worktree, prune_worktrees, ensure_git_repository
 from quality_auditor import audit_spec, audit_plan, audit_tasks, analyze_spec_consistency
@@ -945,53 +947,59 @@ def cmd_archive(args: argparse.Namespace) -> int:
     return 0 if res.get("status") == "ARCHIVED" else 1
 
 
-def cmd_chat(args: argparse.Namespace) -> int:
-    """Gathers project context snapshot and launches freeform architectural dialogue."""
-    target_dir = os.path.abspath(args.target_dir)
-    wf_root = get_workflow_root(target_dir)
-    master_file = os.path.join(wf_root, "memory", "00_project_context.md")
+def cmd_context(args: argparse.Namespace) -> int:
+    """Adds or displays business domain and application context in .workflow/memory/project_context.md."""
+    target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
+    context_args = getattr(args, "context_text", None) or getattr(args, "text", None) or getattr(args, "context", None)
 
-    specs_root = os.path.join(wf_root, "specs")
-    active_specs = {}
-    if os.path.exists(specs_root):
-        for sub in ["features", "bugs", "refactor", "docs"]:
-            sub_dir = os.path.join(specs_root, sub)
-            if os.path.exists(sub_dir):
-                active_specs[sub] = [d for d in os.listdir(sub_dir) if os.path.isdir(os.path.join(sub_dir, d))]
-
-    scoped_spec = None
-    if args.spec_name:
-        resolved = resolve_spec_path(args.spec_name, target_dir=target_dir)
-        scoped_spec = {"name": os.path.basename(resolved), "path": resolved}
-
-    data = {
-        "status": "READY_FOR_CHAT",
-        "project_root": target_dir,
-        "workflow_root": wf_root,
-        "active_specs": active_specs,
-        "scoped_spec": scoped_spec,
-        "master_context_available": os.path.exists(master_file),
-    }
-
-    if args.json:
-        print(json.dumps(data, indent=2))
-        return 0
-
-    print("=" * 110)
-    print(" 💬 WORKFLOW CHAT & ARCHITECTURAL ADVISOR")
-    print("=" * 110)
-    if scoped_spec:
-        print(f"📌 Scoped Focus: Spec '{scoped_spec['name']}' at {scoped_spec['path']}")
+    if isinstance(context_args, list):
+        context_text = " ".join(context_args).strip()
+    elif context_args:
+        context_text = str(context_args).strip()
     else:
-        print("🌐 Scope: Global Project Architecture & Brainstorming")
-    print(f"📦 Active Specifications: {sum(len(v) for v in active_specs.values())} in flight")
-    print("=" * 110)
+        context_text = ""
 
-    print_next_steps([
-        {"cmd": "/workflow new <name> --archetype feat", "desc": "Turn brainstormed idea into a feature spec"},
-        {"cmd": "/workflow specify <name>", "desc": "Refine architectural decisions into spec.md"},
-    ])
-    return 0
+    if context_text:
+        append_mode = not getattr(args, "overwrite", False)
+        res = update_project_business_context(context_text, target_dir=target_dir, append=append_mode)
+
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+            return 0
+
+        print("=" * 110)
+        print(" 🏢 PROJECT BUSINESS & DOMAIN CONTEXT UPDATED")
+        print("=" * 110)
+        print(f"{'Target Document':<24} │ {res['context_file']}")
+        print(f"{'Timestamp':<24} │ {res['timestamp']}")
+        print(f"{'Added Context':<24} │ {res['added_context']}")
+        print("=" * 110)
+
+        print_next_steps([
+            {"cmd": "/workflow explore", "desc": "Survey codebase stack & refresh project context"},
+            {"cmd": "/workflow new <spec-name>", "desc": "Scaffold a new feature specification"},
+        ])
+        return 0
+    else:
+        res = read_project_business_context(target_dir=target_dir)
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+            return 0
+
+        print("=" * 110)
+        print(" 🏢 PROJECT BUSINESS & DOMAIN CONTEXT")
+        print("=" * 110)
+        print(f"{'Target Document':<24} │ {res['context_file']}")
+        print(f"{'Status':<24} │ {res['status']}")
+        print("-" * 110)
+        print(res["business_context"])
+        print("=" * 110)
+
+        print_next_steps([
+            {"cmd": "/workflow context \"<business context or app description>\"", "desc": "Add domain context to project_context.md"},
+            {"cmd": "/workflow explore", "desc": "Survey codebase stack & refresh project context"},
+        ])
+        return 0
 
 
 def cmd_security(args: argparse.Namespace) -> int:
@@ -1235,7 +1243,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow archive", "syntax": "workflow archive <name>", "desc": "Move completed spec to .workflow/specs/archive/<year>/"},
         {"slash": "/workflow drift", "syntax": "workflow drift [--sync]", "desc": "Detect manifest checksum drift & sync tech context"},
         {"slash": "/workflow memory", "syntax": "workflow memory [list|add|show]", "desc": "Manage coding preferences, project context & indexed docs"},
-        {"slash": "/workflow chat", "syntax": "workflow chat [spec]", "desc": "Macro architecture brainstorming & scoped spec debate"},
+        {"slash": "/workflow context", "syntax": "workflow context [text]", "desc": "Add or view business domain context in project_context.md"},
         {"slash": "/workflow check-env", "syntax": "workflow check-env", "desc": "Diagnostic check of Python >=3.10, Git, uv, and dependencies"},
         {"slash": "/workflow list", "syntax": "workflow list", "desc": "Display this concise command reference table"},
     ]
@@ -1289,6 +1297,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_mem.add_argument("--content", help="Content details for the note")
     p_mem.add_argument("--message", dest="message", help="Alternative title flag for logging")
     p_mem.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
+    # context
+    p_ctx = subparsers.add_parser("context", help="Add or inspect business domain and application context in .workflow/memory/project_context.md")
+    p_ctx.add_argument("context_text", nargs="*", help="Business context or application domain description")
+    p_ctx.add_argument("--overwrite", action="store_true", help="Overwrite existing business context instead of appending")
+    p_ctx.add_argument("--target-dir", default=".", help="Target workspace directory")
 
     # new
     p_new = subparsers.add_parser("new", help="Scaffold a new feature specification directory under .workflow/specs/active/<spec-name>/")
@@ -1390,11 +1404,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_arc.add_argument("spec_name", help="Name of the spec to archive")
     p_arc.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
-    # chat
-    p_chat = subparsers.add_parser("chat", help="Freeform project brainstorming or scoped spec debate session")
-    p_chat.add_argument("spec_name", nargs="?", help="Optional spec name to scope debate")
-    p_chat.add_argument("--target-dir", default=".", help="Target workspace directory")
-
     # list
     subparsers.add_parser("list", help="Display universal command catalog and cheat-sheet")
 
@@ -1415,6 +1424,7 @@ def main() -> int:
         "explore": cmd_explore,
         "drift": cmd_drift,
         "memory": cmd_memory,
+        "context": cmd_context,
         "new": cmd_new,
         "specify": cmd_specify,
         "clarify": cmd_clarify,
@@ -1431,7 +1441,6 @@ def main() -> int:
         "stop": cmd_stop,
         "clean": cmd_clean,
         "archive": cmd_archive,
-        "chat": cmd_chat,
         "list": cmd_list,
     }
 

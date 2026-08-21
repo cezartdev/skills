@@ -109,7 +109,7 @@ skills/workflow/
 │       ├── quality.prompt.md         # Quality Assurance Gatekeeper prompt (quality-worker)
 │       ├── doc_sync.prompt.md        # Documentation synchronizer prompt (doc-worker)
 │       ├── git_worker.prompt.md      # Deterministic Git & GitHub release prompt (git-worker)
-│       └── chat.prompt.md            # Macro project advisor & brainstorming prompt
+│       └── context.prompt.md         # Business & application domain context curator prompt
 └── assets/                           # [OPTIONAL] Templates, schemas, and static resources
     ├── spec.template.md              # Functional Spec template (what & why)
     ├── plan.template.md              # Technical Design Plan template (architecture & schemas)
@@ -147,7 +147,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 | `/workflow archive` | `workflow archive <spec>` | Move completed spec to `.workflow/specs/archive/<year>/` |
 | `/workflow drift` | `workflow drift [--sync]` | Detect manifest checksum drift & sync tech context |
 | `/workflow memory` | `workflow memory [list|add|show]` | Manage methodology, coding preferences, project context & indexed docs |
-| `/workflow chat` | `workflow chat [spec]` | Macro architecture brainstorming & scoped spec debate |
+| `/workflow context` | `workflow context [text]` | Add or view business domain context in `project_context.md` |
 | `/workflow check-env` | `workflow check-env` | Diagnostic check of Python $\ge 3.10$, Git, uv, gh CLI, and dependencies |
 | `/workflow list` | `workflow list` | Display this concise command reference table |
 

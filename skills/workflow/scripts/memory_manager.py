@@ -183,3 +183,120 @@ def read_memory_doc(identifier: str, target_dir: str = ".") -> Optional[Dict[str
                     return {"filename": filename, "path": p, "content": f.read()}
 
     return None
+
+
+def update_project_business_context(
+    context_text: str,
+    target_dir: str = ".",
+    append: bool = True,
+) -> Dict[str, Any]:
+    """Appends or updates business and application domain context in .workflow/memory/project_context.md."""
+    mem_dir = get_memory_dir(target_dir)
+    context_file = os.path.join(mem_dir, "project_context.md")
+    legacy_file = os.path.join(mem_dir, "00_project_context.md")
+
+    actual_file = context_file
+    if not os.path.exists(context_file) and os.path.exists(legacy_file):
+        actual_file = legacy_file
+
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    header_section = "## Business & Application Domain Context"
+
+    if not os.path.exists(actual_file):
+        content = f"""# Project Master Context & Architectural Invariants
+
+**Last Updated**: `{timestamp}`
+
+---
+
+{header_section}
+{context_text.strip()}
+
+---
+
+## 1. Technology Stack & Runtimes
+- **Primary Language(s)**: Pending discovery via `/workflow explore`
+"""
+        with open(context_file, "w", encoding="utf-8") as f:
+            f.write(content)
+        actual_file = context_file
+    else:
+        with open(actual_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        if header_section in content:
+            if append:
+                parts = content.split(header_section, 1)
+                before = parts[0]
+                after = parts[1]
+                next_header_match = re.search(r"\n---\n|\n##\s", after)
+                if next_header_match:
+                    section_body = after[:next_header_match.start()].rstrip()
+                    rest = after[next_header_match.start():]
+                    new_section_body = section_body + f"\n\n- [{timestamp}] {context_text.strip()}"
+                    content = before + header_section + new_section_body + rest
+                else:
+                    content = before + header_section + after.rstrip() + f"\n\n- [{timestamp}] {context_text.strip()}\n"
+            else:
+                parts = content.split(header_section, 1)
+                before = parts[0]
+                after = parts[1]
+                next_header_match = re.search(r"\n---\n|\n##\s", after)
+                rest = after[next_header_match.start():] if next_header_match else ""
+                content = before + header_section + f"\n\n{context_text.strip()}\n" + rest
+        else:
+            first_section_match = re.search(r"\n---\n\s*##\s*1\.", content)
+            if first_section_match:
+                idx = first_section_match.start()
+                content = content[:idx] + f"\n---\n\n{header_section}\n{context_text.strip()}\n" + content[idx:]
+            else:
+                content = content.rstrip() + f"\n\n---\n\n{header_section}\n{context_text.strip()}\n"
+
+        with open(actual_file, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    return {
+        "status": "SUCCESS",
+        "context_file": actual_file,
+        "added_context": context_text.strip(),
+        "timestamp": timestamp,
+    }
+
+
+def read_project_business_context(target_dir: str = ".") -> Dict[str, Any]:
+    """Reads business and application domain context from .workflow/memory/project_context.md."""
+    mem_dir = get_memory_dir(target_dir)
+    context_file = os.path.join(mem_dir, "project_context.md")
+    legacy_file = os.path.join(mem_dir, "00_project_context.md")
+    actual_file = context_file if os.path.exists(context_file) else legacy_file
+
+    if not os.path.exists(actual_file):
+        return {
+            "status": "MISSING",
+            "context_file": context_file,
+            "has_context": False,
+            "business_context": "No business context registered yet. Run '/workflow context <details>' to add.",
+        }
+
+    with open(actual_file, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    header_section = "## Business & Application Domain Context"
+    if header_section in content:
+        after = content.split(header_section, 1)[1]
+        next_header_match = re.search(r"\n---\n|\n##\s", after)
+        section_body = after[:next_header_match.start()].strip() if next_header_match else after.strip()
+        return {
+            "status": "SUCCESS",
+            "context_file": actual_file,
+            "has_context": bool(section_body),
+            "business_context": section_body if section_body else "Section exists but empty.",
+        }
+
+    return {
+        "status": "NOT_SET",
+        "context_file": actual_file,
+        "has_context": False,
+        "business_context": "No business context section found in project_context.md. Run '/workflow context <details>' to add.",
+    }
+

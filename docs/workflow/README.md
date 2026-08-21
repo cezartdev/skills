@@ -97,9 +97,13 @@ uv run skills/workflow/scripts/workflow_runner.py memory add auth-rules --conten
 uv run skills/workflow/scripts/workflow_runner.py memory show 01
 ```
 
-### 4. Freeform Brainstorming
+### 4. Business & Application Domain Context
 ```bash
-uv run skills/workflow/scripts/workflow_runner.py chat
+# Add or append business domain and application context to .workflow/memory/project_context.md:
+uv run skills/workflow/scripts/workflow_runner.py context "This application is an e-commerce platform for digital gaming assets with Stripe payments, Discord OAuth, and real-time inventory management."
+
+# View currently registered business and application domain context:
+uv run skills/workflow/scripts/workflow_runner.py context
 ```
 
 ### 5. Spec-Driven Development (SDD) & Subagent Pipeline
