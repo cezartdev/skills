@@ -1,5 +1,28 @@
 # cezartdev-skills
 
+## 1.14.1
+
+### Patch Changes
+
+- [`f61ad7a`](https://github.com/cezartdev/skills/commit/f61ad7a3800d3ea8a89be84ebea040419384edab) Thanks [@cezartdev](https://github.com/cezartdev)! - fix(workflow): eliminate .gitkeep files and enforce deterministic runtime directory creation
+  
+  - Remove all `.gitkeep` file creation across `.workflow/` directory tree and specification folders.
+  - Implement `ensure_workflow_directories()` and `ensure_spec_directories()` in `scaffolder.py` to deterministically create any missing directories on demand.
+  - Hook directory verification into command dispatch and pipeline initialization to handle fresh repository clones where empty directories were not tracked.
+
+- [`74b811e`](https://github.com/cezartdev/skills/commit/74b811e0d34a938c2c0679cc96ae5516bc172a85) Thanks [@cezartdev](https://github.com/cezartdev)! - fix(workflow): resolve Snyk audit findings E005, W011, and W013 for skills.sh compliance
+  
+  - Remove external installer URLs in launcher scripts and documentation (E005).
+  - Strengthen multi-layer prompt injection filtering and HTML sanitization on ingested markdown files (W011).
+  - Neutralize process and service terminology in SKILL.md and documentation to clarify safe local repository scoping (W013).
+
+- [`bd00202`](https://github.com/cezartdev/skills/commit/bd0020290595d79460453b02dbc58d3f1d4114bf) Thanks [@cezartdev](https://github.com/cezartdev)! - fix(workflow): harden worktree sandboxing, test command whitelist, and non-destructive sync for Socket compliance
+  
+  - Enforce mathematical commonpath validation and strict sandbox bounds on `resolve_worktree_path` in `worktree_manager.py`.
+  - Replace history-rewriting git rebase with non-destructive merge in `sync_worktree_with_base`.
+  - Implement developer tool whitelist and forbidden shell operator filtering in `safe_run_test_command`.
+  - Apply `shlex.quote` across all suggested PR and Git command strings.
+
 ## 1.14.0
 
 ### Minor Changes
