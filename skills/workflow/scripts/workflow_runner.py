@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Workflow Suite: Deterministic State Machine Runner, SDD/TDD Engine, Multi-Daemon & Multi-PR Curator."""
+"""Workflow Suite: Deterministic State Machine Runner, SDD/TDD Engine, Cybersecurity Auditor & Quality Gatekeeper."""
 
 import argparse
 import json
@@ -26,13 +26,17 @@ from memory_manager import (
 )
 from worktree_manager import list_worktrees, create_worktree, remove_worktree, force_purge_worktree, prune_worktrees, ensure_git_repository
 from quality_auditor import audit_spec
-from orchestrator import (
+from quality import (
     compile_scoped_pr_summary,
     generate_spec_adr,
     generate_specify_adr,
-    evaluate_pipeline_quality,
-    create_curator_pr,
+    evaluate_quality_gate,
+    create_quality_pr,
     archive_merged_pr,
+)
+from security_auditor import (
+    audit_codebase,
+    audit_dependencies,
 )
 from git_ops import (
     execute_atomic_commit,
@@ -637,7 +641,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"   To stop: uv run skills/workflow/scripts/workflow_runner.py stop {res['spec_name']}")
 
     print_next_steps([
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py curate {res['spec_name']} --create-pr", "desc": "Open pull request directly on GitHub via gh CLI"},
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py quality {res['spec_name']} --create-pr", "desc": "Evaluate quality gates and open pull request directly via gh CLI"},
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py security {res['spec_name']}", "desc": "Run OWASP Top 10 SAST and vulnerability audit"},
         {"cmd": "uv run skills/workflow/scripts/workflow_runner.py status", "desc": "Check active pipeline status & worktrees"},
         {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py archive {res['spec_name']}", "desc": "Archive completed specification when merged"},
     ])
@@ -746,7 +751,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 
     print_next_steps([
         {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <spec-name>", "desc": "Scaffold a new feature specification"},
-        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py run <spec-name>", "desc": "Execute 5-stage Orchestrator pipeline"},
+        {"cmd": "uv run skills/workflow/scripts/workflow_runner.py run <spec-name>", "desc": "Execute 6-stage Quality pipeline"},
     ])
     return 0
 
@@ -819,7 +824,7 @@ def cmd_archive(args: argparse.Namespace) -> int:
         print("=" * 110)
 
         print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py curate", "desc": "Compile memory decisions into release PR"},
+            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py quality", "desc": "Compile memory decisions into release PR"},
             {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <next-spec>", "desc": "Scaffold your next specification"},
         ])
     else:
@@ -877,13 +882,70 @@ def cmd_chat(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_curate(args: argparse.Namespace) -> int:
-    """Executes the Curator Subagent: generates ADR, manages multi-PR catalog and compiles scoped PR summaries."""
-    target_dir = os.path.abspath(args.target_dir if hasattr(args, "target_dir") and args.target_dir else ".")
+def cmd_security(args: argparse.Namespace) -> int:
+    """Runs OWASP Top 10 SAST, secret detection, and dependency vulnerability audit."""
+    target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
+    spec_name = getattr(args, "spec_name", None) or getattr(args, "spec", None)
+    res = audit_codebase(target_dir=target_dir, spec_name=spec_name)
+
+    if getattr(args, "json", False):
+        print(json.dumps(res, indent=2))
+        return 0 if res["security_gate_passed"] else 1
+
+    print("=" * 110)
+    print(f" 🛡️  SECURITY AUDIT REPORT: '{spec_name or 'GLOBAL'}'")
+    print("=" * 110)
+    print(f"{'CATEGORY':<24} │ VALUE")
+    print("-" * 110)
+    print(f"{'Security Gate':<24} │ {'✅ PASSED (0 Crit / 0 High)' if res['security_gate_passed'] else '🚨 FAILED (Critical/High Vulns Found)'}")
+    print(f"{'Critical Issues':<24} │ {res['summary']['critical']}")
+    print(f"{'High Issues':<24} │ {res['summary']['high']}")
+    print(f"{'Medium Issues':<24} │ {res['summary']['medium']}")
+    print(f"{'Low / Info Issues':<24} │ {res['summary']['low']}")
+    print(f"{'Report File':<24} │ {res.get('report_file')}")
+    print("=" * 110)
+
+    if res["sast_findings"]:
+        print("\n🔍 OWASP Top 10 Findings:")
+        for f in res["sast_findings"][:5]:
+            print(f"   - [{f['severity']}] {f['owasp']} ({f['file']}:{f['line_number']}): {f['title']}")
+        if len(res["sast_findings"]) > 5:
+            print(f"   ... and {len(res['sast_findings']) - 5} more issues in {res.get('report_file')}")
+
+    if res["dependency_vulnerabilities"]:
+        print("\n📦 Dependency Vulnerabilities:")
+        for d in res["dependency_vulnerabilities"][:5]:
+            print(f"   - [{d.get('severity')}] {d.get('package')}: {d.get('title')}")
+
+    return 0 if res["security_gate_passed"] else 1
+
+
+def cmd_audit_deps(args: argparse.Namespace) -> int:
+    """Audits project package manifests for known CVEs."""
+    target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
+    res = audit_dependencies(target_dir=target_dir)
+
+    if getattr(args, "json", False):
+        print(json.dumps(res, indent=2))
+        return 0 if res["passed"] else 1
+
+    print("=" * 90)
+    print(" 📦 DEPENDENCY CVE AUDIT REPORT")
+    print("=" * 90)
+    print(f"Ecosystems Scanned: {', '.join(res['scanned_ecosystems']) or 'None detected'}")
+    print(f"Vulnerabilities Found: {len(res['vulnerabilities'])}")
+    print(f"Security Gate: {'PASSED' if res['passed'] else 'FAILED'}")
+    print("=" * 90)
+    return 0 if res["passed"] else 1
+
+
+def cmd_quality(args: argparse.Namespace) -> int:
+    """Executes the Quality Gatekeeper: evaluates quality score, generates ADR, and compiles release PR."""
+    target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
     spec_name = getattr(args, "spec_name", None) or getattr(args, "spec", None) or getattr(args, "flag_spec", None)
     target_branch = getattr(args, "target_branch", None)
     if not target_branch:
-        target_branch = spec_name if spec_name else "main"
+        target_branch = f"feat/{spec_name}" if spec_name else "main"
     create_pr = getattr(args, "create_pr", False)
     archetype = getattr(args, "archetype", None)
 
@@ -897,17 +959,14 @@ def cmd_curate(args: argparse.Namespace) -> int:
         print("=" * 110)
         print(f"{'Archive Destination':<24} │ {res.get('destination', res.get('message'))}")
         print("=" * 110)
-        print_next_steps([
-            {"cmd": "uv run skills/workflow/scripts/workflow_runner.py new <next-spec>", "desc": "Scaffold your next specification"},
-        ])
         return 0
 
-    res = create_curator_pr(
+    res = create_quality_pr(
         target_dir=target_dir,
         archetype=archetype,
         spec_name=spec_name,
         target_branch=target_branch,
-        create_pr=create_pr
+        create_pr=create_pr,
     )
 
     if args.json:
@@ -915,10 +974,10 @@ def cmd_curate(args: argparse.Namespace) -> int:
         return 0
 
     file_slug = res.get("file_slug") or "PR_summary.md"
-    head_branch = res.get("head_branch", f"{spec_name}-worker" if spec_name else "curator-worker")
+    head_branch = res.get("head_branch", f"{spec_name}-worker" if spec_name else "worker")
     base_branch = res.get("base_branch", target_branch)
     print("=" * 110)
-    print(f" 🚀 WORKFLOW CURATOR SUMMARY (.workflow/prs/active/{file_slug})")
+    print(f" 🚀 WORKFLOW QUALITY SUMMARY ({res.get('pr_file')})")
     print("=" * 110)
     print(f"{'PROPERTY':<24} │ VALUE")
     print("-" * 110)
@@ -926,9 +985,10 @@ def cmd_curate(args: argparse.Namespace) -> int:
     print(f"{'Target Base Branch':<24} │ {base_branch}")
     print(f"{'PR Document':<24} │ {res.get('pr_file')}")
     print(f"{'Total Integrated':<24} │ {res.get('total_changes', 0)} changes verified")
-    integration = res.get("integration", {})
-    if integration.get("merged_branches"):
-        print(f"{'Merged Worker Branches':<24} │ {', '.join(integration['merged_branches'])}")
+    if res.get("adr") and res["adr"].get("adr_path"):
+        print(f"{'ADR Generated':<24} │ {res['adr']['adr_path']}")
+    if res.get("pr_url"):
+        print(f"{'GitHub PR URL':<24} │ {res['pr_url']}")
     print("=" * 110)
 
     if res.get("status") == "PR_CREATED":
@@ -939,15 +999,10 @@ def cmd_curate(args: argparse.Namespace) -> int:
         print(f"   👉 Git Merge: {res.get('suggested_git_merge')}")
 
     print_next_steps([
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py curate {spec_name or '<spec>'} --create-pr", "desc": "Open pull request directly on GitHub via gh CLI"},
-        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py curate --archive {file_slug}", "desc": "Archive merged PR summary to history"},
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py quality {spec_name or '<spec>'} --create-pr", "desc": "Open pull request directly on GitHub via gh CLI"},
+        {"cmd": f"uv run skills/workflow/scripts/workflow_runner.py quality --archive {file_slug}", "desc": "Archive merged PR summary to history"},
     ])
     return 0
-
-
-def cmd_orchestrate(args: argparse.Namespace) -> int:
-    """Orchestrator Supervisor: audits quality gates, generates ADRs, and synthesizes PR releases."""
-    return cmd_curate(args)
 
 
 def cmd_commit(args: argparse.Namespace) -> int:
@@ -1046,7 +1101,7 @@ def cmd_pr(args: argparse.Namespace) -> int:
 
 
 def cmd_daemon(args: argparse.Namespace) -> int:
-    """Provides compatibility notice for the streamlined 5-stage Orchestrator pipeline."""
+    """Provides compatibility notice for the streamlined 6-stage Quality pipeline."""
     target_dir = getattr(args, "target_dir", ".") or "."
     if getattr(args, "action", "") == "status":
         return cmd_status(args)
@@ -1058,7 +1113,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     if getattr(args, "json", False):
         print(json.dumps({
             "status": "STREAMLINED",
-            "message": "Background daemons upgraded to native subagent 5-stage pipeline runner.",
+            "message": "Background daemons upgraded to native subagent 6-stage pipeline runner.",
             "pipeline_cmd": "uv run skills/workflow/scripts/workflow_runner.py run <spec>"
         }, indent=2))
         return 0
@@ -1066,8 +1121,8 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     print("=" * 110)
     print(" ℹ️  WORKFLOW SUBSYSTEM STREAMLINED")
     print("=" * 110)
-    print("Background execution has been consolidated into the deterministic 5-Stage Orchestrator Pipeline:")
-    print("  👉 uv run skills/workflow/scripts/workflow_runner.py run <spec-name>   │ Execute 5-stage pipeline in worktree")
+    print("Background execution has been consolidated into the deterministic 6-Stage Quality Pipeline:")
+    print("  👉 uv run skills/workflow/scripts/workflow_runner.py run <spec-name>   │ Execute 6-stage pipeline in worktree")
     print("  👉 uv run skills/workflow/scripts/workflow_runner.py status           │ Inspect active specs & worktrees")
     print("  👉 uv run skills/workflow/scripts/workflow_runner.py worktree list    │ Manage isolated physical worktrees")
     print("  👉 uv run skills/workflow/scripts/workflow_runner.py clean            │ Prune stale worktrees & locks")
@@ -1129,14 +1184,18 @@ def cmd_list(args: argparse.Namespace) -> int:
     """Displays the concise, fixed command reference table."""
     commands = [
         {"slash": "/workflow init", "syntax": "workflow init [dir]", "desc": "Initialize encapsulated .workflow/ structure & configs"},
-        {"slash": "/workflow explore", "syntax": "workflow explore [dir]", "desc": "Survey polyglot stack & extract style preferences (00_coding_preferences.md)"},
-        {"slash": "/workflow new", "syntax": "workflow new <name> [--archetype <type>]", "desc": "Scaffold a new spec under .workflow/specs/ (default: feat)"},
-        {"slash": "/workflow specify", "syntax": "workflow specify <name>", "desc": "Interactive 1-by-1 Grilling Session to co-author spec.md"},
+        {"slash": "/workflow explore", "syntax": "workflow explore [dir]", "desc": "Survey polyglot stack & extract coding preferences"},
+        {"slash": "/workflow new", "syntax": "workflow new <name>", "desc": "Scaffold a new spec under .workflow/specs/active/<name>/"},
+        {"slash": "/workflow specify", "syntax": "workflow specify <name>", "desc": "Interactive 1-by-1 Grilling Session to co-author spec.md & ADR"},
         {"slash": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Decompose refined spec into atomic TDD task issues"},
         {"slash": "/workflow check", "syntax": "workflow check <name>", "desc": "Audit spec against deterministic Quality Gate (100/100)"},
-        {"slash": "/workflow run", "syntax": "workflow run <spec> [--schedule <m>]", "desc": "Primary Engine: Run 4-stage sequential pipeline (Fix -> Refactor -> Doc -> Curator)"},
-        {"slash": "/workflow curate", "syntax": "workflow curate [spec] [--create-pr]", "desc": "Generate ADR, compile PR summary & suggest Pull Request"},
-        {"slash": "/workflow status", "syntax": "workflow status [spec]", "desc": "View active pipeline status, worktrees & scheduled timers"},
+        {"slash": "/workflow security", "syntax": "workflow security [spec] [--json]", "desc": "Run OWASP Top 10 SAST, secret leak & dependency CVE audit"},
+        {"slash": "/workflow audit-deps", "syntax": "workflow audit-deps [dir]", "desc": "Audit project package manifests for known CVEs"},
+        {"slash": "/workflow quality", "syntax": "workflow quality [spec] [--create-pr]", "desc": "Quality Gatekeeper: audit quality score & OWASP report, generate ADR"},
+        {"slash": "/workflow run", "syntax": "workflow run <spec> [--schedule <m>]", "desc": "Primary Engine: Run 6-stage subagent pipeline (Fix -> Refactor -> Security -> Quality -> Doc -> Git-Worker)"},
+        {"slash": "/workflow commit", "syntax": "workflow commit -t <t> -s <s> -m <m>", "desc": "Git-Worker deterministic Conventional Commit with pre-commit security gates"},
+        {"slash": "/workflow pr", "syntax": "workflow pr --spec <spec>", "desc": "Git-Worker deterministic GitHub PR creation via gh CLI"},
+        {"slash": "/workflow status", "syntax": "workflow status [spec]", "desc": "View active pipeline status, worktrees & security audits"},
         {"slash": "/workflow stop", "syntax": "workflow stop [spec]", "desc": "Terminate background pipeline subagents and cancel timers"},
         {"slash": "/workflow clean", "syntax": "workflow clean", "desc": "Deep Anti-Zombie cleanup of orphaned worktrees, locks & dead PIDs"},
         {"slash": "/workflow archive", "syntax": "workflow archive <name>", "desc": "Move completed spec to .workflow/specs/archive/<year>/"},
@@ -1166,7 +1225,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Constructs CLI argument parser with all subcommands."""
     parser = argparse.ArgumentParser(
         prog="workflow_runner.py",
-        description="Deterministic State Machine Runner, SDD/TDD Engine, Multi-Daemon Manager & Multi-PR Curator",
+        description="Deterministic State Machine Runner, SDD/TDD Engine, Cybersecurity Auditor & Quality Gatekeeper",
     )
     parser.add_argument("--json", action="store_true", help="Output results in JSON format")
 
@@ -1221,33 +1280,32 @@ def build_parser() -> argparse.ArgumentParser:
     p_chk.add_argument("spec_dir", help="Path or shorthand name of the spec")
     p_chk.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
+    # security
+    p_sec = subparsers.add_parser("security", help="Run OWASP Top 10 SAST, secret leak, and dependency vulnerability audit")
+    p_sec.add_argument("spec_name", nargs="?", default=None, help="Target specification name")
+    p_sec.add_argument("--target-dir", default=".", help="Target workspace directory")
+
+    # audit-deps
+    p_deps = subparsers.add_parser("audit-deps", help="Audit project package manifests for known CVEs")
+    p_deps.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
+    # quality
+    p_qual = subparsers.add_parser("quality", help="Quality Gatekeeper: audit quality score, generate ADR, and compile release PR")
+    p_qual.add_argument("spec_name", nargs="?", help="Target specification name (e.g. user-login)")
+    p_qual.add_argument("--spec", dest="flag_spec", help="Target specification name (alternative flag)")
+    p_qual.add_argument("--archetype", choices=["fix", "refactor", "security", "implement", "doc_sync", "all"], help="Scope PR to specific archetype decisions")
+    p_qual.add_argument("--archive", help="Archive a merged PR filename into .workflow/prs/archive/<year>/")
+    p_qual.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
+    p_qual.add_argument("--target-branch", default=None, help="Target merge branch (defaults to spec branch or main)")
+    p_qual.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
     # run
-    p_run = subparsers.add_parser("run", help="Run deterministic 5-stage Orchestrator-governed pipeline (Fix -> Refactor -> Orchestrator -> Doc -> Git-Worker)")
+    p_run = subparsers.add_parser("run", help="Run deterministic 6-stage subagent pipeline (Fix -> Refactor -> Security -> Quality -> Doc -> Git-Worker)")
     p_run.add_argument("spec_name", help="Target specification name (e.g. user-login)")
     p_run.add_argument("--schedule", "--interval", dest="schedule", type=int, default=None, help="Opt-in recurring interval in minutes (e.g. 30 or 45)")
     p_run.add_argument("--auto-merge", action="store_true", help="Auto-merge pipeline branch into feature branch if tests pass")
     p_run.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
     p_run.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
-
-    # orchestrate (curate alias)
-    p_orch = subparsers.add_parser("orchestrate", help="Orchestrator Supervisor: audit quality gates, generate ADRs, and compile PR releases")
-    p_orch.add_argument("spec_name", nargs="?", help="Target specification name (e.g. user-login)")
-    p_orch.add_argument("--spec", dest="flag_spec", help="Target specification name (alternative flag)")
-    p_orch.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync", "all"], help="Scope PR to specific archetype decisions")
-    p_orch.add_argument("--archive", help="Archive a merged PR filename into .workflow/prs/archive/<year>/")
-    p_orch.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
-    p_orch.add_argument("--target-branch", default=None, help="Target merge branch (defaults to spec branch or main)")
-    p_orch.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
-
-    # curate (backward compatibility)
-    p_curate = subparsers.add_parser("curate", help="Curator Subagent (alias for orchestrate): generate ADR and compile scoped PR summaries")
-    p_curate.add_argument("spec_name", nargs="?", help="Target specification name (e.g. user-login)")
-    p_curate.add_argument("--spec", dest="flag_spec", help="Target specification name (alternative flag)")
-    p_curate.add_argument("--archetype", choices=["fix", "refactor", "implement", "doc_sync", "all"], help="Scope PR to specific archetype decisions")
-    p_curate.add_argument("--archive", help="Archive a merged PR filename into .workflow/prs/archive/<year>/")
-    p_curate.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
-    p_curate.add_argument("--target-branch", default=None, help="Target merge branch (defaults to spec branch or main)")
-    p_curate.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # commit (for git-worker)
     p_cmt = subparsers.add_parser("commit", help="Git-Worker deterministic Conventional Commit with pre-commit security gates")
@@ -1342,9 +1400,10 @@ def main() -> int:
         "specify": cmd_specify,
         "plan": cmd_plan,
         "check": cmd_check,
+        "security": cmd_security,
+        "audit-deps": cmd_audit_deps,
+        "quality": cmd_quality,
         "run": cmd_run,
-        "orchestrate": cmd_orchestrate,
-        "curate": cmd_curate,
         "commit": cmd_commit,
         "pr": cmd_pr,
         "status": cmd_status,

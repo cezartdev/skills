@@ -14,14 +14,14 @@ from datetime import datetime
 
 try:
     from git_ops import scan_pre_commit_security, execute_atomic_commit
-    from orchestrator import compile_scoped_pr_summary, generate_spec_adr
+    from quality import compile_scoped_pr_summary, generate_spec_adr
     from worktree_manager import create_worktree, sync_worktree_with_base, run_git, get_default_branch, get_current_branch, is_protected_branch
     from scaffolder import get_workflow_root
 except ImportError:
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from git_ops import scan_pre_commit_security, execute_atomic_commit
-    from orchestrator import compile_scoped_pr_summary, generate_spec_adr
+    from quality import compile_scoped_pr_summary, generate_spec_adr
     from worktree_manager import create_worktree, sync_worktree_with_base, run_git, get_default_branch, get_current_branch, is_protected_branch
     from scaffolder import get_workflow_root
 
@@ -236,7 +236,9 @@ def node_doc_gate(state: Dict[str, Any]) -> Dict[str, Any]:
 def node_security_gate(state: Dict[str, Any]) -> Dict[str, Any]:
     """Node 5: Deterministic security gate scanning secrets and conflict markers."""
     wt_path = state["worktree_path"]
-    sec_pass, sec_errors = scan_pre_commit_security(wt_path)
+    sec_res = scan_pre_commit_security(wt_path)
+    sec_pass = sec_res.get("passed", True)
+    sec_errors = [v.get("detail") for v in sec_res.get("violations", [])]
 
     return {
         **state,
@@ -246,7 +248,7 @@ def node_security_gate(state: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def node_curator_adr(state: Dict[str, Any]) -> Dict[str, Any]:
+def node_quality_adr(state: Dict[str, Any]) -> Dict[str, Any]:
     """Node 6: Deterministic MADR Architectural Decision Record generation and commit."""
     target_dir = state["target_dir"]
     spec_name = state["spec_name"]
@@ -270,7 +272,7 @@ def node_curator_adr(state: Dict[str, Any]) -> Dict[str, Any]:
         **state,
         "adr": adr_res,
         "pr_summary": pr_summary,
-        "step": "ADR_CURATED",
+        "step": "ADR_QUALITY_RECORDED",
     }
 
 
@@ -307,7 +309,7 @@ class DeterministicPipelineRunner:
         s = node_refactor_gate(s)
         s = node_doc_gate(s)
         s = node_security_gate(s)
-        s = node_curator_adr(s)
+        s = node_quality_adr(s)
         s = node_pr_delivery(s)
         return s
 
@@ -324,7 +326,7 @@ def create_pipeline_graph():
         builder.add_node("refactor_gate", node_refactor_gate)
         builder.add_node("doc_gate", node_doc_gate)
         builder.add_node("security_gate", node_security_gate)
-        builder.add_node("curator_adr", node_curator_adr)
+        builder.add_node("quality_adr", node_quality_adr)
         builder.add_node("pr_delivery", node_pr_delivery)
 
         builder.add_edge(START, "sync_worktree")
@@ -333,8 +335,8 @@ def create_pipeline_graph():
         builder.add_edge("fix_gate", "refactor_gate")
         builder.add_edge("refactor_gate", "doc_gate")
         builder.add_edge("doc_gate", "security_gate")
-        builder.add_edge("security_gate", "curator_adr")
-        builder.add_edge("curator_adr", "pr_delivery")
+        builder.add_edge("security_gate", "quality_adr")
+        builder.add_edge("quality_adr", "pr_delivery")
         builder.add_edge("pr_delivery", END)
 
         return builder.compile()

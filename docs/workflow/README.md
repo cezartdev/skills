@@ -1,4 +1,4 @@
-# 📦 `workflow` — Deterministic State Machine Runner, Multi-Daemon & Multi-PR Release Curator
+# 📦 `workflow` — Deterministic State Machine Runner, Cybersecurity Auditor & Quality Gatekeeper
 
 > **Author**: `cezartdev`  
 > **Version**: `1.3.0`  
@@ -13,12 +13,12 @@
 The **`workflow`** skill provides a deterministic, state-machine driven development suite for software projects. Encapsulated inside a single modular **`.workflow/`** directory in target repositories, it is fully standardized according to the **[Agent Skills Specification](https://agentskills.io/specification)** and integrates best practices from **[GitHub Spec-Kit](https://github.com/github/spec-kit)** and **[Fission-AI OpenSpec](https://github.com/Fission-AI/OpenSpec)**:
 
 - **Encapsulated `.workflow/` Architecture**: Centralizes all specifications (`.workflow/specs/`), memory (`.workflow/memory/`), configurations (`.workflow/workflow.json`), active daemons (`.workflow/daemons.json`), PRs catalog (`.workflow/prs/`), and worktrees (`.workflow/worktrees/`).
-- **Multi-PR Catalog (`.workflow/prs/`)**: Scoped PR generation per archetype (`fix`, `refactor`, `implement`), spec-specific PRs, or unified batch releases stored in `.workflow/prs/active/` and archived to `.workflow/prs/archive/<year>/`.
+- **Deterministic 6-Stage Subagent Pipeline**: Sequentially executes `Fix` $\rightarrow$ `Refactor` $\rightarrow$ `Security` $\rightarrow$ `Quality` $\rightarrow$ `Doc` $\rightarrow$ `Git-Worker` across isolated physical Git Worktrees.
+- **OWASP Top 10 Cybersecurity & Vulnerability Auditor (`/workflow security`)**: Integrated SAST pattern scanner, secret leak detector, and polyglot dependency CVE auditor (`pnpm audit`, `pip-audit`, `cargo audit`).
+- **Quality Gatekeeper (`/workflow quality`)**: Evaluates holistic quality score (100/100 tests, OWASP clearance, zero comments), authors formal **Architectural Decision Records (ADRs)**, and compiles pull requests.
 - **Universal Polyglot Engine (Zero Bias)**: Automatically detects and adapts to Python, Rust, Go, Node, Java, and .NET test runners.
-- **Pure-Deterministic Pipelines in Python**: Separates strict logical rules (quality score regex, exit code evaluation, worktree locks) from LLM reasoning to guarantee zero hallucinations in critical logic.
 - **Strict Zero-Comments Code Policy**: All autonomous subagents produce 100% clean, self-documenting code without extraneous inline or block comments (`//`, `#`, `/* */`, `""" """`) unless explicitly requested by the developer.
-- **Protected Branch Gate & Deterministic Main/Master Isolation**: Automatically intercepts executions triggered while on `main` or `master`, isolates work to a dedicated feature branch, and blocks direct pushes or commits to protected branches.
-- **Autonomous Background Daemons (`/workflow daemon`)**: Dispatches subagents on recurring **cron schedules** inside isolated Git Worktrees, with pause, resume, status, and Anti-Zombie cleanup.
+- **Protected Branch Gate & Deterministic Main/Master Isolation**: Automatically intercepts executions triggered while on `main` or `master`, isolates work to a dedicated feature branch (`feat/<name>`), and blocks direct pushes or commits to protected branches.
 
 ---
 
@@ -31,7 +31,7 @@ To use the full capabilities of the Workflow Suite, ensure the following core to
 | **Python** | `3.10+` | Core state machine runner and deterministic validator engine. | Standard package manager (`brew`, `apt`, `winget`). |
 | **Git** | `2.25+` | Physical worktree isolation, branch management, and atomic commits. | Standard package manager (`git-scm.com`). |
 | **Astral `uv`** | Latest | Ultra-fast Python package and virtual environment runner. | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| **GitHub CLI (`gh`)** | `2.0+` | Reading remote issues, opening Pull Requests (`/workflow curate --create-pr`), and repository automation. | Standard package manager (`cli.github.com`). |
+| **GitHub CLI (`gh`)** | `2.0+` | Reading remote issues, opening Pull Requests (`/workflow quality --create-pr`), and repository automation. | Standard package manager (`cli.github.com`). |
 
 ### 🔑 GitHub CLI Authentication & Permissions
 The GitHub CLI (`gh`) is essential for agents and developers to interact with GitHub repositories directly from the terminal (reading issues, opening pull requests, and inspecting CI status).
@@ -105,7 +105,7 @@ uv run skills/workflow/scripts/workflow_runner.py memory show 01
 uv run skills/workflow/scripts/workflow_runner.py chat
 ```
 
-### 5. Spec-Driven Development (SDD) & Orchestrator Pipeline
+### 5. Spec-Driven Development (SDD) & Subagent Pipeline
 ```bash
 # Scaffold new feature spec directly under .workflow/specs/active/<spec>/
 uv run skills/workflow/scripts/workflow_runner.py new user-login
@@ -119,10 +119,10 @@ uv run skills/workflow/scripts/workflow_runner.py specify user-login --generate-
 # Decompose into atomic TDD task issues
 uv run skills/workflow/scripts/workflow_runner.py plan user-login
 
-# Deterministic Quality Gate audit (100/100 score)
+# Deterministic Pre-Execution Quality Gate audit (100/100 score)
 uv run skills/workflow/scripts/workflow_runner.py check user-login
 
-# Primary Engine: Execute deterministic 5-stage Orchestrator pipeline (Fix -> Refactor -> Orchestrator -> Doc -> Git-Worker)
+# Primary Engine: Execute deterministic 6-stage pipeline (Fix -> Refactor -> Security -> Quality -> Doc -> Git-Worker)
 uv run skills/workflow/scripts/workflow_runner.py run user-login
 
 # Opt-In Recurring Background Execution (runs every 30m with Fixed-Delay):
@@ -141,24 +141,33 @@ uv run skills/workflow/scripts/workflow_runner.py clean
 uv run skills/workflow/scripts/workflow_runner.py archive user-login
 ```
 
-### 6. Architectural Decision Records (ADRs) & Release Orchestration
-The Orchestrator (`workflow orchestrate <spec>`) evaluates quality parameters, verifies test passes, writes formal **Architectural Decision Records (ADRs)** in `.workflow/specs/active/<spec>/adrs/`, and compiles structured PR summaries in `.workflow/prs/active/`:
-
+### 6. Cybersecurity & OWASP Top 10 Auditing
 ```bash
-# Run Orchestrator quality audit, generate ADR and synthesize PR summary for user-login:
-uv run skills/workflow/scripts/workflow_runner.py orchestrate user-login
+# Scan codebase against OWASP Top 10 SAST rules & secret leaks
+uv run skills/workflow/scripts/workflow_runner.py security user-login
 
-# Open Pull Request directly on GitHub via gh CLI:
-uv run skills/workflow/scripts/workflow_runner.py orchestrate user-login --create-pr
-
-# Scoped Rollup PR: Compile exclusively bug fixes into .workflow/prs/active/
-uv run skills/workflow/scripts/workflow_runner.py orchestrate --archetype fix
-
-# Archive a merged PR record:
-uv run skills/workflow/scripts/workflow_runner.py orchestrate --archive PR_spec_user_login_20260818_200000.md
+# Audit package manifests for known CVEs
+uv run skills/workflow/scripts/workflow_runner.py audit-deps
 ```
 
-### 7. Deterministic `git-worker` Commands & Grilling Session Gates
+### 7. Quality Gatekeeper & ADR Generation
+The Quality Gatekeeper (`workflow quality <spec>`) evaluates quality parameters, verifies test passes and OWASP clearance, writes formal **Architectural Decision Records (ADRs)** in `.workflow/specs/active/<spec>/adrs/`, and compiles structured PR summaries in `.workflow/prs/active/`:
+
+```bash
+# Run Quality Gatekeeper audit, generate ADR and synthesize PR summary for user-login:
+uv run skills/workflow/scripts/workflow_runner.py quality user-login
+
+# Open Pull Request directly on GitHub via gh CLI:
+uv run skills/workflow/scripts/workflow_runner.py quality user-login --create-pr
+
+# Scoped Rollup PR: Compile exclusively bug fixes into .workflow/prs/active/
+uv run skills/workflow/scripts/workflow_runner.py quality --archetype fix
+
+# Archive a merged PR record:
+uv run skills/workflow/scripts/workflow_runner.py quality --archive PR_spec_user_login_20260818_200000.md
+```
+
+### 8. Deterministic `git-worker` Commands & Grilling Session Gates
 The **`git-worker`** archetype operates with **100% determinism** and zero inference. It uses internal `git_ops.py` tooling:
 
 ```bash
@@ -177,20 +186,21 @@ uv run skills/workflow/scripts/workflow_runner.py pr \
   --target-dir ".workflow/worktrees/user-login/worker"
 ```
 
-### 8. Native Subagent Archetypes & Dedicated System Prompts
-When `/workflow run <spec>` is executed, the AI Agent registers and launches 5 specialized subagents via native agent tools (`define_subagent` and `invoke_subagent`), each with its own role, function, and personality:
+### 9. Native Subagent Archetypes & Dedicated System Prompts
+When `/workflow run <spec>` is executed, the AI Agent registers and launches 6 specialized subagents via native agent tools (`define_subagent` and `invoke_subagent`), each with its own role, function, and personality:
 
 | Subagent Type | Specialist Role | System Prompt Reference | Key Function |
 |---|---|---|---|
 | `workflow-fix-worker` | **Fix-Worker Specialist** | `references/prompts/fix.prompt.md` | Diagnoses test failures, writes reproduction tests (Red Phase), and fixes bugs to 100% green tests. |
 | `workflow-refactor-worker` | **Refactor-Worker Specialist** | `references/prompts/refactor.prompt.md` | Eliminates code smells, reduces cognitive complexity, strips redundant comments, and preserves 100% green tests. |
-| `workflow-orchestrator` | **Orchestrator Supervisor** | `references/prompts/orchestrator.prompt.md` | Evaluates Quality Gates (100/100), Zero-Comments compliance, and security; writes formal ADRs and routes feedback loops. |
+| `workflow-security-worker` | **Cybersecurity Specialist** | `references/prompts/security_worker.prompt.md` | Scans OWASP Top 10 SAST patterns, secret leaks, and dependency CVEs. |
+| `workflow-quality-worker` | **Quality Assurance Specialist** | `references/prompts/quality.prompt.md` | Evaluates holistic quality score (100/100, zero comments, security clearance), writes formal ADRs, and routes feedback loops. |
 | `workflow-doc-worker` | **Doc-Worker Specialist** | `references/prompts/doc_sync.prompt.md` | Synchronizes markdown documentation, README files, API schemas, and `spec.md` acceptance criteria checkboxes. |
 | `workflow-git-worker` | **Git-Worker Specialist** | `references/prompts/git_worker.prompt.md` | Conducts interactive Grilling Sessions (`ask_question`) with developer before commits/pushes, executing deterministic Conventional Commits and PRs. |
 
-### 9. Strict Hierarchical Worktrees & Subagent Branch Scoping
+### 10. Strict Hierarchical Worktrees & Subagent Branch Scoping
 Every physical worktree is **strictly dependent on and scoped to a specification and its designated subagent**:
-- **Feature / Developer Branch**: Primary implementation takes place directly on `<spec-name>` (e.g., `feat/user-login`).
+- **Feature / Developer Branch**: Primary implementation takes place directly on `feat/<spec-name>` (e.g., `feat/user-login`).
 - **Staging Branch**: Autonomous subagents operate on dedicated staging branch `<spec-name>-worker` inside `.workflow/worktrees/<spec-name>/worker/`.
 - **Auto-Merge Scope**: Auto-merge operations target the spec's associated branch (`feat/user-login`), never solely `main`.
 - **ADR Audit Trail**: Versioned ADRs stored in `.workflow/specs/active/<spec>/adrs/ADR_<timestamp>_pipeline_decisions.md`.
@@ -199,8 +209,8 @@ Every physical worktree is **strictly dependent on and scoped to a specification
 # Execute the full pipeline on-demand:
 uv run skills/workflow/scripts/workflow_runner.py run user-login
 # => Worktree: .workflow/worktrees/user-login/worker/ (Branch: user-login-worker)
-# => Spawns Fix-Worker -> Refactor-Worker -> Orchestrator -> Doc-Worker -> Git-Worker
-# => Orchestrator audits 100% tests & quality score
+# => Spawns Fix-Worker -> Refactor-Worker -> Security-Worker -> Quality-Worker -> Doc-Worker -> Git-Worker
+# => Quality-Worker audits 100% tests, OWASP security clearance & zero comments
 # => Generates ADR in .workflow/specs/active/user-login/adrs/
 # => Git-Worker executes Grilling Session confirmation before commit & PR
 ```

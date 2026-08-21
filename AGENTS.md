@@ -209,7 +209,7 @@ Once the feature PR merges into `main`, GitHub Actions (`.github/workflows/relea
    - **Purpose**: Unified Git suite providing pre-commit security gates, 10-step Conventional Commits validation, commit history compliance auditing (`/git audit`), and safe commit-and-push workflows.
 2. **`workflow` (Deterministic Agent Workflow & TDD Suite)**:
    - **Engine**: Python 3.10+ (LangGraph + Astral uv).
-   - **Purpose**: Deterministic state-machine workflow runner, Spec-Driven Development (SDD), Test-Driven Development (TDD), hierarchical markdown memory with 00-10 compaction, autonomous codebase exploration with tech drift detection, and multi-daemon physical Git Worktree isolation.
+   - **Purpose**: Deterministic state-machine workflow runner, Spec-Driven Development (SDD), Test-Driven Development (TDD), OWASP Top 10 cybersecurity auditor, Quality Gatekeeper, hierarchical markdown memory, autonomous codebase exploration with tech drift detection, and physical Git Worktree isolation.
 
 ### Planned Roadmap Skills
 3. **`testing` (Autonomous Test Suite & Snapshot Gatekeeper)**: Automated test generation, snapshot validation, and coverage gatekeeper for autonomous PRs.

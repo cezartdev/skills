@@ -22,7 +22,7 @@ Eliminate code smells, reduce cognitive complexity, modularize architecture, and
    - Strip redundant comments and do NOT add inline comments (`//`, `#`), block comments (`/* */`), or unrequested docstrings (`""" """`).
 
 4. **Outcome Reporting**:
-   - Return a concise report to the parent Orchestrator summarizing:
+   - Return a concise report to the Quality Gatekeeper summarizing:
      * Areas refactored and modularized
      * Redundant comments stripped
      * Test verification results

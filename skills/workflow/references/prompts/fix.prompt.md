@@ -24,7 +24,7 @@ Diagnose test suite failures, write reproduction tests (RED phase), implement mi
    - Inline comments (`//`, `#`), block comments (`/* */`), and unrequested docstrings (`""" """`) are **strictly prohibited** unless explicitly requested by the user.
 
 4. **Outcome Reporting**:
-   - Return a concise report to the parent Orchestrator summarizing:
+   - Return a concise report to the Quality Gatekeeper summarizing:
      * Failing tests diagnosed
      * Files modified and tests added
      * Test runner output (e.g. "All 18 tests passed")

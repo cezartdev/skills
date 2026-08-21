@@ -11,11 +11,12 @@
 The project utilizes the **Deterministic Workflow Suite**, a structured harness combining:
 1. **Spec-Driven Development (SDD)**: High-precision specifications co-authored via Socratic debate before any code is written.
 2. **Test-Driven Development (TDD)**: Deterministic 🔴 RED $\rightarrow$ 🟢 GREEN $\rightarrow$ 🔵 REFACTOR cycles where exit codes govern state transitions.
-3. **Deterministic 5-Stage Multi-Worker Pipeline**: Orchestrator-governed pipeline executing specialized roles sequentially with bounded feedback loops.
-4. **Physical Git Worktree Isolation**: Staging workspaces isolated in `.workflow/worktrees/<spec>/worker/` protecting the primary repository branch.
-5. **Architectural Decision Records (ADRs)**: Continuous, Git-trackable decision auditing co-located in `.workflow/specs/active/<spec>/adrs/`.
-6. **Zero Direct Commits & Grilling Session Gates**: Zero unvetted commits or pushes; all releases are confirmed via interactive Grilling Sessions by the `Git-Worker`.
-7. **Strict Zero-Comments Code Policy**: Clean, self-documenting code with zero unrequested inline comments, block comments, or docstrings.
+3. **Deterministic 6-Stage Multi-Worker Pipeline**: Quality-governed pipeline executing specialized roles sequentially with bounded feedback loops.
+4. **OWASP Top 10 Cybersecurity Baseline**: Integrated SAST, secret leak scanner, and dependency vulnerability verification.
+5. **Physical Git Worktree Isolation**: Staging workspaces isolated in `.workflow/worktrees/<spec>/worker/` protecting the primary repository branch.
+6. **Architectural Decision Records (ADRs)**: Continuous, Git-trackable decision auditing co-located in `.workflow/specs/active/<spec>/adrs/`.
+7. **Zero Direct Commits & Grilling Session Gates**: Zero unvetted commits or pushes; all releases are confirmed via interactive Grilling Sessions by the `Git-Worker`.
+8. **Strict Zero-Comments Code Policy**: Clean, self-documenting code with zero unrequested inline comments, block comments, or docstrings.
 
 ---
 
@@ -29,6 +30,7 @@ The project utilizes the **Deterministic Workflow Suite**, a structured harness 
 │   │       ├── spec.md                 # Agnostic functional spec & contracts
 │   │       ├── issues/                 # Atomic TDD task issues
 │   │       ├── adrs/                   # Spec-scoped Architectural Decision Records
+│   │       ├── security/               # OWASP Top 10 & dependency audit reports
 │   │       └── state.json              # State machine checkpoint & DAG state
 │   └── archive/                        # Completed & merged specifications
 │       └── <year>/
@@ -47,17 +49,18 @@ The project utilizes the **Deterministic Workflow Suite**, a structured harness 
 
 ---
 
-## 3. The 5-Stage Orchestrator-Governed Subagent Pipeline
+## 3. The 6-Stage Quality-Governed Subagent Pipeline
 
-When `/workflow run <spec>` is triggered, the pipeline executes 5 specialized stages inside `.workflow/worktrees/<spec>/worker/`:
+When `/workflow run <spec>` is triggered, the pipeline executes 6 specialized stages inside `.workflow/worktrees/<spec>/worker/`:
 
 | Stage | Specialist Role | Responsibility |
 |---|---|---|
 | **Stage 1 (Fix)** | `Fix-Worker Specialist` | Stabilize failing tests, apply surgical bug fixes, and guarantee 100% green builds. |
 | **Stage 2 (Refactor)** | `Refactor-Worker Specialist` | Clean code, optimize modularity, reduce complexity, and enforce Zero-Comments policy. |
-| **Stage 3 (Orchestrator)** | `Orchestrator Specialist` | Evaluate Quality Gate (100/100), route feedback loops (Fix vs Refactor), and generate ADR. |
-| **Stage 4 (Doc)** | `Doc-Worker Specialist` | Synchronize documentation, OpenAPI schemas, and specifications. |
-| **Stage 5 (Git-Worker)** | `Git-Worker Specialist` | Conduct Grilling Session confirmation with developer, then execute atomic Conventional Commit and PR. |
+| **Stage 3 (Security)** | `Cybersecurity Specialist` | Scan OWASP Top 10 SAST patterns, secret leaks, and ecosystem dependency CVEs. |
+| **Stage 4 (Quality)** | `Quality Assurance Specialist` | Evaluate Quality Gate (100/100, zero comments, security clearance), route feedback, and generate ADR. |
+| **Stage 5 (Doc)** | `Doc-Worker Specialist` | Synchronize documentation, OpenAPI schemas, and specifications. |
+| **Stage 6 (Git-Worker)** | `Git-Worker Specialist` | Conduct Grilling Session confirmation with developer, then execute atomic Conventional Commit and PR. |
 
 ---
 

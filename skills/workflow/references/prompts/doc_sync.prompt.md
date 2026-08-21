@@ -18,6 +18,6 @@ Ensure project documentation (`README.md`, `docs/`, `SKILL.md`, CLI help referen
    - Verify that all internal links, markdown tables, and code snippets are free of dead references or broken formatting.
 
 3. **Outcome Reporting**:
-   - Return a concise report to the parent Orchestrator summarizing:
+   - Return a concise report to the Quality Gatekeeper summarizing:
      * Documentation files updated
      * Acceptance criteria verified in `spec.md`
