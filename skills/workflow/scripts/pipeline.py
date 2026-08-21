@@ -30,6 +30,9 @@ from worktree_manager import (
     is_protected_branch,
     ensure_git_repository,
     sync_worktree_with_base,
+    create_stage_checkpoint,
+    rollback_to_stage_checkpoint,
+    list_stage_checkpoints,
 )
 from scaffolder import get_workflow_root, reconcile_gitkeep, ensure_gitignore_configured
 from quality import (
@@ -37,6 +40,8 @@ from quality import (
     generate_spec_adr,
     evaluate_quality_gate,
 )
+from quality_auditor import sync_tasks_and_spec_progress
+from formatter_manager import format_worktree_code, get_preferred_formatter
 from security_auditor import audit_codebase
 from git_ops import (
     scan_pre_commit_security,
@@ -44,6 +49,29 @@ from git_ops import (
     create_github_pull_request,
 )
 from graph.pipeline_graph import create_pipeline_graph
+
+
+STAGE_ALIASES = {
+    "1": "implement",
+    "implement": "implement",
+    "implementer": "implement",
+    "2": "fix",
+    "fix": "fix",
+    "3": "refactor",
+    "refactor": "refactor",
+    "4": "security",
+    "security": "security",
+    "sec": "security",
+    "5": "quality",
+    "quality": "quality",
+    "qa": "quality",
+    "6": "doc",
+    "doc": "doc",
+    "docs": "doc",
+    "7": "git_worker",
+    "git": "git_worker",
+    "git_worker": "git_worker",
+}
 
 
 class PipelineRunner:
@@ -224,36 +252,27 @@ class PipelineRunner:
     def run_stage_git(
         self,
         spec_name: str,
-        wt_path: str,
+        worktree_path: str,
         auto_merge: bool = False,
         create_pr: bool = False,
         push: bool = False,
     ) -> Dict[str, Any]:
-        """Stage 7: Git-Worker (Prepares PR summary, formats Conventional Commit, and handles PR delivery)."""
+        """Stage 7: Git commit synthesis, grilling confirmation metadata, and optional PR creation."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         worker_branch = f"{clean_spec}-worker"
-        
-        feat_branch = f"feat/{clean_spec}"
-        feat_ref = run_git(["rev-parse", "--verify", f"refs/heads/{feat_branch}"], cwd=self.target_dir)
-        spec_ref = run_git(["rev-parse", "--verify", f"refs/heads/{clean_spec}"], cwd=self.target_dir)
-        target_base = feat_branch if feat_ref.returncode == 0 else (clean_spec if spec_ref.returncode == 0 else get_default_branch(self.target_dir))
+        target_base = get_default_branch(self.target_dir)
 
-        # 1. Compile PR Summary in .workflow/prs/active/
-        pr_summary = compile_scoped_pr_summary(target_dir=self.target_dir, spec_name=clean_spec)
+        pr_summary = compile_scoped_pr_summary(clean_spec, target_dir=self.target_dir)
 
-        # 2. Check GitHub CLI availability
-        gh_available = (shutil.which("gh") is not None)
-
+        push_status = "REMOTE_PUSH_SKIPPED"
+        merge_status = "MERGE_SKIPPED"
         pr_url = None
-        merge_status = "PENDING_GRILLING_CONFIRMATION"
-        push_status = "LOCAL_COMMIT_ONLY"
+        gh_available = shutil.which("gh") is not None
 
-        # 3. Optional Remote Push (Default Security: Only pushes if push=True)
         if push:
             push_res = run_git(["push", "-u", "origin", worker_branch], cwd=self.target_dir)
             push_status = "PUSHED_TO_ORIGIN" if push_res.returncode == 0 else f"PUSH_FAILED: {push_res.stderr.strip()}"
 
-        # 4. Optional Auto-Merge into target feature branch
         if auto_merge:
             status_main = run_git(["status", "--porcelain"], cwd=self.target_dir)
             if status_main.stdout.strip():
@@ -262,7 +281,6 @@ class PipelineRunner:
                 merge_cmd = run_git(["merge", "--no-ff", worker_branch, "-m", f"chore({clean_spec}): auto-merge pipeline improvements"], cwd=self.target_dir)
                 merge_status = "AUTO_MERGED" if merge_cmd.returncode == 0 else f"MERGE_FAILED: {merge_cmd.stderr.strip()}"
 
-        # 5. Optional GitHub PR creation
         if create_pr and gh_available:
             pr_res = create_github_pull_request(
                 head_branch=worker_branch,
@@ -275,24 +293,14 @@ class PipelineRunner:
             if pr_res.get("success"):
                 pr_url = pr_res.get("url")
 
-        suggested_push = f"git push -u origin {worker_branch}"
-        suggested_gh = f"gh pr create --head {worker_branch} --base {target_base} --title \"{pr_summary.get('pr_title')}\" --body-file \"{pr_summary.get('pr_file_path')}\""
-        suggested_git = f"git checkout {target_base} && git merge --no-ff {worker_branch}"
-
         return {
             "stage": "7_git_worker",
             "status": "READY_FOR_GRILLING_CONFIRMATION",
             "subagent_role": "Git-Worker Specialist",
-            "staging_branch": worker_branch,
-            "target_base": target_base,
             "pr_summary": pr_summary,
             "push_status": push_status,
-            "push_flag_active": push,
             "auto_merge_status": merge_status,
             "pr_url": pr_url,
-            "suggested_push_command": suggested_push,
-            "suggested_gh_command": suggested_gh,
-            "suggested_git_merge": suggested_git,
         }
 
     def run_pipeline(
@@ -302,10 +310,51 @@ class PipelineRunner:
         auto_merge: bool = False,
         create_pr: bool = False,
         push: bool = False,
+        only: Optional[str] = None,
+        from_stage: Optional[str] = None,
+        dry_run: bool = False,
     ) -> Dict[str, Any]:
-        """Runs the deterministic 7-stage sequential subagent pipeline."""
+        """Runs the deterministic 7-stage sequential subagent pipeline with granular control and checkpoints."""
         start_time = time.time()
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
+        spec_info = self.resolve_spec(clean_spec)
+
+        # Map and filter execution stages
+        all_stages = ["implement", "fix", "refactor", "security", "quality", "doc", "git_worker"]
+        active_stages = list(all_stages)
+
+        if only:
+            target_only = STAGE_ALIASES.get(only.lower().strip(), only.lower().strip())
+            if target_only in all_stages:
+                active_stages = [target_only]
+
+        elif from_stage:
+            target_from = STAGE_ALIASES.get(from_stage.lower().strip(), from_stage.lower().strip())
+            if target_from in all_stages:
+                idx = all_stages.index(target_from)
+                active_stages = all_stages[idx:]
+
+        # Handle Dry-Run Simulation
+        if dry_run:
+            pref_fmt = get_preferred_formatter(self.target_dir)
+            curr_b = get_current_branch(self.target_dir)
+            target_base = f"feat/{clean_spec}" if is_protected_branch(curr_b) else curr_b
+            wt_path_sim = os.path.join(self.wf_root, "worktrees", clean_spec, "worker")
+            rel_wt = os.path.relpath(wt_path_sim, self.target_dir).replace("\\", "/")
+
+            return {
+                "status": "DRY_RUN_SIMULATION",
+                "dry_run": True,
+                "spec_name": clean_spec,
+                "spec_file": spec_info.get("spec_file"),
+                "staging_branch": f"{clean_spec}-worker",
+                "target_base": target_base,
+                "current_branch": curr_b,
+                "worktree_path": rel_wt,
+                "active_stages": active_stages,
+                "preferred_formatter": pref_fmt.get("name") if pref_fmt else "Standard / Inferred",
+                "formatter_command": " ".join(pref_fmt.get("command", [])) if pref_fmt else "None",
+            }
 
         # Step 0: Stage 0 Worktree Sync
         sync_res = self.run_stage_sync(clean_spec)
@@ -326,13 +375,41 @@ class PipelineRunner:
             "auto_merge": auto_merge,
             "create_pr": create_pr,
             "push": push,
+            "active_stages": active_stages,
         }
         graph_res = graph.invoke(initial_state)
 
-        # Step 2: Security & Quality Audit Execution
-        sec_res = self.run_stage_security(clean_spec, wt_path)
-        quality_res = self.run_stage_quality(clean_spec, wt_path, security_results=sec_res)
-        git_res = self.run_stage_git(clean_spec, wt_path, auto_merge=auto_merge, create_pr=create_pr, push=push)
+        # Checkpoint Stage 1 & 2 (Green baseline)
+        ckpt_implement = create_stage_checkpoint(wt_path, "1_implement")
+        ckpt_fix = create_stage_checkpoint(wt_path, "2_fix")
+
+        # Step 2: Auto-Formatting before Refactor/Quality
+        if "refactor" in active_stages or "quality" in active_stages:
+            format_res = format_worktree_code(wt_path)
+
+        # Checkpoint Stage 3 (Refactor)
+        ckpt_refactor = create_stage_checkpoint(wt_path, "3_refactor")
+
+        # Step 3: Security & Quality Audit Execution
+        sec_res = {}
+        if "security" in active_stages:
+            sec_res = self.run_stage_security(clean_spec, wt_path)
+            create_stage_checkpoint(wt_path, "4_security")
+
+        quality_res = {}
+        if "quality" in active_stages:
+            quality_res = self.run_stage_quality(clean_spec, wt_path, security_results=sec_res)
+            create_stage_checkpoint(wt_path, "5_quality")
+
+        # Step 4: Reactive Task & Spec Checkbox Synchronization
+        sync_progress = {}
+        if spec_info.get("spec_dir"):
+            sync_progress = sync_tasks_and_spec_progress(spec_info["spec_dir"])
+
+        # Step 5: Git Subagent Execution
+        git_res = {}
+        if "git_worker" in active_stages:
+            git_res = self.run_stage_git(clean_spec, wt_path, auto_merge=auto_merge, create_pr=create_pr, push=push)
 
         elapsed = round(time.time() - start_time, 2)
 
@@ -341,26 +418,29 @@ class PipelineRunner:
                 "stage": "1_implement",
                 "status": graph_res.get("implement_status", "IMPLEMENTATION_READY"),
                 "subagent_role": "Implement Subagent",
+                "checkpoint": ckpt_implement.get("checkpoint_sha"),
             },
             {
                 "stage": "2_fix",
                 "status": graph_res.get("fix_status", "GREEN_TESTS_READY"),
                 "subagent_role": "Fix Subagent",
+                "checkpoint": ckpt_fix.get("checkpoint_sha"),
             },
             {
                 "stage": "3_refactor",
                 "status": graph_res.get("refactor_status", "REFACTOR_COMPLETE"),
                 "subagent_role": "Refactor Subagent",
+                "checkpoint": ckpt_refactor.get("checkpoint_sha"),
             },
             {
                 "stage": "4_security",
-                "status": "SECURITY_AUDITED",
+                "status": "SECURITY_AUDITED" if "security" in active_stages else "SKIPPED",
                 "subagent_role": "Security Subagent",
                 "security_summary": sec_res.get("summary"),
             },
             {
                 "stage": "5_quality",
-                "status": "QUALITY_APPROVED" if quality_res.get("verdict") == "APPROVED" else "NEEDS_REMEDIATION",
+                "status": ("QUALITY_APPROVED" if quality_res.get("verdict") == "APPROVED" else "NEEDS_REMEDIATION") if "quality" in active_stages else "SKIPPED",
                 "subagent_role": "Quality Subagent",
                 "verdict": quality_res.get("verdict"),
                 "adr": quality_res.get("adr"),
@@ -372,7 +452,7 @@ class PipelineRunner:
             },
             {
                 "stage": "7_git_worker",
-                "status": "READY_FOR_GRILLING_CONFIRMATION",
+                "status": "READY_FOR_GRILLING_CONFIRMATION" if "git_worker" in active_stages else "SKIPPED",
                 "subagent_role": "Git Subagent",
                 "push_status": git_res.get("push_status"),
                 "pr_summary": git_res.get("pr_summary"),
@@ -388,12 +468,14 @@ class PipelineRunner:
             "on_protected_branch": sync_res.get("on_protected_branch", False),
             "worktree_path": rel_wt_path,
             "elapsed_seconds": elapsed,
-            "stages": stages,
+            "active_stages": active_stages,
+            "stages": [s for s in stages if s["stage"].split("_", 1)[1] in active_stages],
             "push_flag_active": push,
             "push_status": git_res.get("push_status"),
             "adr": quality_res.get("adr"),
             "security_report": sec_res.get("report_file"),
             "pr_summary": git_res.get("pr_summary"),
+            "progress_sync": sync_progress,
             "suggested_push_command": git_res.get("suggested_push_command"),
             "suggested_gh_command": git_res.get("suggested_gh_command"),
             "suggested_git_merge": git_res.get("suggested_git_merge"),

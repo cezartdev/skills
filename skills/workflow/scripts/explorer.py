@@ -20,6 +20,17 @@ PROMPT_INJECTION_PATTERNS = [
 ]
 
 
+# Safe import of formatter manager
+try:
+    from skills.workflow.scripts.formatter_manager import detect_available_formatters, get_preferred_formatter
+except ImportError:
+    try:
+        from formatter_manager import detect_available_formatters, get_preferred_formatter
+    except ImportError:
+        detect_available_formatters = lambda root_dir=".": {}
+        get_preferred_formatter = lambda root_dir=".": None
+
+
 def sanitize_untrusted_text(text: str, max_chars: int = 300) -> str:
     """Sanitizes untrusted text by neutralizing prompt injections, control chars, and code block breakouts."""
     if not text:
@@ -384,6 +395,9 @@ def generate_coding_preferences(root_dir: str = ".") -> str:
     else:
         standards_lines = "- *No explicit external agent rules or coding standard files detected.*"
 
+    pref_fmt = get_preferred_formatter(root_dir)
+    fmt_str = f"`{pref_fmt['name']}` (`{' '.join(pref_fmt.get('command', []))}`)" if pref_fmt else f"`{linters['tools']}`"
+
     content = f"""# Codebase Style & Writing Preferences (Extracted by /workflow explore)
 
 **Project Root**: `{os.path.basename(root_dir)}`  
@@ -395,6 +409,7 @@ def generate_coding_preferences(root_dir: str = ".") -> str:
 ## 1. Linters, Formatters & Tooling
 {config_lines}
 - **Active Formatting Engines**: `{linters['tools']}`
+- **Preferred Deterministic Formatter**: {fmt_str}
 
 ---
 

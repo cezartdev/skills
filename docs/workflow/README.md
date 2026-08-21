@@ -123,11 +123,23 @@ uv run skills/workflow/scripts/workflow_runner.py tasks user-login
 # 6. Auditoría Previa (Static consistency audit across Constitution, spec, plan & tasks):
 uv run skills/workflow/scripts/workflow_runner.py analyze user-login
 
-# 7. Primary Engine: Execute deterministic 7-stage pipeline (Default: Local commit only for security):
+# 7. Execute 7-Stage Quality Pipeline (Full Run):
 uv run skills/workflow/scripts/workflow_runner.py run user-login
 
-# Run pipeline with automatic remote push to origin:
+# Dry-run execution simulation (view preview without modifying files or launching workers):
+uv run skills/workflow/scripts/workflow_runner.py run user-login --dry-run
+
+# Granular execution: Execute only a single stage (e.g. Security Audit):
+uv run skills/workflow/scripts/workflow_runner.py run user-login --only security
+
+# Resume pipeline from a specific stage onward (e.g. Quality Gatekeeper):
+uv run skills/workflow/scripts/workflow_runner.py run user-login --from quality
+
+# Automatic remote push to origin upon successful completion (Default is local commit only):
 uv run skills/workflow/scripts/workflow_runner.py run user-login --push
+
+# Force code auto-formatting during pipeline execution:
+uv run skills/workflow/scripts/workflow_runner.py run user-login --format
 
 # Opt-In Recurring Background Execution (runs every 30m with Fixed-Delay):
 uv run skills/workflow/scripts/workflow_runner.py run user-login --schedule 30

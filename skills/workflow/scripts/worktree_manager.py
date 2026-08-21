@@ -448,3 +448,69 @@ def prune_worktrees(repo_dir: str = ".") -> bool:
     """Self-healing prune of stale worktree entries."""
     res = run_git(["worktree", "prune"], cwd=repo_dir)
     return res.returncode == 0
+
+
+def create_stage_checkpoint(worktree_dir: str, stage_name: str) -> Dict[str, Any]:
+    """Creates a local Git checkpoint commit and metadata reference in the worktree after a verified green stage."""
+    worktree_dir = os.path.abspath(worktree_dir)
+    if not os.path.exists(worktree_dir):
+        return {"status": "ERROR", "message": f"Worktree not found: {worktree_dir}", "checkpoint_sha": ""}
+
+    run_git(["add", "-A"], cwd=worktree_dir)
+    msg = f"chore(workflow-checkpoint): [{stage_name}] green baseline"
+    commit_res = run_git(["commit", "-m", msg, "--allow-empty"], cwd=worktree_dir)
+    sha_res = run_git(["rev-parse", "HEAD"], cwd=worktree_dir)
+    sha = sha_res.stdout.strip() if sha_res.returncode == 0 else ""
+
+    return {
+        "status": "SUCCESS",
+        "stage": stage_name,
+        "checkpoint_sha": sha,
+        "worktree_dir": worktree_dir,
+        "message": f"Created checkpoint for stage '{stage_name}' at {sha[:8]}",
+    }
+
+
+def rollback_to_stage_checkpoint(worktree_dir: str, checkpoint_sha: str) -> Dict[str, Any]:
+    """Rolls back the worktree cleanly to a previous verified green stage checkpoint."""
+    worktree_dir = os.path.abspath(worktree_dir)
+    if not os.path.exists(worktree_dir):
+        return {"status": "ERROR", "message": f"Worktree not found: {worktree_dir}"}
+
+    if not checkpoint_sha:
+        return {"status": "ERROR", "message": "No checkpoint SHA provided"}
+
+    res_reset = run_git(["reset", "--hard", checkpoint_sha], cwd=worktree_dir)
+    run_git(["clean", "-fd"], cwd=worktree_dir)
+
+    success = (res_reset.returncode == 0)
+    return {
+        "status": "ROLLED_BACK" if success else "ROLLBACK_ERROR",
+        "checkpoint_sha": checkpoint_sha,
+        "worktree_dir": worktree_dir,
+        "message": f"Successfully rolled back worktree to checkpoint {checkpoint_sha[:8]}" if success else res_reset.stderr.strip(),
+    }
+
+
+def list_stage_checkpoints(worktree_dir: str, limit: int = 10) -> List[Dict[str, str]]:
+    """Lists recent workflow checkpoint commits in the worktree."""
+    worktree_dir = os.path.abspath(worktree_dir)
+    if not os.path.exists(worktree_dir):
+        return []
+
+    log_res = run_git(["log", f"-n{limit}", "--grep=chore(workflow-checkpoint):", "--pretty=format:%H|%s|%ai"], cwd=worktree_dir)
+    if log_res.returncode != 0 or not log_res.stdout.strip():
+        return []
+
+    checkpoints = []
+    for line in log_res.stdout.strip().split("\n"):
+        if "|" in line:
+            parts = line.split("|", 2)
+            if len(parts) == 3:
+                checkpoints.append({
+                    "sha": parts[0].strip(),
+                    "subject": parts[1].strip(),
+                    "date": parts[2].strip(),
+                })
+    return checkpoints
+

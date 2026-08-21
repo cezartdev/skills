@@ -279,10 +279,6 @@ def cmd_new(args: argparse.Namespace) -> int:
     print(f"{'Hierarchical Worktree':<24} │ .workflow/worktrees/{spec_clean}/worker")
     print("=" * 110)
 
-    print("\nℹ️  AI Agent Interactive Grilling & Branch Selection Directive:")
-    print(f"   Ask developer with ask_question to confirm or customize the target git branch:")
-    print(f"   Candidates: (Recommended) feat/{spec_clean} | {spec_clean} | fix/{spec_clean} | refactor/{spec_clean}")
-
     print_next_steps([
         {"cmd": f"/workflow specify {args.spec_name}", "desc": "Draft functional specification (spec.md) focusing on what and why"},
         {"cmd": f"/workflow clarify {args.spec_name}", "desc": "Ambiguity Checkpoint & Socratic Q&A to close gaps"},
@@ -550,6 +546,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     auto_merge = getattr(args, "auto_merge", False)
     create_pr = getattr(args, "create_pr", False)
     push = getattr(args, "push", False)
+    only = getattr(args, "only", None)
+    from_stage = getattr(args, "from_stage", None) or getattr(args, "from", None)
+    dry_run = getattr(args, "dry_run", False)
 
     runner = PipelineRunner(target_dir=target_dir)
     res = runner.run_pipeline(
@@ -558,10 +557,34 @@ def cmd_run(args: argparse.Namespace) -> int:
         auto_merge=auto_merge,
         create_pr=create_pr,
         push=push,
+        only=only,
+        from_stage=from_stage,
+        dry_run=dry_run,
     )
 
     if getattr(args, "json", False):
         print(json.dumps(res, indent=2))
+        return 0
+
+    if res.get("dry_run"):
+        print("=" * 110)
+        print(f" 🔍 WORKFLOW RUN DRY-RUN SIMULATION: '{res['spec_name']}'")
+        print("=" * 110)
+        print(f"{'PROPERTY':<24} │ VALUE")
+        print("-" * 110)
+        print(f"{'Target Spec':<24} │ {res['spec_file']}")
+        print(f"{'Staging Branch':<24} │ {res['staging_branch']}")
+        print(f"{'Target Base':<24} │ {res['target_base']}")
+        print(f"{'Target Worktree':<24} │ {res['worktree_path']}")
+        print(f"{'Formatter':<24} │ {res['preferred_formatter']} ({res['formatter_command']})")
+        print(f"{'Stages Selected':<24} │ {', '.join(res['active_stages'])}")
+        print("=" * 110)
+        print("\nℹ️  Dry-run simulation completed. No files were modified, no worktrees created.")
+        print_next_steps([
+            {"cmd": f"/workflow run {spec_name}", "desc": "Execute the full pipeline across all stages"},
+            {"cmd": f"/workflow run {spec_name} --only security", "desc": "Execute only the Security Audit stage"},
+            {"cmd": f"/workflow run {spec_name} --from quality", "desc": "Resume execution from Quality Gatekeeper"},
+        ])
         return 0
 
     print("=" * 110)
@@ -583,6 +606,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"{'ADR Record':<24} │ {res['adr']['adr_file']}")
     if res.get("pr_summary") and res["pr_summary"].get("pr_file"):
         print(f"{'PR Summary':<24} │ {res['pr_summary']['pr_file']}")
+    if res.get("progress_sync") and res["progress_sync"].get("tasks_updated", 0) > 0:
+        print(f"{'Progress Sync':<24} │ ⚡ {res['progress_sync']['tasks_updated']} tasks and {res['progress_sync']['criteria_updated']} criteria checkboxes marked [x]")
     print("=" * 110)
 
     print("\nℹ️  AI Agent Native Subagent Dispatch Directives:")
@@ -912,6 +937,9 @@ def build_parser() -> argparse.ArgumentParser:
     # run
     p_run = subparsers.add_parser("run", help="Run deterministic 7-stage subagent pipeline (Implement -> Fix -> Refactor -> Security -> Quality -> Doc -> Git-Worker)")
     p_run.add_argument("spec_name", help="Target specification name (e.g. user-login)")
+    p_run.add_argument("--only", choices=["implement", "fix", "refactor", "security", "quality", "doc", "git_worker"], help="Execute only a single specified pipeline stage")
+    p_run.add_argument("--from", "--from-stage", dest="from_stage", choices=["implement", "fix", "refactor", "security", "quality", "doc", "git_worker"], help="Resume pipeline execution starting from specified stage")
+    p_run.add_argument("--dry-run", action="store_true", help="Simulate pipeline execution blueprint without modifying files or launching subagents")
     p_run.add_argument("--schedule", "--interval", dest="schedule", type=int, default=None, help="Opt-in recurring interval in minutes (e.g. 30 or 45)")
     p_run.add_argument("--auto-merge", action="store_true", help="Auto-merge pipeline branch into feature branch if tests pass")
     p_run.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")

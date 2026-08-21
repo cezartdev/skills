@@ -236,3 +236,95 @@ def analyze_spec_consistency(spec_dir: str, target_dir: str = ".") -> Dict[str, 
             "coding_preferences": has_prefs,
         },
     }
+
+
+def sync_tasks_and_spec_progress(spec_dir: str) -> Dict[str, Any]:
+    """Reactively synchronizes completed issue statuses with checkboxes in tasks.md and spec.md."""
+    spec_dir = os.path.abspath(spec_dir)
+    issues_dir = os.path.join(spec_dir, "issues")
+    tasks_file = os.path.join(spec_dir, "tasks.md")
+    spec_file = os.path.join(spec_dir, "spec.md")
+
+    if not os.path.exists(issues_dir):
+        return {"status": "NO_ISSUES", "completed_count": 0, "total_issues": 0, "tasks_updated": 0, "criteria_updated": 0}
+
+    completed_issues = set()
+    total_issues = 0
+
+    for f in sorted(os.listdir(issues_dir)):
+        if f.endswith(".md") and f != ".gitkeep":
+            total_issues += 1
+            path = os.path.join(issues_dir, f)
+            try:
+                with open(path, "r", encoding="utf-8") as file:
+                    content = file.read()
+                if re.search(r"Status:\s*(COMPLETED|GREEN_PASSED|DONE|PASSED)", content, re.IGNORECASE):
+                    completed_issues.add(f)
+                    base_num = f.split("_")[0] if "_" in f else f
+                    completed_issues.add(base_num)
+            except Exception:
+                pass
+
+    tasks_updated = 0
+    if os.path.exists(tasks_file) and completed_issues:
+        try:
+            with open(tasks_file, "r", encoding="utf-8") as file:
+                lines = file.readlines()
+            
+            new_lines = []
+            for line in lines:
+                if line.strip().startswith("- [ ]"):
+                    is_done = False
+                    for issue_key in completed_issues:
+                        if issue_key in line:
+                            is_done = True
+                            break
+                    if is_done:
+                        new_lines.append(line.replace("- [ ]", "- [x]", 1))
+                        tasks_updated += 1
+                    else:
+                        new_lines.append(line)
+                else:
+                    new_lines.append(line)
+            
+            if tasks_updated > 0:
+                with open(tasks_file, "w", encoding="utf-8") as file:
+                    file.writelines(new_lines)
+        except Exception:
+            pass
+
+    criteria_updated = 0
+    if os.path.exists(spec_file) and total_issues > 0 and len([i for i in completed_issues if "_" in i or i.endswith(".md")]) >= total_issues:
+        try:
+            with open(spec_file, "r", encoding="utf-8") as file:
+                spec_lines = file.readlines()
+            
+            new_spec = []
+            in_criteria = False
+            for line in spec_lines:
+                if re.search(r"##\s*(\d+\.)?\s*Acceptance Criteria", line, re.IGNORECASE):
+                    in_criteria = True
+                elif line.startswith("## ") and in_criteria:
+                    in_criteria = False
+
+                if in_criteria and line.strip().startswith("- [ ]"):
+                    new_spec.append(line.replace("- [ ]", "- [x]", 1))
+                    criteria_updated += 1
+                else:
+                    new_spec.append(line)
+            
+            if criteria_updated > 0:
+                with open(spec_file, "w", encoding="utf-8") as file:
+                    file.writelines(new_spec)
+        except Exception:
+            pass
+
+    return {
+        "status": "SYNCED",
+        "spec_dir": spec_dir,
+        "completed_count": len([i for i in completed_issues if "_" in i or i.endswith(".md")]),
+        "total_issues": total_issues,
+        "tasks_updated": tasks_updated,
+        "criteria_updated": criteria_updated,
+    }
+

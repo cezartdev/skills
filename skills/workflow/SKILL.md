@@ -81,7 +81,8 @@ skills/workflow/
 ├── pyproject.toml                    # [OPTIONAL] Python dependencies managed via uv
 ├── scripts/                          # [OPTIONAL] Executable automation code & runners
 │   ├── workflow_runner.py            # Central CLI entry point with Smart Path Resolver
-│   ├── pipeline.py                   # Deterministic 7-stage Quality pipeline runner
+│   ├── pipeline.py                   # Deterministic 7-stage Quality pipeline runner with checkpoints & granular control
+│   ├── formatter_manager.py          # Deterministic polyglot code formatter & linter engine
 │   ├── security_auditor.py           # Deterministic OWASP Top 10 SAST, secret scanner & dependency CVE auditor
 │   ├── quality.py                    # Quality Gatekeeper, holistic evaluator & ADR generator
 │   ├── git_ops.py                    # Self-contained Git engine, security gates & Conventional Commits
@@ -89,8 +90,8 @@ skills/workflow/
 │   ├── explorer.py                   # Polyglot codebase stack & test runner scanner
 │   ├── drift_detector.py             # Manifest checksums & tech drift anomaly detector
 │   ├── memory_manager.py             # Hierarchical memory manager & indexed docs catalog
-│   ├── worktree_manager.py           # Physical Git Worktree lifecycle manager with cross-platform lock clearing
-│   ├── quality_auditor.py            # Deterministic Pre-Execution Static Consistency Auditor & Quality Gate
+│   ├── worktree_manager.py           # Physical Git Worktree lifecycle manager with cross-platform lock clearing & checkpoints
+│   ├── quality_auditor.py            # Deterministic Pre-Execution Static Consistency Auditor & Reactive Task Sync
 │   └── graph/
 │       └── pipeline_graph.py         # Deterministic 7-stage pipeline state machine
 ├── references/                       # [OPTIONAL] Reference documentation & system prompts read on-demand
@@ -129,14 +130,14 @@ skills/workflow/
 | `/workflow init` | `workflow init [dir]` | Initialize encapsulated `.workflow/` structure & memory |
 | `/workflow explore` | `workflow explore [dir]` | Survey polyglot stack & extract style preferences (`coding_preferences.md`) |
 | `/workflow context` | `workflow context [text]` | Add or view business domain context in `project_context.md` |
-| `/workflow memory` | `workflow memory [list|add|show]` | Manage methodology, coding preferences, project context & indexed docs |
-| `/workflow new` | `workflow new <spec>` | Scaffold a new feature spec directly under `.workflow/specs/active/<spec>/` |
+| `/workflow memory` | `workflow memory [list\|add\|show]` | Manage methodology, coding preferences, project context & indexed docs |
+| `/workflow new` | `workflow new <spec>` | Scaffold a new feature spec directly under `.workflow/specs/active/<spec>/` (`feat/<spec>`) |
 | `/workflow specify` | `workflow specify <spec>` | Draft functional `spec.md` focusing strictly on what and why |
 | `/workflow clarify` | `workflow clarify <spec> [--generate-adr]` | Ambiguity Checkpoint: Socratic Q&A to close specification gaps & generate ADR |
 | `/workflow plan` | `workflow plan <spec>` | Convert approved `spec.md` into technical design (`plan.md`) |
 | `/workflow tasks` | `workflow tasks <spec>` | Decompose technical plan into atomic tasks (`tasks.md` & `issues/`) |
 | `/workflow analyze` | `workflow analyze <spec>` | Auditoría previa: static consistency audit across spec, plan & tasks |
-| `/workflow run` | `workflow run <spec> [--push] [--schedule <m>]` | **Primary Engine**: Run 7-stage subagent pipeline (Implement -> Fix -> Refactor -> Security -> Quality -> Doc -> Git) |
+| `/workflow run` | `workflow run <spec> [--only <st>] [--from <st>] [--dry-run] [--push] [--schedule <m>]` | **Primary Engine**: Run 7-stage subagent pipeline with auto-formatting & checkpoints |
 | `/workflow stop` | `workflow stop [spec]` | Terminate background pipeline subagents and cancel timers |
 | `/workflow clean` | `workflow clean` | Deep Anti-Zombie cleanup of orphaned worktrees, locks & dead PIDs |
 | `/workflow archive` | `workflow archive <spec>` | Move completed spec to `.workflow/specs/archive/<year>/` |
