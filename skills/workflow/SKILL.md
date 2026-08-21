@@ -124,32 +124,22 @@ skills/workflow/
 
 ## 3. Subcommand Trigger Routing & List Template
 
-When `/workflow list` is requested by the user, the AI Agent MUST respond with this exact concise reference table without verbose conversational filler:
-
 | Slash Command | CLI Syntax | Description |
 |---|---|---|
 | `/workflow init` | `workflow init [dir]` | Initialize encapsulated `.workflow/` structure & memory |
 | `/workflow explore` | `workflow explore [dir]` | Survey polyglot stack & extract style preferences (`coding_preferences.md`) |
+| `/workflow context` | `workflow context [text]` | Add or view business domain context in `project_context.md` |
+| `/workflow memory` | `workflow memory [list|add|show]` | Manage methodology, coding preferences, project context & indexed docs |
 | `/workflow new` | `workflow new <spec>` | Scaffold a new feature spec directly under `.workflow/specs/active/<spec>/` |
 | `/workflow specify` | `workflow specify <spec>` | Draft functional `spec.md` focusing strictly on what and why |
 | `/workflow clarify` | `workflow clarify <spec> [--generate-adr]` | Ambiguity Checkpoint: Socratic Q&A to close specification gaps & generate ADR |
 | `/workflow plan` | `workflow plan <spec>` | Convert approved `spec.md` into technical design (`plan.md`) |
 | `/workflow tasks` | `workflow tasks <spec>` | Decompose technical plan into atomic tasks (`tasks.md` & `issues/`) |
 | `/workflow analyze` | `workflow analyze <spec>` | Auditoría previa: static consistency audit across spec, plan & tasks |
-| `/workflow security` | `workflow security [spec] [--json]` | Run OWASP Top 10 SAST, secret leak & dependency CVE audit |
-| `/workflow audit-deps` | `workflow audit-deps [dir]` | Audit project package manifests for known CVEs |
-| `/workflow quality` | `workflow quality [spec] [--create-pr]` | Quality Gatekeeper: audit quality score & OWASP report, generate ADR |
 | `/workflow run` | `workflow run <spec> [--push] [--schedule <m>]` | **Primary Engine**: Run 7-stage subagent pipeline (Implement -> Fix -> Refactor -> Security -> Quality -> Doc -> Git) |
-| `/workflow commit` | `workflow commit -t <type> -s <spec> -m <msg>` | Git-Worker deterministic Conventional Commit with pre-commit security gates |
-| `/workflow pr` | `workflow pr --spec <spec> [--push]` | Git-Worker deterministic GitHub PR creation via gh CLI (Default: no push; add `--push`) |
-| `/workflow status` | `workflow status [spec]` | View active pipeline status, worktrees & security audits |
 | `/workflow stop` | `workflow stop [spec]` | Terminate background pipeline subagents and cancel timers |
 | `/workflow clean` | `workflow clean` | Deep Anti-Zombie cleanup of orphaned worktrees, locks & dead PIDs |
 | `/workflow archive` | `workflow archive <spec>` | Move completed spec to `.workflow/specs/archive/<year>/` |
-| `/workflow drift` | `workflow drift [--sync]` | Detect manifest checksum drift & sync tech context |
-| `/workflow memory` | `workflow memory [list|add|show]` | Manage methodology, coding preferences, project context & indexed docs |
-| `/workflow context` | `workflow context [text]` | Add or view business domain context in `project_context.md` |
-| `/workflow check-env` | `workflow check-env` | Diagnostic check of Python $\ge 3.10$, Git, uv, gh CLI, and dependencies |
 | `/workflow list` | `workflow list` | Display this concise command reference table |
 
 ---
@@ -158,8 +148,8 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 
 ```text
 [Multi-Worker & Polyglot Agent Lifecycle]:
-1. Survey Stack:
-   Run '/workflow explore' to detect Python, Rust, Go, Node, Java, or .NET test runners.
+1. Survey Stack & Business Context:
+   Run '/workflow explore' and '/workflow context' to set technical preferences and domain requirements.
 2. Scaffold Spec (SDD):
    Run '/workflow new <name>' directly under '.workflow/specs/active/<name>/'.
 3. GitHub Spec-Kit Phased Lifecycle:
@@ -171,11 +161,7 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 4. Deterministic 7-Stage Quality Pipeline:
    Run '/workflow run <name>'. Implementer -> Fix -> Refactor -> Security -> Quality Gatekeeper -> Doc -> Git-Worker.
 5. Interactive Grilling Gate for Release:
-   Git-Worker conducts Grilling Session via ask_question with developer before any commit or push.
-```stic 7-Stage Quality Pipeline:
-   Run '/workflow run <name>'. Implementer -> Fix -> Refactor -> Security -> Quality Gatekeeper -> Doc -> Git-Worker.
-5. Interactive Grilling Gate for Release:
-   Git-Worker conducts Grilling Session via ask_question with developer before any commit or push.
-6. Deterministic Commit & Pull Request:
-   Git-Worker executes '/workflow commit' and '/workflow pr' via internal git_ops.py.
+   Git Subagent conducts Grilling Session via ask_question with developer before commit/push.
+6. Post-Merge Archiving & Cleanup:
+   Run '/workflow archive <name>' and '/workflow clean'.
 ```

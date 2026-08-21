@@ -21,7 +21,6 @@ from scaffolder import (
     reconcile_all_gitkeeps,
 )
 from explorer import scan_codebase, generate_master_context
-from drift_detector import check_drift, sync_drift
 from memory_manager import (
     add_memory_doc,
     list_memory_catalog,
@@ -29,25 +28,9 @@ from memory_manager import (
     update_project_business_context,
     read_project_business_context,
 )
-from worktree_manager import list_worktrees, create_worktree, remove_worktree, force_purge_worktree, prune_worktrees, ensure_git_repository
+from worktree_manager import prune_worktrees, run_git
 from quality_auditor import audit_spec, audit_plan, audit_tasks, analyze_spec_consistency
-from quality import (
-    compile_scoped_pr_summary,
-    generate_spec_adr,
-    generate_specify_adr,
-    evaluate_quality_gate,
-    create_quality_pr,
-    archive_merged_pr,
-)
-from security_auditor import (
-    audit_codebase,
-    audit_dependencies,
-)
-from git_ops import (
-    execute_atomic_commit,
-    create_github_pull_request,
-    scan_pre_commit_security,
-)
+from quality import generate_specify_adr
 from pipeline import PipelineRunner
 
 
@@ -96,101 +79,6 @@ def resolve_spec_path(spec_arg: str, target_dir: str = ".") -> str:
             return candidate
 
     return os.path.abspath(active_cand)
-
-
-def cmd_check_env(args: argparse.Namespace) -> int:
-    """Performs cross-platform diagnostic check of Python >=3.10, Git, uv, and dependencies."""
-    py_ver = sys.version_info
-    py_ok = (py_ver.major == 3 and py_ver.minor >= 10)
-    
-    git_ok = False
-    git_ver = "Not found"
-    try:
-        res = subprocess.run(["git", "--version"], capture_output=True, text=True, check=False)
-        if res.returncode == 0:
-            git_ok = True
-            git_ver = res.stdout.strip()
-    except Exception:
-        pass
-
-    uv_ok = False
-    uv_ver = "Not found"
-    try:
-        res = subprocess.run(["uv", "--version"], capture_output=True, text=True, check=False)
-        if res.returncode == 0:
-            uv_ok = True
-            uv_ver = res.stdout.strip()
-    except Exception:
-        pass
-
-    langgraph_ok = False
-    try:
-        import langgraph
-        langgraph_ok = True
-    except ImportError:
-        pass
-
-    gh_ok = False
-    gh_ver = "Not installed"
-    gh_auth = "Run 'gh auth login'"
-    try:
-        res = subprocess.run(["gh", "--version"], capture_output=True, text=True, check=False)
-        if res.returncode == 0:
-            gh_ok = True
-            first_line = res.stdout.strip().split("\n")[0]
-            gh_ver = first_line.replace("gh version ", "")
-            auth_res = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True, check=False)
-            if auth_res.returncode == 0:
-                gh_auth = "Authenticated"
-            else:
-                gh_auth = "Run 'gh auth login'"
-    except Exception:
-        pass
-
-    all_passed = py_ok and git_ok and uv_ok
-
-    report = {
-        "status": "PASS" if all_passed else "FAIL",
-        "python": {
-            "version": f"{py_ver.major}.{py_ver.minor}.{py_ver.micro}",
-            "passed": py_ok,
-            "required": ">=3.10",
-        },
-        "git": {
-            "version": git_ver,
-            "passed": git_ok,
-        },
-        "uv": {
-            "version": uv_ver,
-            "passed": uv_ok,
-        },
-        "langgraph_installed": langgraph_ok,
-        "github_cli": {
-            "version": gh_ver,
-            "installed": gh_ok,
-            "auth_status": gh_auth,
-        },
-    }
-
-    if args.json:
-        print(json.dumps(report, indent=2))
-        return 0 if all_passed else 1
-
-    print("=" * 110)
-    print(" 🛠️  WORKFLOW RUNTIME DIAGNOSTIC REPORT")
-    print("=" * 110)
-    print(f"{'COMPONENT':<20} │ {'STATUS':<10} │ {'VERSION':<30} │ DETAILS")
-    print("-" * 110)
-    print(f"{'Python':<20} │ {'[PASS]' if py_ok else '[FAIL]':<10} │ {report['python']['version']:<30} │ Required >= 3.10")
-    print(f"{'Git':<20} │ {'[PASS]' if git_ok else '[FAIL]':<10} │ {git_ver:<30} │ Standard version control")
-    print(f"{'Astral uv':<20} │ {'[PASS]' if uv_ok else '[FAIL]':<10} │ {uv_ver:<30} │ Fast Python package manager")
-    print(f"{'GitHub CLI (gh)':<20} │ {'[PASS]' if gh_ok else '[INFO]':<10} │ {gh_ver:<30} │ {gh_auth} (PRs & issues)")
-    print(f"{'LangGraph':<20} │ {'[PASS]' if langgraph_ok else '[INFO]':<10} │ {'Installed' if langgraph_ok else 'Fallback Active':<30} │ Deterministic State Graph Engine")
-    print("=" * 110)
-    print(f"OVERALL SYSTEM STATUS: {report['status']}")
-    print("=" * 110)
-
-    return 0 if all_passed else 1
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -259,41 +147,6 @@ def cmd_explore(args: argparse.Namespace) -> int:
         {"cmd": "/workflow memory list", "desc": "Inspect generated coding preferences & project context"},
         {"cmd": "/workflow context", "desc": "Add business domain and application context"},
         {"cmd": "/workflow new <spec-name>", "desc": "Scaffold a new feature specification"},
-    ])
-    return 0
-
-
-def cmd_drift(args: argparse.Namespace) -> int:
-    """Detects or synchronizes tech drift and manifest changes."""
-    if args.sync:
-        res = sync_drift(args.target_dir)
-        if args.json:
-            print(json.dumps(res, indent=2))
-            return 0
-        print("=" * 110)
-        print(" 🔄 TECH DRIFT SYNCHRONIZED")
-        print("=" * 110)
-        print(f"Status: {res['status']} | {res['message']}")
-        print("=" * 110)
-        return 0
-
-    drift_detected, info = check_drift(args.target_dir)
-    if args.json:
-        print(json.dumps(info, indent=2))
-        return 0
-
-    print("=" * 110)
-    print(" 📡 TECH DRIFT AUDIT REPORT")
-    print("=" * 110)
-    print(f"Drift Detected: {'YES (Action Required)' if drift_detected else 'NO (Synchronized)'}")
-    if drift_detected:
-        print("-" * 110)
-        for manifest, reason in info.get("details", {}).items():
-            print(f"  ⚠️  {manifest}: {reason}")
-    print("=" * 110)
-
-    print_next_steps([
-        {"cmd": "/workflow drift --sync", "desc": "Reconcile drift and update project context"},
     ])
     return 0
 
@@ -755,10 +608,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"   To stop: /workflow stop {res['spec_name']}")
 
     print_next_steps([
-        {"cmd": f"/workflow quality {res['spec_name']} --create-pr", "desc": "Evaluate quality gates and open pull request directly via gh CLI"},
-        {"cmd": f"/workflow security {res['spec_name']}", "desc": "Run OWASP Top 10 SAST and vulnerability audit"},
-        {"cmd": "/workflow status", "desc": "Check active pipeline status & worktrees"},
         {"cmd": f"/workflow archive {res['spec_name']}", "desc": "Archive completed specification when merged"},
+        {"cmd": "/workflow clean", "desc": "Clean up ephemeral worktrees and reset staging"},
     ])
     return 0
 
@@ -787,91 +638,6 @@ def resolve_spec_and_target_dir(args: argparse.Namespace) -> Tuple[Optional[str]
     return spec_name, os.path.abspath(target_dir)
 
 
-def cmd_status(args: argparse.Namespace) -> int:
-    """Displays active specifications and physical worktrees under .workflow/."""
-    filter_spec, target_dir = resolve_spec_and_target_dir(args)
-    wf_root = get_workflow_root(target_dir)
-
-    # 1. Scan active specifications
-    active_specs_dir = os.path.join(wf_root, "specs", "active")
-    specs_data = []
-    if os.path.exists(active_specs_dir):
-        for name in sorted(os.listdir(active_specs_dir)):
-            if filter_spec and filter_spec.lower() not in name.lower():
-                continue
-            spec_path = os.path.join(active_specs_dir, name)
-            if os.path.isdir(spec_path):
-                issues_dir = os.path.join(spec_path, "issues")
-                adrs_dir = os.path.join(spec_path, "adrs")
-                
-                issues_count = len([f for f in os.listdir(issues_dir) if f.endswith(".md") and f != ".gitkeep"]) if os.path.exists(issues_dir) else 0
-                adrs_count = len([f for f in os.listdir(adrs_dir) if f.endswith(".md") and f != ".gitkeep"]) if os.path.exists(adrs_dir) else 0
-                
-                prs_active_dir = os.path.join(wf_root, "prs", "active")
-                has_pr = any(f.startswith(f"PR_spec_{name}_") for f in os.listdir(prs_active_dir)) if os.path.exists(prs_active_dir) else False
-
-                if has_pr:
-                    dag_step = "PR_SYNTHESIZED"
-                elif adrs_count > 0:
-                    dag_step = "ADR_ACCEPTED"
-                elif issues_count > 0:
-                    dag_step = f"{issues_count} TASKS"
-                else:
-                    dag_step = "SPEC_DRAFT"
-
-                audit = audit_spec(spec_path)
-                specs_data.append({
-                    "spec_name": name,
-                    "score": audit.get("score", 0),
-                    "dag_step": dag_step,
-                    "issues_count": issues_count,
-                    "adrs_count": adrs_count,
-                    "spec_path": spec_path,
-                })
-
-    # 2. Scan active worktrees
-    worktrees = list_worktrees(target_dir)
-
-    data = {
-        "status": "SUCCESS",
-        "target_dir": target_dir,
-        "active_specs": specs_data,
-        "worktrees": worktrees,
-    }
-
-    if getattr(args, "json", False):
-        print(json.dumps(data, indent=2))
-        return 0
-
-    print("=" * 110)
-    print(f" 📊 WORKFLOW STATUS: {len(specs_data)} active specs, {len(worktrees)} worktrees")
-    print("=" * 110)
-    print(" 📦 ACTIVE SPECIFICATIONS (.workflow/specs/active/)")
-    print(f"{'SPEC NAME':<24} │ {'SCORE':<8} │ {'DAG STEP':<20} │ {'TASKS':<8} │ ADRS")
-    print("-" * 110)
-    if not specs_data:
-        print(f"{'No active specs':<24} │ {'-':<8} │ {'-':<20} │ {'-':<8} │ -")
-    else:
-        for s in specs_data:
-            print(f"{s['spec_name']:<24} │ {s['score']}/100   │ {s['dag_step']:<20} │ {s['issues_count']:<8} │ {s['adrs_count']}")
-
-    print("\n 🌿 PHYSICAL WORKTREES (.workflow/worktrees/)")
-    print(f"{'WORKTREE NAME':<24} │ {'BRANCH':<24} │ STATUS")
-    print("-" * 110)
-    if not worktrees:
-        print(f"{'No active worktrees':<24} │ {'-':<24} │ Clean")
-    else:
-        for wt in worktrees:
-            print(f"{wt.get('name', '-'):<24} │ {wt.get('branch', '-'):<24} │ {wt.get('path', '-')}")
-    print("=" * 110)
-
-    print_next_steps([
-        {"cmd": "/workflow new <spec-name>", "desc": "Scaffold a new feature specification"},
-        {"cmd": "/workflow run <spec-name>", "desc": "Execute 7-stage Quality pipeline"},
-    ])
-    return 0
-
-
 def cmd_stop(args: argparse.Namespace) -> int:
     """Stops/resets active worktrees for a specification."""
     spec_name, target_dir = resolve_spec_and_target_dir(args)
@@ -890,7 +656,7 @@ def cmd_stop(args: argparse.Namespace) -> int:
     print(f" 🛑 WORKFLOW WORKTREES RESET {'FOR ' + spec_name if spec_name else ''}")
     print("=" * 110)
     print_next_steps([
-        {"cmd": "/workflow status", "desc": "Inspect active specs and worktrees"},
+        {"cmd": "/workflow clean", "desc": "Perform deep cleanup of worktrees and locks"},
     ])
     return 0
 
@@ -937,7 +703,8 @@ def cmd_clean(args: argparse.Namespace) -> int:
     print("=" * 110)
 
     print_next_steps([
-        {"cmd": "/workflow status", "desc": "View clean status"},
+        {"cmd": "/workflow new <spec-name>", "desc": "Scaffold a new feature specification"},
+        {"cmd": "/workflow list", "desc": "View workflow command reference"},
     ])
     return 0
 
@@ -960,7 +727,7 @@ def cmd_archive(args: argparse.Namespace) -> int:
         print("=" * 110)
 
         print_next_steps([
-            {"cmd": "/workflow quality", "desc": "Compile memory decisions into release PR"},
+            {"cmd": "/workflow clean", "desc": "Clean ephemeral worktree directories"},
             {"cmd": "/workflow new <next-spec>", "desc": "Scaffold your next specification"},
         ])
     else:
@@ -1030,249 +797,23 @@ def cmd_context(args: argparse.Namespace) -> int:
         return 0
 
 
-def cmd_security(args: argparse.Namespace) -> int:
-    """Runs OWASP Top 10 SAST, secret detection, and dependency vulnerability audit."""
-    target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
-    spec_name = getattr(args, "spec_name", None) or getattr(args, "spec", None)
-    res = audit_codebase(target_dir=target_dir, spec_name=spec_name)
-
-    if getattr(args, "json", False):
-        print(json.dumps(res, indent=2))
-        return 0 if res["security_gate_passed"] else 1
-
-    print("=" * 110)
-    print(f" 🛡️  SECURITY AUDIT REPORT: '{spec_name or 'GLOBAL'}'")
-    print("=" * 110)
-    print(f"{'CATEGORY':<24} │ VALUE")
-    print("-" * 110)
-    print(f"{'Security Gate':<24} │ {'✅ PASSED (0 Crit / 0 High)' if res['security_gate_passed'] else '🚨 FAILED (Critical/High Vulns Found)'}")
-    print(f"{'Critical Issues':<24} │ {res['summary']['critical']}")
-    print(f"{'High Issues':<24} │ {res['summary']['high']}")
-    print(f"{'Medium Issues':<24} │ {res['summary']['medium']}")
-    print(f"{'Low / Info Issues':<24} │ {res['summary']['low']}")
-    print(f"{'Report File':<24} │ {res.get('report_file')}")
-    print("=" * 110)
-
-    if res["sast_findings"]:
-        print("\n🔍 OWASP Top 10 Findings:")
-        for f in res["sast_findings"][:5]:
-            print(f"   - [{f['severity']}] {f['owasp']} ({f['file']}:{f['line_number']}): {f['title']}")
-        if len(res["sast_findings"]) > 5:
-            print(f"   ... and {len(res['sast_findings']) - 5} more issues in {res.get('report_file')}")
-
-    if res["dependency_vulnerabilities"]:
-        print("\n📦 Dependency Vulnerabilities:")
-        for d in res["dependency_vulnerabilities"][:5]:
-            print(f"   - [{d.get('severity')}] {d.get('package')}: {d.get('title')}")
-
-    return 0 if res["security_gate_passed"] else 1
-
-
-def cmd_audit_deps(args: argparse.Namespace) -> int:
-    """Audits project package manifests for known CVEs."""
-    target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
-    res = audit_dependencies(target_dir=target_dir)
-
-    if getattr(args, "json", False):
-        print(json.dumps(res, indent=2))
-        return 0 if res["passed"] else 1
-
-    print("=" * 90)
-    print(" 📦 DEPENDENCY CVE AUDIT REPORT")
-    print("=" * 90)
-    print(f"Ecosystems Scanned: {', '.join(res['scanned_ecosystems']) or 'None detected'}")
-    print(f"Vulnerabilities Found: {len(res['vulnerabilities'])}")
-    print(f"Security Gate: {'PASSED' if res['passed'] else 'FAILED'}")
-    print("=" * 90)
-    return 0 if res["passed"] else 1
-
-
-def cmd_quality(args: argparse.Namespace) -> int:
-    """Executes the Quality Gatekeeper: evaluates quality score, generates ADR, and compiles release PR."""
-    target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
-    spec_name = getattr(args, "spec_name", None) or getattr(args, "spec", None) or getattr(args, "flag_spec", None)
-    target_branch = getattr(args, "target_branch", None)
-    if not target_branch:
-        target_branch = f"feat/{spec_name}" if spec_name else "main"
-    create_pr = getattr(args, "create_pr", False)
-    archetype = getattr(args, "archetype", None)
-
-    if getattr(args, "archive", None):
-        res = archive_merged_pr(args.archive, target_dir=target_dir)
-        if args.json:
-            print(json.dumps(res, indent=2))
-            return 0
-        print("=" * 110)
-        print(f" 📦 ARCHIVED PR SUMMARY: {args.archive}")
-        print("=" * 110)
-        print(f"{'Archive Destination':<24} │ {res.get('destination', res.get('message'))}")
-        print("=" * 110)
-        return 0
-
-    res = create_quality_pr(
-        target_dir=target_dir,
-        archetype=archetype,
-        spec_name=spec_name,
-        target_branch=target_branch,
-        create_pr=create_pr,
-    )
-
-    if args.json:
-        print(json.dumps(res, indent=2))
-        return 0
-
-    file_slug = res.get("file_slug") or "PR_summary.md"
-    head_branch = res.get("head_branch", f"{spec_name}-worker" if spec_name else "worker")
-    base_branch = res.get("base_branch", target_branch)
-    print("=" * 110)
-    print(f" 🚀 WORKFLOW QUALITY SUMMARY ({res.get('pr_file')})")
-    print("=" * 110)
-    print(f"{'PROPERTY':<24} │ VALUE")
-    print("-" * 110)
-    print(f"{'Integration Branch':<24} │ {head_branch}")
-    print(f"{'Target Base Branch':<24} │ {base_branch}")
-    print(f"{'PR Document':<24} │ {res.get('pr_file')}")
-    print(f"{'Total Integrated':<24} │ {res.get('total_changes', 0)} changes verified")
-    if res.get("adr") and res["adr"].get("adr_path"):
-        print(f"{'ADR Generated':<24} │ {res['adr']['adr_path']}")
-    if res.get("pr_url"):
-        print(f"{'GitHub PR URL':<24} │ {res['pr_url']}")
-    print("=" * 110)
-
-    if res.get("status") == "PR_CREATED":
-        print(f"\n✅ Pull Request Opened: {res.get('pr_url')}")
-    else:
-        print("\n💡 Suggested PR & Integration Commands:")
-        print(f"   👉 GitHub PR: {res.get('suggested_gh_command')}")
-        print(f"   👉 Git Merge: {res.get('suggested_git_merge')}")
-
-    print_next_steps([
-        {"cmd": f"/workflow quality {spec_name or '<spec>'} --create-pr", "desc": "Open pull request directly on GitHub via gh CLI"},
-        {"cmd": f"/workflow quality --archive {file_slug}", "desc": "Archive merged PR summary to history"},
-    ])
-    return 0
-
-
-def cmd_commit(args: argparse.Namespace) -> int:
-    """Deterministic atomic commit for Git-Worker with pre-commit security gates."""
-    target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
-    commit_type = getattr(args, "type", "feat") or "feat"
-    scope = getattr(args, "scope", None) or getattr(args, "spec", None)
-    message = getattr(args, "message", None)
-    if not message:
-        print("Error: -m/--message is required for commit.", file=sys.stderr)
-        return 1
-    
-    body_bullets = getattr(args, "bullets", None)
-    if body_bullets and isinstance(body_bullets, str):
-        body_bullets = [b.strip() for b in body_bullets.split("\n") if b.strip()]
-
-    res = execute_atomic_commit(
-        commit_type=commit_type,
-        scope=scope,
-        message=message,
-        body_bullets=body_bullets,
-        target_dir=target_dir,
-    )
-
-    if getattr(args, "json", False):
-        print(json.dumps(res, indent=2))
-        return 0 if res.get("status") == "SUCCESS" else 1
-
-    if res.get("status") == "SUCCESS":
-        print("=" * 110)
-        print(" ✅ ATOMIC COMMIT CREATED BY GIT-WORKER")
-        print("=" * 110)
-        print(f"Commit SHA:    {res.get('commit_sha')}")
-        print(f"Commit Header: {res.get('commit_header')}")
-        print(f"Working Dir:   {res.get('target_dir')}")
-        print("=" * 110)
-        return 0
-    else:
-        print("=" * 110)
-        print(f" ❌ COMMIT FAILED: {res.get('status')}")
-        print("=" * 110)
-        print(f"Message: {res.get('message')}")
-        if res.get("violations"):
-            for v in res.get("violations"):
-                print(f"  - [{v.get('type')}] {v.get('detail')}")
-        if res.get("errors"):
-            for e in res.get("errors"):
-                print(f"  - {e}")
-        print("=" * 110)
-        return 1
-
-
-def cmd_pr(args: argparse.Namespace) -> int:
-    """Deterministic GitHub Pull Request creation for Git-Worker."""
-    target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
-    spec_name = getattr(args, "spec", None) or getattr(args, "spec_name", None)
-    head_branch = getattr(args, "head", None) or (f"{spec_name}-worker" if spec_name else None)
-    base_branch = getattr(args, "base", None) or spec_name or "main"
-    title = getattr(args, "title", None) or (f"feat({spec_name}): integrate automated pipeline improvements" if spec_name else "chore: automated pipeline release")
-    body_file = getattr(args, "body_file", None)
-
-    if not head_branch:
-        print("Error: --head or --spec is required to create a Pull Request.", file=sys.stderr)
-        return 1
-
-    res = create_github_pull_request(
-        head_branch=head_branch,
-        base_branch=base_branch,
-        title=title,
-        body_file=body_file,
-        target_dir=target_dir,
-        push_before_pr=getattr(args, "push", False),
-    )
-
-    if getattr(args, "json", False):
-        print(json.dumps(res, indent=2))
-        return 0 if res.get("status") == "SUCCESS" else 1
-
-    if res.get("status") == "SUCCESS":
-        print("=" * 110)
-        print(" 🚀 PULL REQUEST OPENED BY GIT-WORKER")
-        print("=" * 110)
-        print(f"PR URL:      {res.get('pr_url')}")
-        print(f"Head Branch: {res.get('head_branch')}")
-        print(f"Base Branch: {res.get('base_branch')}")
-        print(f"Title:       {res.get('title')}")
-        print("=" * 110)
-        return 0
-    else:
-        print("=" * 110)
-        print(f" ❌ PR CREATION FAILED: {res.get('status')}")
-        print("=" * 110)
-        print(f"Message: {res.get('message')}")
-        print("=" * 110)
-        return 1
-
-
 def cmd_list(args: argparse.Namespace) -> int:
     """Displays the concise, fixed command reference table."""
     commands = [
         {"slash": "/workflow init", "syntax": "workflow init [dir]", "desc": "Initialize encapsulated .workflow/ structure & memory"},
         {"slash": "/workflow explore", "syntax": "workflow explore [dir]", "desc": "Survey polyglot stack & extract coding preferences"},
+        {"slash": "/workflow context", "syntax": "workflow context [text]", "desc": "Add or view business domain context in project_context.md"},
+        {"slash": "/workflow memory", "syntax": "workflow memory [list|add|show]", "desc": "Manage coding preferences, project context & indexed docs"},
         {"slash": "/workflow new", "syntax": "workflow new <name>", "desc": "Scaffold a new spec under .workflow/specs/active/<name>/"},
         {"slash": "/workflow specify", "syntax": "workflow specify <name>", "desc": "Draft functional spec.md focusing strictly on what and why"},
         {"slash": "/workflow clarify", "syntax": "workflow clarify <name> [--generate-adr]", "desc": "Ambiguity Checkpoint: Socratic Q&A to close specification gaps"},
         {"slash": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Convert approved spec.md into technical design (plan.md)"},
         {"slash": "/workflow tasks", "syntax": "workflow tasks <name>", "desc": "Decompose technical plan into atomic tasks (tasks.md & issues/)"},
         {"slash": "/workflow analyze", "syntax": "workflow analyze <name>", "desc": "Auditoría previa: static consistency audit across spec, plan & tasks"},
-        {"slash": "/workflow security", "syntax": "workflow security [spec] [--json]", "desc": "Run OWASP Top 10 SAST, secret leak & dependency CVE audit"},
-        {"slash": "/workflow audit-deps", "syntax": "workflow audit-deps [dir]", "desc": "Audit project package manifests for known CVEs"},
-        {"slash": "/workflow quality", "syntax": "workflow quality [spec] [--create-pr]", "desc": "Quality Gatekeeper: audit quality score & OWASP report, generate ADR"},
         {"slash": "/workflow run", "syntax": "workflow run <spec> [--push] [--schedule <m>]", "desc": "Primary Engine: Run 7-stage subagent pipeline (Implement -> Fix -> Refactor -> Security -> Quality -> Doc -> Git)"},
-        {"slash": "/workflow commit", "syntax": "workflow commit -t <t> -s <s> -m <m>", "desc": "Git-Worker deterministic Conventional Commit with pre-commit security gates"},
-        {"slash": "/workflow pr", "syntax": "workflow pr --spec <spec> [--push]", "desc": "Git-Worker deterministic GitHub PR creation via gh CLI (Default: no push; add --push)"},
-        {"slash": "/workflow status", "syntax": "workflow status [spec]", "desc": "View active pipeline status, worktrees & security audits"},
         {"slash": "/workflow stop", "syntax": "workflow stop [spec]", "desc": "Terminate background pipeline subagents and cancel timers"},
         {"slash": "/workflow clean", "syntax": "workflow clean", "desc": "Deep Anti-Zombie cleanup of orphaned worktrees, locks & dead PIDs"},
         {"slash": "/workflow archive", "syntax": "workflow archive <name>", "desc": "Move completed spec to .workflow/specs/archive/<year>/"},
-        {"slash": "/workflow drift", "syntax": "workflow drift [--sync]", "desc": "Detect manifest checksum drift & sync tech context"},
-        {"slash": "/workflow memory", "syntax": "workflow memory [list|add|show]", "desc": "Manage coding preferences, project context & indexed docs"},
-        {"slash": "/workflow context", "syntax": "workflow context [text]", "desc": "Add or view business domain context in project_context.md"},
-        {"slash": "/workflow check-env", "syntax": "workflow check-env", "desc": "Diagnostic check of Python >=3.10, Git, uv, and dependencies"},
         {"slash": "/workflow list", "syntax": "workflow list", "desc": "Display this concise command reference table"},
     ]
 
@@ -1301,9 +842,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="subcommand", help="Available subcommands")
 
-    # check-env
-    subparsers.add_parser("check-env", help="Verify runtime environment, Python >=3.10, Git, and dependencies")
-
     # init
     p_init = subparsers.add_parser("init", help="Initialize encapsulated .workflow/ structure in target repo")
     p_init.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
@@ -1313,10 +851,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_exp = subparsers.add_parser("explore", help="Scan codebase polyglot stack and generate master context in .workflow/memory/")
     p_exp.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
-    # drift
-    p_drift = subparsers.add_parser("drift", help="Detect or synchronize tech drift and manifest changes")
-    p_drift.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
-    p_drift.add_argument("--sync", action="store_true", help="Re-survey and update context automatically")
+    # context
+    p_ctx = subparsers.add_parser("context", help="Add or inspect business domain and application context in .workflow/memory/project_context.md")
+    p_ctx.add_argument("context_text", nargs="*", help="Business context or application domain description")
+    p_ctx.add_argument("--overwrite", action="store_true", help="Overwrite existing business context instead of appending")
+    p_ctx.add_argument("--target-dir", default=".", help="Target workspace directory")
 
     # memory
     p_mem = subparsers.add_parser("memory", help="Manage coding preferences, project context, and indexed memory docs")
@@ -1325,12 +864,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_mem.add_argument("--content", help="Content details for the note")
     p_mem.add_argument("--message", dest="message", help="Alternative title flag for logging")
     p_mem.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
-
-    # context
-    p_ctx = subparsers.add_parser("context", help="Add or inspect business domain and application context in .workflow/memory/project_context.md")
-    p_ctx.add_argument("context_text", nargs="*", help="Business context or application domain description")
-    p_ctx.add_argument("--overwrite", action="store_true", help="Overwrite existing business context instead of appending")
-    p_ctx.add_argument("--target-dir", default=".", help="Target workspace directory")
 
     # new
     p_new = subparsers.add_parser("new", help="Scaffold a new feature specification directory under .workflow/specs/active/<spec-name>/")
@@ -1366,25 +899,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_ana.add_argument("spec_name", help="Path or shorthand name of the spec")
     p_ana.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
-    # security
-    p_sec = subparsers.add_parser("security", help="Run OWASP Top 10 SAST, secret leak, and dependency vulnerability audit")
-    p_sec.add_argument("spec_name", nargs="?", default=None, help="Target specification name")
-    p_sec.add_argument("--target-dir", default=".", help="Target workspace directory")
-
-    # audit-deps
-    p_deps = subparsers.add_parser("audit-deps", help="Audit project package manifests for known CVEs")
-    p_deps.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
-
-    # quality
-    p_qual = subparsers.add_parser("quality", help="Quality Gatekeeper: audit quality score, generate ADR, and compile release PR")
-    p_qual.add_argument("spec_name", nargs="?", help="Target specification name (e.g. user-login)")
-    p_qual.add_argument("--spec", dest="flag_spec", help="Target specification name (alternative flag)")
-    p_qual.add_argument("--archetype", choices=["fix", "refactor", "security", "implement", "doc_sync", "all"], help="Scope PR to specific archetype decisions")
-    p_qual.add_argument("--archive", help="Archive a merged PR filename into .workflow/prs/archive/<year>/")
-    p_qual.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
-    p_qual.add_argument("--target-branch", default=None, help="Target merge branch (defaults to spec branch or main)")
-    p_qual.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
-
     # run
     p_run = subparsers.add_parser("run", help="Run deterministic 7-stage subagent pipeline (Implement -> Fix -> Refactor -> Security -> Quality -> Doc -> Git-Worker)")
     p_run.add_argument("spec_name", help="Target specification name (e.g. user-login)")
@@ -1393,29 +907,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
     p_run.add_argument("--push", action="store_true", default=False, help="Push staging branch to remote origin upon commit (Default: False for security)")
     p_run.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
-
-    # commit (for git-worker)
-    p_cmt = subparsers.add_parser("commit", help="Git-Worker deterministic Conventional Commit with pre-commit security gates")
-    p_cmt.add_argument("-t", "--type", default="feat", help="Commit type (feat, fix, docs, refactor, chore, etc.)")
-    p_cmt.add_argument("-s", "--scope", "--spec", dest="scope", help="Commit scope / spec name")
-    p_cmt.add_argument("-m", "--message", required=True, help="Imperative commit description")
-    p_cmt.add_argument("-b", "--bullets", help="Newline-separated bullet summary of changes")
-    p_cmt.add_argument("--target-dir", default=".", help="Target working directory or worktree")
-
-    # pr (for git-worker)
-    p_pr = subparsers.add_parser("pr", help="Git-Worker deterministic GitHub PR creation via gh CLI")
-    p_pr.add_argument("--spec", "--spec-name", dest="spec", help="Target specification name")
-    p_pr.add_argument("--head", help="Head branch name (defaults to <spec>-worker)")
-    p_pr.add_argument("--base", help="Base branch name (defaults to spec branch or main)")
-    p_pr.add_argument("--title", help="PR title")
-    p_pr.add_argument("--body-file", help="Path to markdown PR body file")
-    p_pr.add_argument("--target-dir", default=".", help="Target repository directory")
-    p_pr.add_argument("--push", action="store_true", default=False, help="Push branch to remote origin before creating PR (Default: False for security)")
-
-    # status
-    p_status = subparsers.add_parser("status", help="Display active specifications, pipeline worktrees, and running daemons")
-    p_status.add_argument("spec_name", nargs="?", help="Optional specification name to filter")
-    p_status.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # stop
     p_stop = subparsers.add_parser("stop", help="Stop background pipeline schedulers and terminate subagents")
@@ -1447,25 +938,17 @@ def main() -> int:
         return 0
 
     commands = {
-        "check-env": cmd_check_env,
         "init": cmd_init,
         "explore": cmd_explore,
-        "drift": cmd_drift,
-        "memory": cmd_memory,
         "context": cmd_context,
+        "memory": cmd_memory,
         "new": cmd_new,
         "specify": cmd_specify,
         "clarify": cmd_clarify,
         "plan": cmd_plan,
         "tasks": cmd_tasks,
         "analyze": cmd_analyze,
-        "security": cmd_security,
-        "audit-deps": cmd_audit_deps,
-        "quality": cmd_quality,
         "run": cmd_run,
-        "commit": cmd_commit,
-        "pr": cmd_pr,
-        "status": cmd_status,
         "stop": cmd_stop,
         "clean": cmd_clean,
         "archive": cmd_archive,

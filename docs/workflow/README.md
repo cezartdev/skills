@@ -49,9 +49,6 @@ The GitHub CLI (`gh`) is essential for agents and developers to interact with Gi
    ```bash
    # Check GitHub CLI authentication status and granted scopes:
    gh auth status
-
-   # Or run workflow diagnostic health check:
-   uv run skills/workflow/scripts/workflow_runner.py check-env
    ```
 
 ---
@@ -135,9 +132,6 @@ uv run skills/workflow/scripts/workflow_runner.py run user-login --push
 # Opt-In Recurring Background Execution (runs every 30m with Fixed-Delay):
 uv run skills/workflow/scripts/workflow_runner.py run user-login --schedule 30
 
-# Check active pipeline status and worktree metrics:
-uv run skills/workflow/scripts/workflow_runner.py status
-
 # Stop active background schedulers & terminate subagents:
 uv run skills/workflow/scripts/workflow_runner.py stop user-login
 
@@ -148,53 +142,7 @@ uv run skills/workflow/scripts/workflow_runner.py clean
 uv run skills/workflow/scripts/workflow_runner.py archive user-login
 ```
 
-### 6. Cybersecurity & OWASP Top 10 Auditing
-```bash
-# Scan codebase against OWASP Top 10 SAST rules & secret leaks
-uv run skills/workflow/scripts/workflow_runner.py security user-login
-
-# Audit package manifests for known CVEs
-uv run skills/workflow/scripts/workflow_runner.py audit-deps
-```
-
-### 7. Quality Gatekeeper & ADR Generation
-The Quality Gatekeeper (`workflow quality <spec>`) evaluates quality parameters, verifies test passes and OWASP clearance, writes formal **Architectural Decision Records (ADRs)** in `.workflow/specs/active/<spec>/adrs/`, and compiles structured PR summaries in `.workflow/prs/active/`:
-
-```bash
-# Run Quality Gatekeeper audit, generate ADR and synthesize PR summary for user-login:
-uv run skills/workflow/scripts/workflow_runner.py quality user-login
-
-# Open Pull Request directly on GitHub via gh CLI:
-uv run skills/workflow/scripts/workflow_runner.py quality user-login --create-pr
-
-# Scoped Rollup PR: Compile exclusively bug fixes into .workflow/prs/active/
-uv run skills/workflow/scripts/workflow_runner.py quality --archetype fix
-
-# Archive a merged PR record:
-uv run skills/workflow/scripts/workflow_runner.py quality --archive PR_spec_user_login_20260818_200000.md
-```
-
-### 8. Deterministic `git-worker` Commands & Grilling Session Gates
-The **`git-worker`** archetype operates with **100% determinism** and zero inference. It uses internal `git_ops.py` tooling:
-
-```bash
-# Deterministic Conventional Commit (executed by git-worker after Grilling Session confirmation):
-uv run skills/workflow/scripts/workflow_runner.py commit \
-  -t feat \
-  -s user-login \
-  -m "implement secure token authentication flow" \
-  -b "- Add JWT token signing and refresh verification.\n- Guarantee 100% green unit tests." \
-  --target-dir ".workflow/worktrees/user-login/worker"
-
-# Deterministic GitHub Pull Request creation (Default: no push; add --push to push to origin):
-uv run skills/workflow/scripts/workflow_runner.py pr \
-  --spec user-login \
-  --push \
-  --body-file ".workflow/prs/active/PR_spec_user_login_20260819_234000.md" \
-  --target-dir ".workflow/worktrees/user-login/worker"
-```
-
-### 9. Native Subagent Archetypes & Dedicated System Prompts
+### 6. Native Subagent Archetypes & Dedicated System Prompts
 When `/workflow run <spec>` is executed, the AI Agent registers and launches 7 specialized subagents via native agent tools (`define_subagent` and `invoke_subagent`), each with its own role, function, and personality:
 
 | Subagent Type | Subagent Role | System Prompt Reference | Key Function |
@@ -207,7 +155,7 @@ When `/workflow run <spec>` is executed, the AI Agent registers and launches 7 s
 | `workflow-doc-worker` | **Doc Subagent** | `references/prompts/doc_worker.prompt.md` | Synchronizes markdown documentation, README files, API schemas, and `spec.md` acceptance criteria checkboxes. |
 | `workflow-git-worker` | **Git Subagent** | `references/prompts/git_worker.prompt.md` | Conducts interactive Grilling Sessions (`ask_question`) with developer before commits/pushes, executing deterministic Conventional Commits and PRs. Local commits only by default unless `--push` is provided. |
 
-### 10. Strict Hierarchical Worktrees & Subagent Branch Scoping
+### 7. Strict Hierarchical Worktrees & Subagent Branch Scoping
 Every physical worktree is **strictly dependent on and scoped to a specification and its designated subagent**:
 - **Feature / Developer Branch**: Primary implementation takes place directly on `feat/<spec-name>` (e.g., `feat/user-login`).
 - **Staging Branch**: Autonomous subagents operate on dedicated staging branch `<spec-name>-worker` inside `.workflow/worktrees/<spec-name>/worker/`.
