@@ -37,21 +37,21 @@ metadata:
 >    - First run `uv run skills/workflow/scripts/workflow_runner.py run <spec>` to initialize and sync the physical worktree (`.workflow/worktrees/<spec>/worker/`).
 >    - Define the 7 specialized subagent types using `define_subagent` (reading their system prompts from `skills/workflow/references/prompts/`):
 >      * `workflow-implement-worker` (System prompt: `references/prompts/implement.prompt.md`, `enable_write_tools=True`)
->      * `workflow-fix-worker` (System prompt: `references/prompts/fix.prompt.md`, `enable_write_tools=True`)
->      * `workflow-refactor-worker` (System prompt: `references/prompts/refactor.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-fix-worker` (System prompt: `references/prompts/fix_worker.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-refactor-worker` (System prompt: `references/prompts/refactor_worker.prompt.md`, `enable_write_tools=True`)
 >      * `workflow-security-worker` (System prompt: `references/prompts/security_worker.prompt.md`, `enable_write_tools=True`)
->      * `workflow-quality-worker` (System prompt: `references/prompts/quality.prompt.md`, `enable_write_tools=True`)
->      * `workflow-doc-worker` (System prompt: `references/prompts/doc_sync.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-quality-worker` (System prompt: `references/prompts/quality_worker.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-doc-worker` (System prompt: `references/prompts/doc_worker.prompt.md`, `enable_write_tools=True`)
 >      * `workflow-git-worker` (System prompt: `references/prompts/git_worker.prompt.md`, `enable_write_tools=True`)
 >    - Sequentially invoke each subagent using `invoke_subagent` so each worker appears distinctly in the agent UI:
->      1. **Stage 1 (Implementer)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-implement-worker', 'Role': 'Implementer Specialist', 'Prompt': 'Build out spec requirements and task issues for <spec> in .workflow/worktrees/<spec>/worker/. Follow TDD Red-Green cycle and zero-comments policy.'}])`
->      2. **Stage 2 (Fix-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-fix-worker', 'Role': 'Fix-Worker Specialist', 'Prompt': 'Diagnose and stabilize tests in .workflow/worktrees/<spec>/worker/'}])`
->      3. **Stage 3 (Refactor-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-refactor-worker', 'Role': 'Refactor-Worker Specialist', 'Prompt': 'Refactor modular code and strip redundant comments in worktree while keeping tests green.'}])`
->      4. **Stage 4 (Security-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-security-worker', 'Role': 'Cybersecurity Specialist', 'Prompt': 'Audit OWASP Top 10 SAST patterns, secret leaks, and dependency CVEs in worktree.'}])`
->      5. **Stage 5 (Quality-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-quality-worker', 'Role': 'Quality Specialist', 'Prompt': 'Audit holistic quality gates (100/100, zero comments, OWASP clearance) and compile ADR in .workflow/specs/active/<spec>/adrs/.'}])`
+>      1. **Stage 1 (Implement)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-implement-worker', 'Role': 'Implement Subagent', 'Prompt': 'Build out spec requirements and task issues for <spec> in .workflow/worktrees/<spec>/worker/. Follow TDD Red-Green cycle and zero-comments policy.'}])`
+>      2. **Stage 2 (Fix)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-fix-worker', 'Role': 'Fix Subagent', 'Prompt': 'Diagnose and stabilize tests in .workflow/worktrees/<spec>/worker/'}])`
+>      3. **Stage 3 (Refactor)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-refactor-worker', 'Role': 'Refactor Subagent', 'Prompt': 'Refactor modular code and strip redundant comments in worktree while keeping tests green.'}])`
+>      4. **Stage 4 (Security)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-security-worker', 'Role': 'Security Subagent', 'Prompt': 'Audit OWASP Top 10 SAST patterns, secret leaks, and dependency CVEs in worktree.'}])`
+>      5. **Stage 5 (Quality)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-quality-worker', 'Role': 'Quality Subagent', 'Prompt': 'Audit holistic quality gates (100/100, zero comments, OWASP clearance) and compile ADR in .workflow/specs/active/<spec>/adrs/.'}])`
 >         * If Quality-Worker returns `NEEDS_FIX` or `NEEDS_REFACTOR`, loop back to that subagent (up to `max_revisions: 3`).
->      6. **Stage 6 (Doc-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-doc-worker', 'Role': 'Doc-Worker Specialist', 'Prompt': 'Sync markdown docs and verify spec acceptance criteria in worktree.'}])`
->      7. **Stage 7 (Git-Worker)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-git-worker', 'Role': 'Git-Worker Specialist', 'Prompt': 'Conduct interactive Grilling Session confirmation via ask_question with developer. Default Security: Commit locally and do NOT push to remote unless --push flag is passed or explicitly authorized.'}])`
+>      6. **Stage 6 (Doc)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-doc-worker', 'Role': 'Doc Subagent', 'Prompt': 'Sync markdown docs and verify spec acceptance criteria in worktree.'}])`
+>      7. **Stage 7 (Git)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-git-worker', 'Role': 'Git Subagent', 'Prompt': 'Conduct interactive Grilling Session confirmation via ask_question with developer. Default Security: Commit locally and do NOT push to remote unless --push flag is passed or explicitly authorized.'}])`
 > 4. **Immediate Stop & Timer Cancellation**: When triggering `/workflow stop [spec|--all]`, the AI Agent MUST:
 >    - Execute `uv run skills/workflow/scripts/workflow_runner.py stop [spec]`.
 >    - Cancel background schedule cron timers with `manage_task(Action="kill")`.
@@ -69,6 +69,7 @@ metadata:
 > 12. **100% Self-Contained Skill & Zero External Skill Dependency**: The `workflow` skill is completely independent and contains internal tools for Git operations (`git_ops.py`), security scanning (`security_auditor.py`), and PR synthesis. AI Agents MUST NEVER invoke external skills (e.g. `skills/git/`) from within the workflow harness.
 > 13. **Default Security Gate (Local Commits by Default)**: By default, all pipeline runs stop after the local commit inside the worktree. Autonomous subagents and CLI commands MUST NOT push to remote `origin` or open public PRs unless the explicit `--push` flag was provided (e.g. `/workflow run <spec> --push`) or the human developer explicitly authorizes remote push during the interactive grilling session.
 > 14. **Clean Slash Command Suggestions (`/workflow <subcommand>`)**: When displaying suggested next steps or recommending follow-up actions to the developer in chat or CLI output, AI Agents MUST ALWAYS format them as clean slash commands (e.g., `/workflow explore`, `/workflow new <spec-name>`, `/workflow specify <spec-name>`, `/workflow clarify <spec-name>`, `/workflow plan <spec-name>`, `/workflow tasks <spec-name>`, `/workflow analyze <spec-name>`, `/workflow run <spec-name>`). Never present raw internal script paths as suggested user steps.
+> 15. **Specialist Subagent Dispatch for Single Commands**: When executing atomic lifecycle commands (`/workflow explore`, `/workflow context`, `/workflow specify`, `/workflow clarify`, `/workflow plan`, `/workflow tasks`, `/workflow analyze`), the AI Agent MUST dispatch the corresponding **Specialist Subagent** (`workflow-explorer-specialist`, `workflow-context-specialist`, `workflow-specify-specialist`, `workflow-clarify-specialist`, `workflow-plan-specialist`, `workflow-tasks-specialist`, `workflow-analyze-specialist`) to execute targeted tasks in isolation.
 
 ---
 
@@ -101,13 +102,13 @@ skills/workflow/
 │       ├── plan.prompt.md            # Technical design engineer prompt (plan.md)
 │       ├── tasks.prompt.md           # Task breakdown specialist prompt (tasks.md & issues/)
 │       ├── analyze.prompt.md         # Static consistency auditor prompt
-│       ├── implement.prompt.md       # Feature & SDD/TDD Engineer prompt (implement-worker)
-│       ├── explorer.prompt.md        # Codebase discovery scout prompt
-│       ├── fix.prompt.md             # BugFix & Auto-Heal prompt (fix-worker)
-│       ├── refactor.prompt.md        # Architecture & code health prompt (refactor-worker)
+│       ├── implement.prompt.md       # Implementation worker prompt (implement-worker)
+│       ├── explorer.prompt.md        # Codebase discovery scout prompt (explorer-specialist)
+│       ├── fix_worker.prompt.md      # BugFix & Auto-Heal prompt (fix-worker)
+│       ├── refactor_worker.prompt.md # Architecture & code health prompt (refactor-worker)
 │       ├── security_worker.prompt.md # Cybersecurity & OWASP Top 10 audit prompt (security-worker)
-│       ├── quality.prompt.md         # Quality Assurance Gatekeeper prompt (quality-worker)
-│       ├── doc_sync.prompt.md        # Documentation synchronizer prompt (doc-worker)
+│       ├── quality_worker.prompt.md  # Quality Assurance Gatekeeper prompt (quality-worker)
+│       ├── doc_worker.prompt.md      # Documentation synchronizer prompt (doc-worker)
 │       ├── git_worker.prompt.md      # Deterministic Git & GitHub release prompt (git-worker)
 │       └── context.prompt.md         # Business & application domain context curator prompt
 └── assets/                           # [OPTIONAL] Templates, schemas, and static resources

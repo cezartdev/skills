@@ -252,8 +252,12 @@ def cmd_explore(args: argparse.Namespace) -> int:
     print(f"{'Master Context':<24} │ {master_path}")
     print("=" * 110)
 
+    print("\nℹ️  AI Agent Native Subagent Dispatch Directive:")
+    print("   - Explorer Specialist: define_subagent(name='workflow-explorer-specialist', description='Codebase & polyglot stack discovery specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{'TypeName': 'workflow-explorer-specialist', 'Role': 'Explorer Specialist', 'Prompt': 'Survey codebase polyglot stack, test runner, linters and update .workflow/memory/project_context.md and coding_preferences.md.'}])")
+
     print_next_steps([
         {"cmd": "/workflow memory list", "desc": "Inspect generated coding preferences & project context"},
+        {"cmd": "/workflow context", "desc": "Add business domain and application context"},
         {"cmd": "/workflow new <spec-name>", "desc": "Scaffold a new feature specification"},
     ])
     return 0
@@ -459,6 +463,9 @@ def cmd_specify(args: argparse.Namespace) -> int:
         for r in audit["recommendations"]:
             print(f"   - {r}")
 
+    print("\nℹ️  AI Agent Native Subagent Dispatch Directive:")
+    print(f"   - Specify Specialist: define_subagent(name='workflow-specify-specialist', description='Functional requirements and user stories scribe', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-specify-specialist', 'Role': 'Specify Specialist', 'Prompt': 'Author pure functional requirements (what and why) in {spec_file} with user stories and acceptance criteria.'}}])")
+
     print_next_steps([
         {"cmd": f"/workflow clarify {spec_name}", "desc": "Ambiguity Checkpoint & Socratic Q&A to resolve gaps"},
         {"cmd": f"/workflow plan {spec_name}", "desc": "Convert approved spec into technical design (plan.md)"},
@@ -520,6 +527,9 @@ def cmd_clarify(args: argparse.Namespace) -> int:
     for idx, q in enumerate(questions, 1):
         print(f"   {idx}. {q}")
 
+    print("\nℹ️  AI Agent Native Subagent Dispatch Directive:")
+    print(f"   - Clarify Specialist: define_subagent(name='workflow-clarify-specialist', description='Ambiguity checkpoint and Socratic griller', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-clarify-specialist', 'Role': 'Clarify Specialist', 'Prompt': 'Detect ambiguities in {spec_file}, conduct Socratic Q&A using ask_question, and write ADR.'}}])")
+
     print_next_steps([
         {"cmd": f"/workflow plan {spec_name}", "desc": "Generate technical architecture and contracts (plan.md)"},
         {"cmd": f"/workflow analyze {spec_name}", "desc": "Audit consistency across spec, plan and tasks"},
@@ -559,6 +569,10 @@ def cmd_plan(args: argparse.Namespace) -> int:
     print(f"{'Dependencies':<24} │ {'PASS' if checks.get('dependencies') else 'NEEDS_SPECIFICATION':<20} (Library selection)")
     print(f"{'Security & Perf':<24} │ {'PASS' if checks.get('security_perf') else 'NEEDS_SPECIFICATION':<20} (OWASP compliance)")
     print("=" * 110)
+
+    plan_file = res["plan_file"]
+    print("\nℹ️  AI Agent Native Subagent Dispatch Directive:")
+    print(f"   - Plan Specialist: define_subagent(name='workflow-plan-specialist', description='Technical architecture and contract design engineer', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-plan-specialist', 'Role': 'Plan Specialist', 'Prompt': 'Translate spec.md into technical design in {plan_file} with data models, schemas, and interfaces.'}}])")
 
     print_next_steps([
         {"cmd": f"/workflow tasks {spec_name}", "desc": "Decompose technical plan into atomic tasks (tasks.md & issues/)"},
@@ -600,6 +614,11 @@ def cmd_tasks(args: argparse.Namespace) -> int:
         print(f"{iss:<36} │ {res['issues_dir']}")
     print("=" * 110)
 
+    tasks_file = res["tasks_file"]
+    issues_dir = res["issues_dir"]
+    print("\nℹ️  AI Agent Native Subagent Dispatch Directive:")
+    print(f"   - Tasks Specialist: define_subagent(name='workflow-tasks-specialist', description='Atomic task decomposition and TDD issue specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-tasks-specialist', 'Role': 'Tasks Specialist', 'Prompt': 'Decompose plan.md into ordered atomic tasks in {tasks_file} and populate {issues_dir}.'}}])")
+
     print_next_steps([
         {"cmd": f"/workflow analyze {spec_name}", "desc": "Audit static consistency across spec, plan, and tasks"},
         {"cmd": f"/workflow run {spec_name}", "desc": "Execute 7-stage sequential pipeline"},
@@ -639,6 +658,9 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         print("\n⚠️  Gaps & Contradictions Found:")
         for c in res["contradictions"]:
             print(f"   ❌ {c}")
+
+    print("\nℹ️  AI Agent Native Subagent Dispatch Directive:")
+    print(f"   - Analyze Specialist: define_subagent(name='workflow-analyze-specialist', description='Pre-execution static consistency auditor', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-analyze-specialist', 'Role': 'Analyze Specialist', 'Prompt': 'Statically audit consistency between Memory, spec.md, plan.md, and tasks.md for {spec_name}.'}}])")
 
     if res["passed"]:
         print_next_steps([
@@ -682,7 +704,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     print("=" * 110)
     print(f" 🚀 PIPELINE COMPLETED: '{res['spec_name']}' ({res['elapsed_seconds']}s)")
     print("=" * 110)
-    print(f"{'STAGE':<24} │ {'STATUS':<24} │ SUBAGENT SPECIALIST")
+    print(f"{'STAGE':<24} │ {'STATUS':<24} │ SUBAGENT WORKER")
     print("-" * 110)
     for st in res["stages"]:
         print(f"{st['stage']:<24} │ {st['status']:<24} │ {st['subagent_role']}")
@@ -975,6 +997,9 @@ def cmd_context(args: argparse.Namespace) -> int:
         print(f"{'Added Context':<24} │ {res['added_context']}")
         print("=" * 110)
 
+        print("\nℹ️  AI Agent Native Subagent Dispatch Directive:")
+        print("   - Context Specialist: define_subagent(name='workflow-context-specialist', description='Business domain and application context curator', enable_write_tools=True) -> invoke_subagent(Subagents=[{'TypeName': 'workflow-context-specialist', 'Role': 'Context Specialist', 'Prompt': 'Synthesize business domain knowledge and update .workflow/memory/project_context.md under Business & Application Domain Context.'}])")
+
         print_next_steps([
             {"cmd": "/workflow explore", "desc": "Survey codebase stack & refresh project context"},
             {"cmd": "/workflow new <spec-name>", "desc": "Scaffold a new feature specification"},
@@ -994,6 +1019,9 @@ def cmd_context(args: argparse.Namespace) -> int:
         print("-" * 110)
         print(res["business_context"])
         print("=" * 110)
+
+        print("\nℹ️  AI Agent Native Subagent Dispatch Directive:")
+        print("   - Context Specialist: define_subagent(name='workflow-context-specialist', description='Business domain and application context curator', enable_write_tools=True) -> invoke_subagent(Subagents=[{'TypeName': 'workflow-context-specialist', 'Role': 'Context Specialist', 'Prompt': 'Synthesize business domain knowledge and update .workflow/memory/project_context.md under Business & Application Domain Context.'}])")
 
         print_next_steps([
             {"cmd": "/workflow context \"<business context or app description>\"", "desc": "Add domain context to project_context.md"},
