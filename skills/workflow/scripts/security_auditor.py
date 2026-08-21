@@ -217,7 +217,8 @@ def scan_owasp_patterns(
             rel_file = os.path.relpath(file_path, target_dir).replace("\\", "/")
 
             # Skip audit reports and template files from triggering self-findings
-            if "security_audit.json" in rel_file or "owasp_top_10.md" in rel_file or "security_auditor.py" in rel_file:
+            rel_lower = rel_file.lower()
+            if "security_audit.json" in rel_lower or "owasp_top_10.md" in rel_lower or "security_auditor.py" in rel_lower:
                 continue
 
             try:

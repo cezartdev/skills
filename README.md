@@ -66,11 +66,10 @@ As AI agents take on increasingly complex development tasks, deterministic guard
 - **Commit History Compliance (`/git audit`)**: Scans past commit logs, scores repository compliance, and suggests automated standardized rewrites.
 
 #### 🔍 `workflow` Skill Highlights
-- **Subcommand Suite**: `/workflow init`, `/workflow explore`, `/workflow drift`, `/workflow new`, `/workflow check`, `/workflow run`, `/workflow daemon`, `/workflow memory`, `/workflow worktree`.
-- **Spec-Driven Architecture**: Structured `spec.md` and atomic TDD issues (`issues/*.md`) inspired by Matt Pocock.
-- **Physical Git Worktree Isolation**: Zero-collision concurrency for background daemons with private staging indices.
-- **Hierarchical Markdown Memory**: 00-10 sliding window with deterministic rollup into `00_project_context.md`.
-- **Pre-Execution Quality Gate**: Human-in-the-loop verification before code execution.
+- **Subcommand Suite**: `/workflow init`, `/workflow explore`, `/workflow context`, `/workflow memory`, `/workflow new`, `/workflow specify`, `/workflow clarify`, `/workflow plan`, `/workflow tasks`, `/workflow analyze`, `/workflow run`, `/workflow stop`, `/workflow clean`, `/workflow archive`, `/workflow list`.
+- **Spec-Driven Architecture**: GitHub Spec-Kit 5-stage lifecycle (`specify` -> `clarify` -> `plan` -> `tasks` -> `analyze`) and atomic TDD issues.
+- **Physical Git Worktree Isolation**: Autonomous subagents operate inside private staging worktrees (`.workflow/worktrees/<spec>/worker/`).
+- **Deterministic 7-Stage Multi-Subagent Pipeline**: Sequential dispatch of Implement -> Fix -> Refactor -> Security -> Quality -> Doc -> Git subagents with zero comments policy and OWASP Top 10 SAST audit.
 
 ---
 

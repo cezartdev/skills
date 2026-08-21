@@ -59,15 +59,15 @@ The project utilizes the **Deterministic Workflow Suite**, a structured harness 
 
 When `/workflow run <spec>` is triggered, the pipeline executes 7 specialized stages inside `.workflow/worktrees/<spec>/worker/`:
 
-| Stage | Specialist Role | Responsibility |
+| Stage | Subagent Role | Responsibility |
 |---|---|---|
-| **Stage 1 (Implement)** | `Implementer Specialist` | Build out core domain models, specifications, and initial test files following TDD Red-Green. |
-| **Stage 2 (Fix)** | `Fix-Worker Specialist` | Stabilize failing tests, apply surgical bug fixes, and guarantee 100% green builds. |
-| **Stage 3 (Refactor)** | `Refactor-Worker Specialist` | Clean code, optimize modularity, reduce complexity, and enforce Zero-Comments policy. |
-| **Stage 4 (Security)** | `Cybersecurity Specialist` | Scan OWASP Top 10 SAST patterns, secret leaks, and ecosystem dependency CVEs. |
-| **Stage 5 (Quality)** | `Quality Assurance Specialist` | Evaluate Quality Gate (100/100, zero comments, security clearance), route feedback, and generate ADR. |
-| **Stage 6 (Doc)** | `Doc-Worker Specialist` | Synchronize documentation, OpenAPI schemas, and specifications. |
-| **Stage 7 (Git-Worker)** | `Git-Worker Specialist` | Conduct Grilling Session confirmation with developer, then execute atomic Conventional Commit and PR. |
+| **Stage 1 (Implement)** | `Implement Subagent` | Build out core domain models, specifications, and initial test files following TDD Red-Green. |
+| **Stage 2 (Fix)** | `Fix Subagent` | Stabilize failing tests, apply surgical bug fixes, and guarantee 100% green builds. |
+| **Stage 3 (Refactor)** | `Refactor Subagent` | Clean code, optimize modularity, reduce complexity, and enforce Zero-Comments policy. |
+| **Stage 4 (Security)** | `Security Subagent` | Scan OWASP Top 10 SAST patterns, secret leaks, and ecosystem dependency CVEs. |
+| **Stage 5 (Quality)** | `Quality Subagent` | Evaluate Quality Gate (100/100, zero comments, security clearance), route feedback, and generate ADR. |
+| **Stage 6 (Doc)** | `Doc Subagent` | Synchronize documentation, OpenAPI schemas, and specifications. |
+| **Stage 7 (Git-Worker)** | `Git Subagent` | Conduct Grilling Session confirmation with developer, then execute atomic Conventional Commit and PR. |
 
 ---
 

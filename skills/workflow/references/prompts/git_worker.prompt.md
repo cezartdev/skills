@@ -34,7 +34,7 @@ Once confirmed by the human developer:
 
 1. **Pre-Commit Security Scan & Atomic Commit (Local Only)**:
    ```bash
-   uv run skills/workflow/scripts/workflow_runner.py commit \
+   uv run skills/workflow/scripts/git_ops.py commit \
      -t feat \
      -s <spec-name> \
      -m "<imperative description derived from spec.md>" \
@@ -45,8 +45,10 @@ Once confirmed by the human developer:
 2. **Pull Request Synthesis (Local or Remote with --push)**:
    ```bash
    # If remote push was authorized:
-   uv run skills/workflow/scripts/workflow_runner.py pr \
-     --spec <spec-name> \
+   uv run skills/workflow/scripts/git_ops.py pr \
+     --head <spec-name>-worker \
+     --base feat/<spec-name> \
+     --title "feat(<spec-name>): integrate automated pipeline delivery" \
      --push \
      --body-file ".workflow/prs/active/PR_spec_<spec-name>_<timestamp>.md" \
      --target-dir ".workflow/worktrees/<spec-name>/worker"

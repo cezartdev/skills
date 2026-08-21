@@ -9,7 +9,7 @@ Audit source code, configurations, and third-party dependencies against the **OW
 
 ## 🔒 OWASP Top 10 Prioritized Inspection Protocol
 
-Follow the official OWASP Top 10 triage checklist (refer to `skills/workflow/references/owasp_top_10.md` for full taxonomy):
+Follow the official OWASP Top 10 triage checklist (refer to `skills/workflow/references/OWASP_TOP_10.md` for full taxonomy):
 
 1. **Priority 1 (A06: Supply Chain & Dependency CVEs)**:
    - Run dependency audit tools (`uv run skills/workflow/scripts/security_auditor.py deps --target-dir <wt_path>`).

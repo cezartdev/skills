@@ -14,7 +14,7 @@ metadata:
 - **Python Core**: Version **3.10+** executes `scripts/workflow_runner.py`.
 - **Git Core**: Version **2.25+** for version control and physical worktree isolation.
 - **Astral `uv`**: Ultra-fast Python package manager for virtual environments and runner dependencies (`langgraph`, `langchain-core`, `pydantic`). If `langgraph` is not yet installed, a pure-Python standard library fallback runner executes automatically.
-- **GitHub CLI (`gh`)**: Required for reading GitHub issues, opening pull requests (`/workflow quality --create-pr`), and repository automation. Authenticate via `gh auth login` with necessary scopes (`repo`, `workflow`, `read:org`, `read:project`). Verify with `gh auth status` or `/workflow check-env`.
+- **GitHub CLI (`gh`)**: Required for reading GitHub issues, opening pull requests (`/workflow run <spec> --create-pr`), and repository automation. Authenticate via `gh auth login` with necessary scopes (`repo`, `workflow`, `read:org`, `read:project`). Verify with `gh auth status`.
 - **Polyglot Stacks Supported**: Automatically adapts to Python (`uv`/`pytest`), Rust (`cargo`), Go (`go test`), TypeScript/JavaScript (`pnpm`/`bun`/`npm`), Java (`maven`/`gradle`), and C# (`dotnet`).
 - **Encapsulated Architecture**: All project artifacts reside in the target project's **`.workflow/`** directory (`specs/`, `memory/`, `prs/`, `worktrees/`, `logs/`).
 - **Universal Execution (Tier 1 — Recommended across Linux, Windows, macOS)**:
@@ -95,7 +95,7 @@ skills/workflow/
 │       └── pipeline_graph.py         # Deterministic 7-stage pipeline state machine
 ├── references/                       # [OPTIONAL] Reference documentation & system prompts read on-demand
 │   ├── ARCHITECTURE.md               # In-depth technical architecture guide
-│   ├── owasp_top_10.md               # OWASP Top 10 taxonomy & polyglot anti-pattern guide
+│   ├── OWASP_TOP_10.md               # OWASP Top 10 taxonomy & polyglot anti-pattern guide
 │   └── prompts/                      # Dedicated archetype system prompts
 │       ├── specify.prompt.md         # Functional spec scribe prompt (what & why)
 │       ├── clarify.prompt.md         # Ambiguity checkpoint & Socratic griller prompt

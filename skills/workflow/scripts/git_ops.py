@@ -6,6 +6,9 @@ import os
 import re
 import subprocess
 import shutil
+import sys
+import json
+import argparse
 from typing import Dict, Any, List, Optional, Tuple
 
 
@@ -274,3 +277,78 @@ def create_github_pull_request(
         "base_branch": base_branch,
         "title": title,
     }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="git_ops.py", description="Deterministic Git & GitHub Operations Engine")
+    parser.add_argument("--json", action="store_true", help="JSON output")
+    subparsers = parser.add_subparsers(dest="subcommand", help="Subcommands")
+
+    # commit
+    p_commit = subparsers.add_parser("commit", help="Execute deterministic atomic commit with security gates")
+    p_commit.add_argument("-t", "--type", default="feat", help="Commit type")
+    p_commit.add_argument("-s", "--scope", help="Commit scope / spec name")
+    p_commit.add_argument("-m", "--message", required=True, help="Imperative commit message")
+    p_commit.add_argument("-b", "--bullets", help="Newline-separated bullet summary")
+    p_commit.add_argument("--target-dir", default=".", help="Target working directory")
+
+    # pr
+    p_pr = subparsers.add_parser("pr", help="Create GitHub Pull Request via gh CLI")
+    p_pr.add_argument("--head", required=True, help="Head branch name")
+    p_pr.add_argument("--base", default="main", help="Base branch name")
+    p_pr.add_argument("--title", required=True, help="Pull Request title")
+    p_pr.add_argument("--body-file", help="Path to markdown body file")
+    p_pr.add_argument("--body", help="Pull request body text")
+    p_pr.add_argument("--push", action="store_true", default=False, help="Push head branch before opening PR")
+    p_pr.add_argument("--target-dir", default=".", help="Target directory")
+
+    args = parser.parse_args()
+    if not args.subcommand:
+        parser.print_help()
+        return 0
+
+    if args.subcommand == "commit":
+        bullets = None
+        if getattr(args, "bullets", None):
+            bullets = [b.strip() for b in args.bullets.split("\n") if b.strip()]
+        res = execute_atomic_commit(
+            commit_type=args.type,
+            scope=args.scope,
+            message=args.message,
+            body_bullets=bullets,
+            target_dir=args.target_dir,
+        )
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            if res.get("status") == "SUCCESS":
+                print(f"✅ Commit Created: {res.get('commit_sha')} ({res.get('commit_header')})")
+            else:
+                print(f"❌ Commit Failed: {res.get('message')}")
+        return 0 if res.get("status") == "SUCCESS" else 1
+
+    elif args.subcommand == "pr":
+        res = create_github_pull_request(
+            head_branch=args.head,
+            base_branch=args.base,
+            title=args.title,
+            body_file=args.body_file,
+            body_text=getattr(args, "body", None),
+            target_dir=args.target_dir,
+            push_before_pr=args.push,
+        )
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            if res.get("status") == "SUCCESS":
+                print(f"🚀 Pull Request Created: {res.get('pr_url')}")
+            else:
+                print(f"❌ PR Creation Failed: {res.get('message')}")
+        return 0 if res.get("status") == "SUCCESS" else 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+

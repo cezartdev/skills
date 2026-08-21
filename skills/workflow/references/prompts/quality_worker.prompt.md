@@ -28,9 +28,9 @@ Evaluate the codebase against the four non-negotiable quality pillars:
 
 ## 🔄 Bounded Feedback Routing
 
-- **`NEEDS_FIX`**: If tests fail, bugs are found, or critical CVEs exist $\rightarrow$ Route back to **`Fix-Worker Specialist`** with specific failure logs.
-- **`NEEDS_REFACTOR`**: If insecure code patterns, high complexity, or unnecessary comments remain $\rightarrow$ Route back to **`Refactor-Worker Specialist`**.
-- **`APPROVED`**: If all gates pass $\rightarrow$ Author formal ADR in `.workflow/specs/active/<spec>/adrs/` and dispatch **`Doc-Worker Specialist`** $\rightarrow$ **`Git-Worker Specialist`**.
+- **`NEEDS_FIX`**: If tests fail, bugs are found, or critical CVEs exist $\rightarrow$ Route back to **`Fix Subagent`** with specific failure logs.
+- **`NEEDS_REFACTOR`**: If insecure code patterns, high complexity, or unnecessary comments remain $\rightarrow$ Route back to **`Refactor Subagent`**.
+- **`APPROVED`**: If all gates pass $\rightarrow$ Author formal ADR in `.workflow/specs/active/<spec>/adrs/` and dispatch **`Doc Subagent`** $\rightarrow$ **`Git Subagent`**.
 - **`LOOP_GUARD`**: If revisions exceed `max_revisions: 3`, halt pipeline immediately and launch an interactive grilling session (`ask_question`) with the developer.
 
 ---

@@ -79,7 +79,7 @@ graph TD
         L1["A. Write Failing Unit Test (RED Phase)"]
         L2["B. Implement Surgical Code Patch (GREEN Phase)"]
         L3["C. Clean Architecture Refactor (REFACTOR Phase)"]
-        L4["D. Socratic Interview Dialogue (/workflow specify)"]
+        L4["D. Socratic Ambiguity Dialogue (/workflow clarify)"]
     end
 
     D4 -.-> L1
@@ -90,12 +90,11 @@ graph TD
 
 ---
 
-## 4. Multi-PR Release Curation Protocol
+## 4. Multi-PR Release Protocol
 
-1. **Scoped PR Generation**:
-   - `/workflow curate --archetype fix`: Consolidates bug fixes into `.workflow/prs/active/PR_fix_rollup_<ts>.md`.
-   - `/workflow curate --archetype refactor`: Consolidates architectural improvements into `.workflow/prs/active/PR_refactor_rollup_<ts>.md`.
-   - `/workflow curate --spec <name>`: Synthesizes a spec-specific PR.
-   - `/workflow curate --all`: Consolidates all pending decisions.
+1. **Deterministic PR Generation**:
+   - The Quality Gatekeeper compiles verified changes, ADR references, and test results into `.workflow/prs/active/PR_spec_<name>_<timestamp>.md`.
+   - The Git Subagent conducts an interactive Grilling Session confirmation before opening a Pull Request via GitHub CLI (`gh`).
 2. **Archival**:
-   - `/workflow curate --archive PR_xxx.md`: Moves merged PR records into `.workflow/prs/archive/<year>/`.
+   - `/workflow archive <spec-name>` moves completed spec directories into `.workflow/specs/archive/<year>/`.
+   - `/workflow clean` performs deep Anti-Zombie cleanup of worktrees and staging indices.
