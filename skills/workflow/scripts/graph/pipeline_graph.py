@@ -169,8 +169,32 @@ def node_sync_worktree(state: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def node_implement_gate(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Node 1: Deterministic Implement Phase verification and atomic commit."""
+    wt_path = state["worktree_path"]
+    spec_name = state["spec_name"]
+
+    status_res = run_git(["status", "--porcelain"], cwd=wt_path)
+    commit_result = None
+    if status_res.stdout.strip():
+        commit_result = safe_atomic_commit(
+            repo_dir=wt_path,
+            ctype="feat",
+            scope=spec_name,
+            description="implement core specification logic and test suites",
+            body_bullets=["- Built out functional requirements and initial tests according to spec tasks."],
+        )
+
+    return {
+        **state,
+        "implement_status": "IMPLEMENTATION_READY",
+        "implement_commit": commit_result,
+        "step": "IMPLEMENT_COMPLETED",
+    }
+
+
 def node_run_tests(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Node 1: Deterministic test suite execution and exit code evaluation."""
+    """Node 2: Deterministic test suite execution and exit code evaluation."""
     wt_path = state["worktree_path"]
     test_cmd = get_configured_test_command(state["target_dir"])
 
@@ -188,7 +212,7 @@ def node_run_tests(state: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def node_fix_gate(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Node 2: Deterministic Fix Phase verification and atomic Conventional Commit."""
+    """Node 3: Deterministic Fix Phase verification and atomic Conventional Commit."""
     wt_path = state["worktree_path"]
     spec_name = state["spec_name"]
 
@@ -213,7 +237,7 @@ def node_fix_gate(state: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def node_refactor_gate(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Node 3: Deterministic Refactor Phase validation with auto-rollback on regression."""
+    """Node 4: Deterministic Refactor Phase validation with auto-rollback on regression."""
     wt_path = state["worktree_path"]
     spec_name = state["spec_name"]
     test_cmd = get_configured_test_command(state["target_dir"])
@@ -246,30 +270,6 @@ def node_refactor_gate(state: Dict[str, Any]) -> Dict[str, Any]:
         "refactor_status": refactor_status,
         "refactor_commit": commit_result,
         "step": "REFACTOR_COMPLETED",
-    }
-
-
-def node_doc_gate(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Node 4: Deterministic Documentation Phase and atomic commit."""
-    wt_path = state["worktree_path"]
-    spec_name = state["spec_name"]
-
-    status_res = run_git(["status", "--porcelain"], cwd=wt_path)
-    commit_result = None
-    if status_res.stdout.strip():
-        commit_result = safe_atomic_commit(
-            repo_dir=wt_path,
-            ctype="docs",
-            scope=spec_name,
-            description="synchronize docstrings, OpenAPI schemas, and specifications",
-            body_bullets=["- Aligned API definitions and markdown documentation with latest code."],
-        )
-
-    return {
-        **state,
-        "doc_status": "DOCS_SYNCHRONIZED",
-        "doc_commit": commit_result,
-        "step": "DOCS_COMPLETED",
     }
 
 
@@ -316,8 +316,32 @@ def node_quality_adr(state: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def node_doc_gate(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Node 7: Deterministic Documentation Phase and atomic commit."""
+    wt_path = state["worktree_path"]
+    spec_name = state["spec_name"]
+
+    status_res = run_git(["status", "--porcelain"], cwd=wt_path)
+    commit_result = None
+    if status_res.stdout.strip():
+        commit_result = safe_atomic_commit(
+            repo_dir=wt_path,
+            ctype="docs",
+            scope=spec_name,
+            description="synchronize docstrings, OpenAPI schemas, and specifications",
+            body_bullets=["- Aligned API definitions and markdown documentation with latest code."],
+        )
+
+    return {
+        **state,
+        "doc_status": "DOCS_SYNCHRONIZED",
+        "doc_commit": commit_result,
+        "step": "DOCS_COMPLETED",
+    }
+
+
 def node_pr_delivery(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Node 7: Deterministic PR delivery and command formatting."""
+    """Node 8: Deterministic PR delivery and command formatting."""
     spec_name = state["spec_name"]
     worker_branch = state["staging_branch"]
     target_base = state["target_base"]
@@ -344,12 +368,13 @@ class DeterministicPipelineRunner:
 
     def invoke(self, initial_state: Dict[str, Any]) -> Dict[str, Any]:
         s = node_sync_worktree(initial_state)
+        s = node_implement_gate(s)
         s = node_run_tests(s)
         s = node_fix_gate(s)
         s = node_refactor_gate(s)
-        s = node_doc_gate(s)
         s = node_security_gate(s)
         s = node_quality_adr(s)
+        s = node_doc_gate(s)
         s = node_pr_delivery(s)
         return s
 
@@ -361,22 +386,24 @@ def create_pipeline_graph():
 
         builder = StateGraph(dict)
         builder.add_node("sync_worktree", node_sync_worktree)
+        builder.add_node("implement_gate", node_implement_gate)
         builder.add_node("run_tests", node_run_tests)
         builder.add_node("fix_gate", node_fix_gate)
         builder.add_node("refactor_gate", node_refactor_gate)
-        builder.add_node("doc_gate", node_doc_gate)
         builder.add_node("security_gate", node_security_gate)
         builder.add_node("quality_adr", node_quality_adr)
+        builder.add_node("doc_gate", node_doc_gate)
         builder.add_node("pr_delivery", node_pr_delivery)
 
         builder.add_edge(START, "sync_worktree")
-        builder.add_edge("sync_worktree", "run_tests")
+        builder.add_edge("sync_worktree", "implement_gate")
+        builder.add_edge("implement_gate", "run_tests")
         builder.add_edge("run_tests", "fix_gate")
         builder.add_edge("fix_gate", "refactor_gate")
-        builder.add_edge("refactor_gate", "doc_gate")
-        builder.add_edge("doc_gate", "security_gate")
+        builder.add_edge("refactor_gate", "security_gate")
         builder.add_edge("security_gate", "quality_adr")
-        builder.add_edge("quality_adr", "pr_delivery")
+        builder.add_edge("quality_adr", "doc_gate")
+        builder.add_edge("doc_gate", "pr_delivery")
         builder.add_edge("pr_delivery", END)
 
         return builder.compile()

@@ -1,13 +1,14 @@
 """Deterministic Sequential Subagent Pipeline Runner (workflow run <spec-name>).
 
-Orchestrates the 6-stage TDD / Security / Clean Code lifecycle governed by Quality Gatekeeper:
+Orchestrates the 7-stage TDD / Security / Clean Code lifecycle governed by Quality Gatekeeper:
 Stage 0: Pre-Cycle Sync & Worktree Isolation (.workflow/worktrees/<spec>/worker/ on feat/<spec>-worker)
-Stage 1: Fix-Worker Specialist (Green Tests & Bug Stabilization Phase)
-Stage 2: Refactor-Worker Specialist (Clean Code & Architecture Phase)
-Stage 3: Security-Worker Specialist (OWASP Top 10 SAST & Dependency CVE Audit Phase)
-Stage 4: Quality-Worker Specialist (Quality Gatekeeper, Feedback Router & ADR Generation)
-Stage 5: Doc-Worker Specialist (Documentation & Contract Sync Phase)
-Stage 6: Git-Worker Specialist (Deterministic Commit, Grilling Session & PR Synthesis)
+Stage 1: Implementer Specialist (Spec & Issues Implementation Phase)
+Stage 2: Fix-Worker Specialist (Green Tests & Bug Stabilization Phase)
+Stage 3: Refactor-Worker Specialist (Clean Code & Architecture Phase)
+Stage 4: Security-Worker Specialist (OWASP Top 10 SAST & Dependency CVE Audit Phase)
+Stage 5: Quality-Worker Specialist (Quality Gatekeeper, Feedback Router & ADR Generation)
+Stage 6: Doc-Worker Specialist (Documentation & Contract Sync Phase)
+Stage 7: Git-Worker Specialist (Deterministic Commit, Grilling Session & PR Synthesis)
 """
 
 import os
@@ -133,11 +134,22 @@ class PipelineRunner:
             "sync_details": sync_res,
         }
 
-    def run_stage_fix(self, spec_name: str, wt_path: str) -> Dict[str, Any]:
-        """Stage 1: Fix-Worker (Stabilizes codebase and ensures 100% green tests)."""
+    def run_stage_implement(self, spec_name: str, wt_path: str) -> Dict[str, Any]:
+        """Stage 1: Implementer-Worker (Builds out domain models, core logic, and initial test files)."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         return {
-            "stage": "1_fix",
+            "stage": "1_implement",
+            "status": "IMPLEMENTATION_READY",
+            "subagent_role": "Implementer Specialist",
+            "worktree_path": wt_path,
+            "message": f"Implementation phase complete. Domain models, logic, and test suites scaffolded for '{clean_spec}'.",
+        }
+
+    def run_stage_fix(self, spec_name: str, wt_path: str) -> Dict[str, Any]:
+        """Stage 2: Fix-Worker (Stabilizes codebase and ensures 100% green tests)."""
+        clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
+        return {
+            "stage": "2_fix",
             "status": "GREEN_TESTS_READY",
             "subagent_role": "Fix-Worker Specialist",
             "worktree_path": wt_path,
@@ -145,10 +157,10 @@ class PipelineRunner:
         }
 
     def run_stage_refactor(self, spec_name: str, wt_path: str) -> Dict[str, Any]:
-        """Stage 2: Refactor-Worker (Clean Code, reduces complexity while preserving green tests)."""
+        """Stage 3: Refactor-Worker (Clean Code, reduces complexity while preserving green tests)."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         return {
-            "stage": "2_refactor",
+            "stage": "3_refactor",
             "status": "REFACTOR_COMPLETE",
             "subagent_role": "Refactor-Worker Specialist",
             "worktree_path": wt_path,
@@ -156,12 +168,12 @@ class PipelineRunner:
         }
 
     def run_stage_security(self, spec_name: str, wt_path: str) -> Dict[str, Any]:
-        """Stage 3: Security-Worker (SAST OWASP Top 10, secret leak & dependency CVE audit)."""
+        """Stage 4: Security-Worker (SAST OWASP Top 10, secret leak & dependency CVE audit)."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         sec_audit = audit_codebase(target_dir=wt_path, spec_name=clean_spec)
         
         return {
-            "stage": "3_security",
+            "stage": "4_security",
             "status": "SECURITY_AUDITED",
             "subagent_role": "Cybersecurity & Vulnerability Specialist",
             "worktree_path": wt_path,
@@ -177,7 +189,7 @@ class PipelineRunner:
         wt_path: str,
         security_results: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Stage 4: Quality Gatekeeper (Audits tests, security, zero-comments compliance, and generates ADR)."""
+        """Stage 5: Quality Gatekeeper (Audits tests, security, zero-comments compliance, and generates ADR)."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         
         quality_eval = evaluate_quality_gate(target_dir=wt_path, spec_name=clean_spec)
@@ -189,7 +201,7 @@ class PipelineRunner:
             adr_res = generate_spec_adr(spec_name=clean_spec, target_dir=self.target_dir, security_results=security_results)
 
         return {
-            "stage": "4_quality",
+            "stage": "5_quality",
             "status": "QUALITY_EVALUATED",
             "subagent_role": "Quality Assurance Specialist",
             "verdict": verdict,
@@ -199,10 +211,10 @@ class PipelineRunner:
         }
 
     def run_stage_doc(self, spec_name: str, wt_path: str) -> Dict[str, Any]:
-        """Stage 5: Doc-Worker (Generates docstrings, API schemas, and synchronizes spec)."""
+        """Stage 6: Doc-Worker (Generates docstrings, API schemas, and synchronizes spec)."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         return {
-            "stage": "5_doc",
+            "stage": "6_doc",
             "status": "DOCS_SYNCHRONIZED",
             "subagent_role": "Doc-Worker Specialist",
             "worktree_path": wt_path,
@@ -217,7 +229,7 @@ class PipelineRunner:
         create_pr: bool = False,
         push: bool = False,
     ) -> Dict[str, Any]:
-        """Stage 6: Git-Worker (Prepares PR summary, formats Conventional Commit, and handles PR delivery)."""
+        """Stage 7: Git-Worker (Prepares PR summary, formats Conventional Commit, and handles PR delivery)."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         worker_branch = f"{clean_spec}-worker"
         
@@ -268,7 +280,7 @@ class PipelineRunner:
         suggested_git = f"git checkout {target_base} && git merge --no-ff {worker_branch}"
 
         return {
-            "stage": "6_git_worker",
+            "stage": "7_git_worker",
             "status": "READY_FOR_GRILLING_CONFIRMATION",
             "subagent_role": "Git-Worker Specialist",
             "staging_branch": worker_branch,
@@ -291,7 +303,7 @@ class PipelineRunner:
         create_pr: bool = False,
         push: bool = False,
     ) -> Dict[str, Any]:
-        """Runs the deterministic 6-stage sequential subagent pipeline."""
+        """Runs the deterministic 7-stage sequential subagent pipeline."""
         start_time = time.time()
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
 
@@ -326,35 +338,40 @@ class PipelineRunner:
 
         stages = [
             {
-                "stage": "1_fix",
+                "stage": "1_implement",
+                "status": graph_res.get("implement_status", "IMPLEMENTATION_READY"),
+                "subagent_role": "Implementer Specialist",
+            },
+            {
+                "stage": "2_fix",
                 "status": graph_res.get("fix_status", "GREEN_TESTS_READY"),
                 "subagent_role": "Fix-Worker Specialist",
             },
             {
-                "stage": "2_refactor",
+                "stage": "3_refactor",
                 "status": graph_res.get("refactor_status", "REFACTOR_COMPLETE"),
                 "subagent_role": "Refactor-Worker Specialist",
             },
             {
-                "stage": "3_security",
+                "stage": "4_security",
                 "status": "SECURITY_AUDITED",
                 "subagent_role": "Cybersecurity & Vulnerability Specialist",
                 "security_summary": sec_res.get("summary"),
             },
             {
-                "stage": "4_quality",
+                "stage": "5_quality",
                 "status": "QUALITY_APPROVED" if quality_res.get("verdict") == "APPROVED" else "NEEDS_REMEDIATION",
                 "subagent_role": "Quality Assurance Specialist",
                 "verdict": quality_res.get("verdict"),
                 "adr": quality_res.get("adr"),
             },
             {
-                "stage": "5_doc",
+                "stage": "6_doc",
                 "status": graph_res.get("doc_status", "DOCS_SYNCHRONIZED"),
                 "subagent_role": "Doc-Worker Specialist",
             },
             {
-                "stage": "6_git_worker",
+                "stage": "7_git_worker",
                 "status": "READY_FOR_GRILLING_CONFIRMATION",
                 "subagent_role": "Git-Worker Specialist",
                 "push_status": git_res.get("push_status"),
@@ -383,42 +400,49 @@ class PipelineRunner:
             "scheduled_interval": schedule_minutes,
             "subagent_directives": [
                 {
-                    "stage": "Stage 1 (Fix)",
+                    "stage": "Stage 1 (Implement)",
+                    "type": "workflow-implement-worker",
+                    "role": "Implementer Specialist",
+                    "prompt_file": "skills/workflow/references/prompts/implement.prompt.md",
+                    "action": f"define_subagent(name='workflow-implement-worker', description='Feature & SDD/TDD Engineer', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-implement-worker', 'Role': 'Implementer Specialist', 'Prompt': 'Build out spec requirements and task issues for {clean_spec} in {wt_path}. Follow TDD Red-Green cycle and zero-comments policy.'}}])",
+                },
+                {
+                    "stage": "Stage 2 (Fix)",
                     "type": "workflow-fix-worker",
                     "role": "Fix-Worker Specialist",
                     "prompt_file": "skills/workflow/references/prompts/fix.prompt.md",
                     "action": f"define_subagent(name='workflow-fix-worker', description='Bug stabilization & 100% green test specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-fix-worker', 'Role': 'Fix-Worker Specialist', 'Prompt': 'Diagnose and stabilize tests in {wt_path}. Zero-comments policy.'}}])",
                 },
                 {
-                    "stage": "Stage 2 (Refactor)",
+                    "stage": "Stage 3 (Refactor)",
                     "type": "workflow-refactor-worker",
                     "role": "Refactor-Worker Specialist",
                     "prompt_file": "skills/workflow/references/prompts/refactor.prompt.md",
                     "action": f"define_subagent(name='workflow-refactor-worker', description='Clean architecture and modularity specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-refactor-worker', 'Role': 'Refactor-Worker Specialist', 'Prompt': 'Refactor modular code in {wt_path} while preserving 100% green tests.'}}])",
                 },
                 {
-                    "stage": "Stage 3 (Security)",
+                    "stage": "Stage 4 (Security)",
                     "type": "workflow-security-worker",
                     "role": "Cybersecurity & Vulnerability Specialist",
                     "prompt_file": "skills/workflow/references/prompts/security_worker.prompt.md",
                     "action": f"define_subagent(name='workflow-security-worker', description='OWASP Top 10 SAST, secret leak & dependency CVE auditor', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-security-worker', 'Role': 'Cybersecurity Specialist', 'Prompt': 'Audit OWASP Top 10 patterns, secrets and dependencies in {wt_path}. Generate security report.'}}])",
                 },
                 {
-                    "stage": "Stage 4 (Quality)",
+                    "stage": "Stage 5 (Quality)",
                     "type": "workflow-quality-worker",
                     "role": "Quality Assurance Specialist",
                     "prompt_file": "skills/workflow/references/prompts/quality.prompt.md",
                     "action": f"define_subagent(name='workflow-quality-worker', description='Quality gatekeeper, ADR author & feedback router', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-quality-worker', 'Role': 'Quality Specialist', 'Prompt': 'Audit combined quality gates (100/100, zero-comments, OWASP clearance) in {wt_path} and write ADR.'}}])",
                 },
                 {
-                    "stage": "Stage 5 (Doc)",
+                    "stage": "Stage 6 (Doc)",
                     "type": "workflow-doc-worker",
                     "role": "Doc-Worker Specialist",
                     "prompt_file": "skills/workflow/references/prompts/doc_sync.prompt.md",
                     "action": f"define_subagent(name='workflow-doc-worker', description='Documentation and spec synchronizer', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-doc-worker', 'Role': 'Doc-Worker Specialist', 'Prompt': 'Sync markdown docs and spec.md for {clean_spec} in {wt_path}.'}}])",
                 },
                 {
-                    "stage": "Stage 6 (Git-Worker)",
+                    "stage": "Stage 7 (Git-Worker)",
                     "type": "workflow-git-worker",
                     "role": "Git-Worker Specialist",
                     "prompt_file": "skills/workflow/references/prompts/git_worker.prompt.md",

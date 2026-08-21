@@ -656,7 +656,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("\nℹ️  AI Agent Interactive Grilling Directive:")
         print(f"   Current active branch is protected ('{curr_b}'). You MUST prompt developer using ask_question")
         print(f"   to confirm target feature branch before pushing or opening PRs to protect {curr_b}:")
-        print(f"   Candidates: (Recommended) feat/{res['target_base']} | {res['target_base']} | fix/{res['target_base']}")
+        raw_base = res['target_base']
+        for pfx in ["feat/", "fix/", "refactor/"]:
+            if raw_base.startswith(pfx):
+                raw_base = raw_base[len(pfx):]
+        print(f"   Candidates: (Recommended) feat/{raw_base} | {raw_base} | fix/{raw_base}")
 
     if res.get("scheduled_interval"):
         print(f"\n⏰ Opt-In Recurring Daemon Registered: Runs every {res['scheduled_interval']}m (Fixed-Delay)")
@@ -1122,86 +1126,6 @@ def cmd_pr(args: argparse.Namespace) -> int:
         return 1
 
 
-def cmd_daemon(args: argparse.Namespace) -> int:
-    """Provides compatibility notice for the streamlined 6-stage Quality pipeline."""
-    target_dir = getattr(args, "target_dir", ".") or "."
-    if getattr(args, "action", "") == "status":
-        return cmd_status(args)
-    if getattr(args, "action", "") == "clean":
-        return cmd_clean(args)
-    if getattr(args, "action", "") == "stop":
-        return cmd_stop(args)
-
-    if getattr(args, "json", False):
-        print(json.dumps({
-            "status": "STREAMLINED",
-            "message": "Background daemons upgraded to native subagent 6-stage pipeline runner.",
-            "pipeline_cmd": "/workflow run <spec>"
-        }, indent=2))
-        return 0
-
-    print("=" * 110)
-    print(" ℹ️  WORKFLOW SUBSYSTEM STREAMLINED")
-    print("=" * 110)
-    print("Background execution has been consolidated into the deterministic 6-Stage Quality Pipeline:")
-    print("  👉 /workflow run <spec-name>   │ Execute 6-stage pipeline in worktree")
-    print("  👉 /workflow status           │ Inspect active specs & worktrees")
-    print("  👉 /workflow worktree list    │ Manage isolated physical worktrees")
-    print("  👉 /workflow clean            │ Prune stale worktrees & locks")
-    print("=" * 110)
-    return 0
-
-
-def cmd_worktree(args: argparse.Namespace) -> int:
-    """Manages physical git worktree directories under .workflow/worktrees/."""
-    name = args.name or getattr(args, "flag_name", None)
-    if args.action == "list":
-        wt = list_worktrees(args.target_dir)
-        res = {"worktrees": wt}
-    elif args.action == "add":
-        if not name:
-            print("Error: worktree name required for worktree add", file=sys.stderr)
-            return 1
-        res = create_worktree(
-            name,
-            repo_dir=args.target_dir,
-            branch_name=getattr(args, "branch", None),
-            archetype=getattr(args, "archetype", None),
-            spec_name=getattr(args, "spec", None),
-        )
-    elif args.action == "clean":
-        if not name:
-            print("Error: worktree name required for worktree clean", file=sys.stderr)
-            return 1
-        res = force_purge_worktree(name, repo_dir=args.target_dir)
-    elif args.action == "prune":
-        ok = prune_worktrees(args.target_dir)
-        res = {"status": "PRUNED" if ok else "ERROR"}
-    else:
-        res = {"status": "ERROR", "message": "Unknown worktree action"}
-
-    if args.json:
-        print(json.dumps(res, indent=2))
-        return 0
-
-    print("=" * 110)
-    print(f" 🌲 WORKTREE OPERATION: {args.action.upper()}")
-    print("=" * 110)
-    print(f"Result: {json.dumps(res, indent=2)}")
-    print("=" * 110)
-
-    if args.action == "add":
-        print("\nℹ️  AI Agent Worktree & Spec Isolation Directive:")
-        print("   Worktrees in .workflow/worktrees/ are strictly scoped to specifications.")
-        print(f"   Created physical worktree '{res.get('worktree_path')}' on branch '{res.get('branch_name')}'.")
-        print("   Subagents dispatched to this worktree MUST execute exclusively within this isolated directory.")
-
-    print_next_steps([
-        {"cmd": "/workflow status", "desc": "Check active worktrees & specs"},
-    ])
-    return 0
-
-
 def cmd_list(args: argparse.Namespace) -> int:
     """Displays the concise, fixed command reference table."""
     commands = [
@@ -1214,7 +1138,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow security", "syntax": "workflow security [spec] [--json]", "desc": "Run OWASP Top 10 SAST, secret leak & dependency CVE audit"},
         {"slash": "/workflow audit-deps", "syntax": "workflow audit-deps [dir]", "desc": "Audit project package manifests for known CVEs"},
         {"slash": "/workflow quality", "syntax": "workflow quality [spec] [--create-pr]", "desc": "Quality Gatekeeper: audit quality score & OWASP report, generate ADR"},
-        {"slash": "/workflow run", "syntax": "workflow run <spec> [--push] [--schedule <m>]", "desc": "Primary Engine: Run 6-stage subagent pipeline (Default: local commit; add --push for remote)"},
+        {"slash": "/workflow run", "syntax": "workflow run <spec> [--push] [--schedule <m>]", "desc": "Primary Engine: Run 7-stage subagent pipeline (Implement -> Fix -> Refactor -> Security -> Quality -> Doc -> Git)"},
         {"slash": "/workflow commit", "syntax": "workflow commit -t <t> -s <s> -m <m>", "desc": "Git-Worker deterministic Conventional Commit with pre-commit security gates"},
         {"slash": "/workflow pr", "syntax": "workflow pr --spec <spec> [--push]", "desc": "Git-Worker deterministic GitHub PR creation via gh CLI (Default: no push; add --push)"},
         {"slash": "/workflow status", "syntax": "workflow status [spec]", "desc": "View active pipeline status, worktrees & security audits"},
@@ -1322,7 +1246,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_qual.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # run
-    p_run = subparsers.add_parser("run", help="Run deterministic 6-stage subagent pipeline (Fix -> Refactor -> Security -> Quality -> Doc -> Git-Worker)")
+    p_run = subparsers.add_parser("run", help="Run deterministic 7-stage subagent pipeline (Implement -> Fix -> Refactor -> Security -> Quality -> Doc -> Git-Worker)")
     p_run.add_argument("spec_name", help="Target specification name (e.g. user-login)")
     p_run.add_argument("--schedule", "--interval", dest="schedule", type=int, default=None, help="Opt-in recurring interval in minutes (e.g. 30 or 45)")
     p_run.add_argument("--auto-merge", action="store_true", help="Auto-merge pipeline branch into feature branch if tests pass")
@@ -1373,32 +1297,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_chat.add_argument("spec_name", nargs="?", help="Optional spec name to scope debate")
     p_chat.add_argument("--target-dir", default=".", help="Target workspace directory")
 
-    # daemon
-    p_daemon = subparsers.add_parser("daemon", help="Manage background daemon subagents, cron scheduling, and Anti-Zombie lifecycle")
-    p_daemon.add_argument("action", nargs="?", default="status", choices=["list", "create", "add", "set", "edit", "config", "start", "pause", "resume", "stop", "status", "clean", "run"], help="Daemon action")
-    p_daemon.add_argument("name", nargs="?", help="Named daemon (e.g. fix-worker, refactor-worker, doc-worker)")
-    p_daemon.add_argument("--interval", type=int, default=None, help="Cron interval in minutes (defaults to workflow.json setting or 10)")
-    p_daemon.add_argument("--max-iterations", type=int, default=None, help="Maximum number of iterations before stopping (0/None for unlimited)")
-    p_daemon.add_argument("--archetype", choices=["feat", "feature", "implement", "fix", "bug", "refactor", "doc", "docs", "doc_sync"], help="Archetype persona")
-    p_daemon.add_argument("--spec", help="Target specification name to bind branch and hierarchical worktree (e.g. user-login)")
-    p_daemon.add_argument("--description", help="Human-readable description of daemon responsibilities")
-    p_daemon.add_argument("--target-spec-dir", help="Custom directory containing target specs")
-    p_daemon.add_argument("--all", action="store_true", help="Apply stop/pause to all running daemons")
-    p_daemon.add_argument("--force", action="store_true", help="Force terminate process and wipe worktree")
-    p_daemon.add_argument("--auto-merge", action="store_true", help="Enable safe auto-merge into main on completion")
-    p_daemon.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
-
-    # worktree
-    p_wt = subparsers.add_parser("worktree", help="Manage physical git worktrees under .workflow/worktrees/")
-    p_wt.add_argument("action", choices=["list", "add", "clean", "prune"], help="Worktree action")
-    p_wt.add_argument("name", nargs="?", help="Worktree identifier")
-    p_wt.add_argument("--name", dest="flag_name", help="Worktree identifier (alternative flag)")
-    p_wt.add_argument("--archetype", choices=["feat", "feature", "implement", "fix", "bug", "refactor", "doc", "docs", "doc_sync"], help="Archetype persona for semantic branch prefix")
-    p_wt.add_argument("--spec", help="Spec name to bind the worktree and branch to")
-    p_wt.add_argument("--branch", help="Explicit branch name for the worktree")
-    p_wt.add_argument("--force", action="store_true", help="Force remove worktree")
-    p_wt.add_argument("target_dir", nargs="?", default=".", help="Target repository directory")
-
     # list
     subparsers.add_parser("list", help="Display universal command catalog and cheat-sheet")
 
@@ -1434,8 +1332,6 @@ def main() -> int:
         "clean": cmd_clean,
         "archive": cmd_archive,
         "chat": cmd_chat,
-        "daemon": cmd_daemon,
-        "worktree": cmd_worktree,
         "list": cmd_list,
     }
 

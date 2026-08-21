@@ -13,7 +13,7 @@
 The **`workflow`** skill provides a deterministic, state-machine driven development suite for software projects. Encapsulated inside a single modular **`.workflow/`** directory in target repositories, it is fully standardized according to the **[Agent Skills Specification](https://agentskills.io/specification)** and integrates best practices from **[GitHub Spec-Kit](https://github.com/github/spec-kit)** and **[Fission-AI OpenSpec](https://github.com/Fission-AI/OpenSpec)**:
 
 - **Encapsulated `.workflow/` Architecture**: Centralizes all specifications (`.workflow/specs/`), memory (`.workflow/memory/`), configurations (`.workflow/workflow.json`), active daemons (`.workflow/daemons.json`), PRs catalog (`.workflow/prs/`), and worktrees (`.workflow/worktrees/`).
-- **Deterministic 6-Stage Subagent Pipeline**: Sequentially executes `Fix` $\rightarrow$ `Refactor` $\rightarrow$ `Security` $\rightarrow$ `Quality` $\rightarrow$ `Doc` $\rightarrow$ `Git-Worker` across isolated physical Git Worktrees.
+- **Deterministic 7-Stage Subagent Pipeline**: Sequentially executes `Implement` $\rightarrow$ `Fix` $\rightarrow$ `Refactor` $\rightarrow$ `Security` $\rightarrow$ `Quality` $\rightarrow$ `Doc` $\rightarrow$ `Git-Worker` across isolated physical Git Worktrees.
 - **OWASP Top 10 Cybersecurity & Vulnerability Auditor (`/workflow security`)**: Integrated SAST pattern scanner, secret leak detector, and polyglot dependency CVE auditor (`pnpm audit`, `pip-audit`, `cargo audit`).
 - **Quality Gatekeeper (`/workflow quality`)**: Evaluates holistic quality score (100/100 tests, OWASP clearance, zero comments), authors formal **Architectural Decision Records (ADRs)**, and compiles pull requests.
 - **Universal Polyglot Engine (Zero Bias)**: Automatically detects and adapts to Python, Rust, Go, Node, Java, and .NET test runners.
@@ -62,10 +62,7 @@ The GitHub CLI (`gh`) is essential for agents and developers to interact with Gi
   ```bash
   uv run skills/workflow/scripts/workflow_runner.py <subcommand>
   ```
-- **Tier 2 (Native Platform Launchers)**:
-  - **Linux & macOS (Bash / Zsh)**: `bash skills/workflow/scripts/workflow.sh <subcommand>`
-  - **Windows (PowerShell)**: `pwsh skills/workflow/scripts/workflow.ps1 <subcommand>`
-- **Tier 3 (Fallback for minimal environments without uv)**:
+- **Tier 2 (Fallback for minimal environments without uv)**:
   - **Linux / macOS**: `python3 skills/workflow/scripts/workflow_runner.py <subcommand>`
   - **Windows**: `python skills/workflow/scripts/workflow_runner.py <subcommand>`
 
@@ -122,7 +119,7 @@ uv run skills/workflow/scripts/workflow_runner.py plan user-login
 # Deterministic Pre-Execution Quality Gate audit (100/100 score)
 uv run skills/workflow/scripts/workflow_runner.py check user-login
 
-# Primary Engine: Execute deterministic 6-stage pipeline (Default: Local commit only for security)
+# Primary Engine: Execute deterministic 7-stage pipeline (Default: Local commit only for security)
 uv run skills/workflow/scripts/workflow_runner.py run user-login
 
 # Run pipeline with automatic remote push to origin:
@@ -191,10 +188,11 @@ uv run skills/workflow/scripts/workflow_runner.py pr \
 ```
 
 ### 9. Native Subagent Archetypes & Dedicated System Prompts
-When `/workflow run <spec>` is executed, the AI Agent registers and launches 6 specialized subagents via native agent tools (`define_subagent` and `invoke_subagent`), each with its own role, function, and personality:
+When `/workflow run <spec>` is executed, the AI Agent registers and launches 7 specialized subagents via native agent tools (`define_subagent` and `invoke_subagent`), each with its own role, function, and personality:
 
 | Subagent Type | Specialist Role | System Prompt Reference | Key Function |
 |---|---|---|---|
+| `workflow-implement-worker` | **Implementer Specialist** | `references/prompts/implement.prompt.md` | Builds out core domain models, specifications, and initial test files following TDD Red-Green principles. |
 | `workflow-fix-worker` | **Fix-Worker Specialist** | `references/prompts/fix.prompt.md` | Diagnoses test failures, writes reproduction tests (Red Phase), and fixes bugs to 100% green tests. |
 | `workflow-refactor-worker` | **Refactor-Worker Specialist** | `references/prompts/refactor.prompt.md` | Eliminates code smells, reduces cognitive complexity, strips redundant comments, and preserves 100% green tests. |
 | `workflow-security-worker` | **Cybersecurity Specialist** | `references/prompts/security_worker.prompt.md` | Scans OWASP Top 10 SAST patterns, secret leaks, and dependency CVEs. |
@@ -216,7 +214,7 @@ uv run skills/workflow/scripts/workflow_runner.py run user-login
 # Or execute with automatic remote push:
 uv run skills/workflow/scripts/workflow_runner.py run user-login --push
 # => Worktree: .workflow/worktrees/user-login/worker/ (Branch: user-login-worker)
-# => Spawns Fix-Worker -> Refactor-Worker -> Security-Worker -> Quality-Worker -> Doc-Worker -> Git-Worker
+# => Spawns Implementer -> Fix-Worker -> Refactor-Worker -> Security-Worker -> Quality-Worker -> Doc-Worker -> Git-Worker
 # => Quality-Worker audits 100% tests, OWASP security clearance & zero comments
 # => Generates ADR in .workflow/specs/active/user-login/adrs/
 # => Git-Worker executes Grilling Session confirmation before commit & PR
