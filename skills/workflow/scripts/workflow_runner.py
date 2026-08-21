@@ -12,6 +12,8 @@ from typing import Dict, Any, List, Optional, Tuple
 from scaffolder import (
     scaffold_init,
     scaffold_new_spec,
+    scaffold_spec_plan,
+    scaffold_spec_tasks,
     archive_spec,
     get_workflow_root,
     sanitize_identifier,
@@ -26,7 +28,7 @@ from memory_manager import (
     read_memory_doc,
 )
 from worktree_manager import list_worktrees, create_worktree, remove_worktree, force_purge_worktree, prune_worktrees, ensure_git_repository
-from quality_auditor import audit_spec
+from quality_auditor import audit_spec, audit_plan, audit_tasks, analyze_spec_consistency
 from quality import (
     compile_scoped_pr_summary,
     generate_spec_adr,
@@ -413,14 +415,57 @@ def cmd_new(args: argparse.Namespace) -> int:
     print(f"   Candidates: (Recommended) feat/{spec_clean} | {spec_clean} | fix/{spec_clean} | refactor/{spec_clean}")
 
     print_next_steps([
-        {"cmd": f"/workflow specify {args.spec_name}", "desc": "Interactive Grilling Session to co-author spec"},
-        {"cmd": f"/workflow plan {args.spec_name}", "desc": "Decompose spec into atomic TDD task issues"},
+        {"cmd": f"/workflow specify {args.spec_name}", "desc": "Draft functional specification (spec.md) focusing on what and why"},
+        {"cmd": f"/workflow clarify {args.spec_name}", "desc": "Ambiguity Checkpoint & Socratic Q&A to close gaps"},
+        {"cmd": f"/workflow plan {args.spec_name}", "desc": "Convert approved spec into technical design (plan.md)"},
     ])
     return 0
 
 
 def cmd_specify(args: argparse.Namespace) -> int:
-    """Interactive Spec Co-Authoring & Debate Session (GitHub Spec-Kit style) with ADR generation."""
+    """Drafts or updates functional specification (spec.md) focusing on what and why."""
+    resolved_path = resolve_spec_path(args.spec_name, target_dir=args.target_dir)
+    audit = audit_spec(resolved_path)
+
+    spec_file = audit.get("spec_file", resolved_path)
+    spec_name = os.path.basename(resolved_path.rstrip("/\\"))
+
+    data = {
+        "status": "SPEC_DRAFTED",
+        "spec_name": spec_name,
+        "spec_path": resolved_path,
+        "spec_file": spec_file,
+        "current_score": audit["score"],
+        "checks": audit["checks"],
+        "recommendations": audit.get("recommendations", []),
+    }
+
+    if args.json:
+        print(json.dumps(data, indent=2))
+        return 0
+
+    print("=" * 110)
+    print(f" 📝 FUNCTIONAL SPECIFICATION: '{spec_name}' (Quality Score: {audit['score']}/100)")
+    print("=" * 110)
+    print(f"{'Target Spec File':<24} │ {spec_file}")
+    print(f"{'Focus':<24} │ User Stories, Functional Scenarios, Edge Cases & Acceptance Criteria")
+    print(f"{'Implementation Details':<24} │ Excluded (pure functional requirements; defer to /workflow plan)")
+    print("=" * 110)
+
+    if audit.get("recommendations"):
+        print("\n💡 Recommendations to complete spec.md:")
+        for r in audit["recommendations"]:
+            print(f"   - {r}")
+
+    print_next_steps([
+        {"cmd": f"/workflow clarify {spec_name}", "desc": "Ambiguity Checkpoint & Socratic Q&A to resolve gaps"},
+        {"cmd": f"/workflow plan {spec_name}", "desc": "Convert approved spec into technical design (plan.md)"},
+    ])
+    return 0
+
+
+def cmd_clarify(args: argparse.Namespace) -> int:
+    """Ambiguity Checkpoint: detects gaps, asks Socratic questions, and records ADR."""
     resolved_path = resolve_spec_path(args.spec_name, target_dir=args.target_dir)
     audit = audit_spec(resolved_path)
 
@@ -428,7 +473,7 @@ def cmd_specify(args: argparse.Namespace) -> int:
     spec_name = os.path.basename(resolved_path.rstrip("/\\"))
 
     adr_res = None
-    if getattr(args, "generate_adr", False) or audit.get("passed", False):
+    if getattr(args, "generate_adr", False) or getattr(args, "decisions", None) or audit.get("passed", False):
         adr_res = generate_specify_adr(
             spec_name=spec_name,
             target_dir=args.target_dir,
@@ -437,24 +482,22 @@ def cmd_specify(args: argparse.Namespace) -> int:
         )
 
     questions = []
-    if not audit["checks"].get("architecture"):
-        questions.append("What are the primary data models, schemas, or function interfaces involved?")
     if not audit["checks"].get("edge_cases"):
         questions.append("What boundary conditions, network timeouts, or error states must be handled?")
     if not audit["checks"].get("acceptance_criteria"):
         questions.append("What are the 3 to 5 measurable, testable acceptance criteria to verify completion?")
+    if not audit["checks"].get("requirements"):
+        questions.append("What are the primary user interaction scenarios and alternative paths?")
     if not questions:
-        questions.append("Are there any third-party dependencies, security constraints, or performance targets to specify?")
+        questions.append("Are there any third-party dependencies, rate limits, or security constraints to clarify?")
 
     data = {
-        "status": "READY_FOR_SPECIFY",
+        "status": "CLARIFICATION_READY",
         "spec_name": spec_name,
         "spec_path": resolved_path,
         "spec_file": spec_file,
         "current_score": audit["score"],
-        "checks": audit["checks"],
-        "recommendations": audit.get("recommendations", []),
-        "debate_questions": questions,
+        "clarification_questions": questions,
         "adr": adr_res,
     }
 
@@ -463,55 +506,41 @@ def cmd_specify(args: argparse.Namespace) -> int:
         return 0
 
     print("=" * 110)
-    print(f" 📝 SPECIFY SESSION: {spec_name} (Current Quality Score: {audit['score']}/100)")
+    print(f" 🔍 AMBIGUITY CHECKPOINT & CLARIFICATION: '{spec_name}'")
     print("=" * 110)
-    print(f"Target Document: {spec_file}")
+    print(f"{'Target Spec':<24} │ {spec_file}")
     if adr_res and adr_res.get("adr_file"):
-        print(f"Architectural Record: {adr_res['adr_file']} (Status: Accepted)")
-    print("\nArchitectural Co-Authoring Prompts:")
-    for idx, q in enumerate(questions, 1):
-        print(f"  {idx}. {q}")
+        print(f"{'ADR Record':<24} │ {adr_res['adr_file']} (Status: Accepted)")
     print("=" * 110)
 
+    print("\nℹ️  AI Agent Interactive Clarification Directive:")
+    print("   Inspect spec.md and prompt developer using ask_question one question at a time to close gaps:")
+    for idx, q in enumerate(questions, 1):
+        print(f"   {idx}. {q}")
+
     print_next_steps([
-        {"cmd": f"/workflow check {spec_name}", "desc": "Verify 100/100 Quality Gate score"},
-        {"cmd": f"/workflow plan {spec_name}", "desc": "Decompose refined spec into task issues"},
+        {"cmd": f"/workflow plan {spec_name}", "desc": "Generate technical architecture and contracts (plan.md)"},
+        {"cmd": f"/workflow analyze {spec_name}", "desc": "Audit consistency across spec, plan and tasks"},
     ])
     return 0
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
-    """Decomposes a refined spec into atomic TDD task issues."""
+    """Converts approved spec into technical design (plan.md)."""
     resolved_path = resolve_spec_path(args.spec_name, target_dir=args.target_dir)
-    issues_dir = os.path.join(resolved_path, "issues") if os.path.isdir(resolved_path) else os.path.join(os.path.dirname(resolved_path), "issues")
-    os.makedirs(issues_dir, exist_ok=True)
-
     spec_name = os.path.basename(resolved_path.rstrip("/\\"))
-    spec_file = os.path.join(resolved_path, "spec.md")
 
-    # If issues folder is empty, decompose spec.md into structured atomic tasks
-    existing_issues = sorted([f for f in os.listdir(issues_dir) if f.endswith(".md")])
-    if not existing_issues:
-        tasks = [
-            ("001_domain_models.md", "Domain Models & Schema Setup"),
-            ("002_core_logic.md", "Core Implementation & Unit Tests"),
-            ("003_integration_verification.md", "Integration Verification & Quality Gate"),
-        ]
-        for filename, title in tasks:
-            task_path = os.path.join(issues_dir, filename)
-            content = f"# Issue: {title}\n\nTarget Spec: `{spec_name}`\n\n## Tasks\n- [ ] Implement required data structures.\n- [ ] Run test suite and ensure 100% green build.\n"
-            with open(task_path, "w", encoding="utf-8") as f:
-                f.write(content)
-        existing_issues = sorted([f for f in os.listdir(issues_dir) if f.endswith(".md")])
-        reconcile_gitkeep(issues_dir)
+    res = scaffold_spec_plan(spec_name, target_dir=args.target_dir)
+    plan_audit = audit_plan(resolved_path)
 
     data = {
         "status": "SUCCESS",
         "spec_name": spec_name,
         "spec_path": resolved_path,
-        "issues_dir": issues_dir,
-        "existing_issues": existing_issues,
-        "count": len(existing_issues),
+        "plan_file": res["plan_file"],
+        "plan_created": res.get("created", False),
+        "plan_score": plan_audit.get("score", 0),
+        "checks": plan_audit.get("checks", {}),
     }
 
     if args.json:
@@ -519,53 +548,111 @@ def cmd_plan(args: argparse.Namespace) -> int:
         return 0
 
     print("=" * 110)
-    print(f" 📋 SPEC TASK PLAN: {data['spec_name']} ({len(existing_issues)} tasks planned)")
+    print(f" 📐 TECHNICAL DESIGN PLAN: '{spec_name}' (Score: {plan_audit.get('score', 0)}/100)")
     print("=" * 110)
-    print(f"{'ISSUE FILE':<36} │ DIRECTORY")
-    print("-" * 110)
-    for iss in existing_issues:
-        print(f"{iss:<36} │ {issues_dir}")
+    print(f"{'Plan Document':<24} │ {res['plan_file']}")
+    checks = plan_audit.get("checks", {})
+    print(f"{'Data Models':<24} │ {'PASS' if checks.get('data_models') else 'NEEDS_SPECIFICATION':<20} (Schemas & validation)")
+    print(f"{'Interfaces':<24} │ {'PASS' if checks.get('interfaces') else 'NEEDS_SPECIFICATION':<20} (Signatures & contracts)")
+    print(f"{'Dependencies':<24} │ {'PASS' if checks.get('dependencies') else 'NEEDS_SPECIFICATION':<20} (Library selection)")
+    print(f"{'Security & Perf':<24} │ {'PASS' if checks.get('security_perf') else 'NEEDS_SPECIFICATION':<20} (OWASP compliance)")
     print("=" * 110)
 
     print_next_steps([
-        {"cmd": f"/workflow check {data['spec_name']}", "desc": "Audit spec against Quality Gate"},
-        {"cmd": f"/workflow run {data['spec_name']}", "desc": "Execute LangGraph TDD DAG (Red -> Green -> Refactor)"},
+        {"cmd": f"/workflow tasks {spec_name}", "desc": "Decompose technical plan into atomic tasks (tasks.md & issues/)"},
+        {"cmd": f"/workflow analyze {spec_name}", "desc": "Audit static consistency across spec, plan, and tasks"},
     ])
     return 0
 
 
-def cmd_check(args: argparse.Namespace) -> int:
-    """Runs the Pre-Execution Quality Gate on a spec."""
-    resolved_path = resolve_spec_path(args.spec_dir, target_dir=args.target_dir if hasattr(args, "target_dir") else ".")
-    res = audit_spec(resolved_path)
+def cmd_tasks(args: argparse.Namespace) -> int:
+    """Decomposes technical design into atomic tasks (tasks.md and issues/*.md)."""
+    resolved_path = resolve_spec_path(args.spec_name, target_dir=args.target_dir)
     spec_name = os.path.basename(resolved_path.rstrip("/\\"))
 
+    res = scaffold_spec_tasks(spec_name, target_dir=args.target_dir)
+
+    data = {
+        "status": "SUCCESS",
+        "spec_name": spec_name,
+        "spec_path": resolved_path,
+        "tasks_file": res["tasks_file"],
+        "issues_dir": res["issues_dir"],
+        "issues_count": res["issues_count"],
+        "issue_files": res["issue_files"],
+    }
+
     if args.json:
+        print(json.dumps(data, indent=2))
+        return 0
+
+    print("=" * 110)
+    print(f" 📋 ATOMIC TASKS BREAKDOWN: '{spec_name}' ({res['issues_count']} tasks)")
+    print("=" * 110)
+    print(f"{'Tasks Document':<24} │ {res['tasks_file']}")
+    print(f"{'Issues Directory':<24} │ {res['issues_dir']}")
+    print("-" * 110)
+    print(f"{'ISSUE FILE':<36} │ DIRECTORY")
+    print("-" * 110)
+    for iss in res["issue_files"]:
+        print(f"{iss:<36} │ {res['issues_dir']}")
+    print("=" * 110)
+
+    print_next_steps([
+        {"cmd": f"/workflow analyze {spec_name}", "desc": "Audit static consistency across spec, plan, and tasks"},
+        {"cmd": f"/workflow run {spec_name}", "desc": "Execute 7-stage sequential pipeline"},
+    ])
+    return 0
+
+
+def cmd_analyze(args: argparse.Namespace) -> int:
+    """Statically verifies consistency between Constitution, spec.md, plan.md, and tasks."""
+    spec_target = getattr(args, "spec_name", None) or getattr(args, "spec_dir", None)
+    target_dir = getattr(args, "target_dir", ".") or "."
+    resolved_path = resolve_spec_path(spec_target, target_dir=target_dir)
+    spec_name = os.path.basename(resolved_path.rstrip("/\\"))
+
+    res = analyze_spec_consistency(resolved_path, target_dir=target_dir)
+
+    if getattr(args, "json", False):
         print(json.dumps(res, indent=2))
         return 0 if res["passed"] else 1
 
-    status_label = "PASS" if res["passed"] else "NEEDS_REFINEMENT"
+    status_label = "PASS (100% CONSISTENT)" if res["passed"] else "NEEDS_REFINEMENT"
     print("=" * 110)
-    print(f" 📋 SPEC QUALITY AUDIT: {spec_name} (Score: {res['score']}/100 — {status_label})")
+    print(f" 🔬 STATIC CONSISTENCY AUDIT: '{spec_name}' (Score: {res['score']}/100 — {status_label})")
     print("=" * 110)
-    print(f"{'QUALITY CRITERION':<28} │ {'STATUS':<10} │ DETAILS")
+    print(f"{'LAYER / ARTIFACT':<28} │ {'STATUS':<10} │ DETAILS")
     print("-" * 110)
-    checks = res.get("checks", {})
-    print(f"{'Overview & Problem':<28} │ {'PASS' if checks.get('overview') else 'FAIL':<10} │ Business context & user stories defined")
-    print(f"{'Architecture & Contracts':<28} │ {'PASS' if checks.get('architecture') else 'FAIL':<10} │ Type signatures & schemas specified")
-    print(f"{'Edge Cases & Errors':<28} │ {'PASS' if checks.get('edge_cases') else 'FAIL':<10} │ Boundary conditions & error matrix documented")
-    print(f"{'Acceptance Criteria':<28} │ {'PASS' if checks.get('acceptance_criteria') else 'FAIL':<10} │ Testable checkboxes verified")
+    spec_a = res.get("spec_audit", {})
+    plan_a = res.get("plan_audit", {})
+    tasks_a = res.get("tasks_audit", {})
+
+    print(f"{'Functional Spec (spec.md)':<28} │ {'PASS' if spec_a.get('passed') else 'FAIL':<10} │ Score: {spec_a.get('score', 0)}/100 (User stories & acceptance criteria)")
+    print(f"{'Technical Design (plan.md)':<28} │ {'PASS' if plan_a.get('passed') else 'FAIL':<10} │ Score: {plan_a.get('score', 0)}/100 (Architecture, schemas & interfaces)")
+    print(f"{'Tasks Breakdown (tasks.md)':<28} │ {'PASS' if tasks_a.get('passed') else 'FAIL':<10} │ {tasks_a.get('issues_count', 0)} atomic task issues")
     print("=" * 110)
+
+    if res.get("contradictions"):
+        print("\n⚠️  Gaps & Contradictions Found:")
+        for c in res["contradictions"]:
+            print(f"   ❌ {c}")
 
     if res["passed"]:
         print_next_steps([
-            {"cmd": f"/workflow run {spec_name}", "desc": "Execute deterministic LangGraph TDD runner"},
+            {"cmd": f"/workflow run {spec_name}", "desc": "Execute deterministic 7-stage subagent pipeline"},
         ])
     else:
         print_next_steps([
-            {"cmd": f"/workflow specify {spec_name}", "desc": "Refine missing criteria & edge cases"},
+            {"cmd": f"/workflow clarify {spec_name}", "desc": "Resolve specification gaps via Socratic Q&A"},
+            {"cmd": f"/workflow plan {spec_name}", "desc": "Refine technical design plan"},
         ])
     return 0 if res["passed"] else 1
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    """Alias for cmd_analyze (Pre-Execution Quality Gate)."""
+    return cmd_analyze(args)
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -1133,12 +1220,15 @@ def cmd_pr(args: argparse.Namespace) -> int:
 def cmd_list(args: argparse.Namespace) -> int:
     """Displays the concise, fixed command reference table."""
     commands = [
-        {"slash": "/workflow init", "syntax": "workflow init [dir]", "desc": "Initialize encapsulated .workflow/ structure & configs"},
+        {"slash": "/workflow init", "syntax": "workflow init [dir]", "desc": "Initialize encapsulated .workflow/ structure & memory"},
         {"slash": "/workflow explore", "syntax": "workflow explore [dir]", "desc": "Survey polyglot stack & extract coding preferences"},
         {"slash": "/workflow new", "syntax": "workflow new <name>", "desc": "Scaffold a new spec under .workflow/specs/active/<name>/"},
-        {"slash": "/workflow specify", "syntax": "workflow specify <name>", "desc": "Interactive 1-by-1 Grilling Session to co-author spec.md & ADR"},
-        {"slash": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Decompose refined spec into atomic TDD task issues"},
-        {"slash": "/workflow check", "syntax": "workflow check <name>", "desc": "Audit spec against deterministic Quality Gate (100/100)"},
+        {"slash": "/workflow specify", "syntax": "workflow specify <name>", "desc": "Draft functional spec.md focusing strictly on what and why"},
+        {"slash": "/workflow clarify", "syntax": "workflow clarify <name> [--generate-adr]", "desc": "Ambiguity Checkpoint: Socratic Q&A to close specification gaps"},
+        {"slash": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Convert approved spec.md into technical design (plan.md)"},
+        {"slash": "/workflow tasks", "syntax": "workflow tasks <name>", "desc": "Decompose technical plan into atomic tasks (tasks.md & issues/)"},
+        {"slash": "/workflow analyze", "syntax": "workflow analyze <name>", "desc": "Auditoría previa: static consistency audit across spec, plan & tasks"},
+        {"slash": "/workflow check", "syntax": "workflow check <name>", "desc": "Alias for /workflow analyze (Quality Gate 100/100)"},
         {"slash": "/workflow security", "syntax": "workflow security [spec] [--json]", "desc": "Run OWASP Top 10 SAST, secret leak & dependency CVE audit"},
         {"slash": "/workflow audit-deps", "syntax": "workflow audit-deps [dir]", "desc": "Audit project package manifests for known CVEs"},
         {"slash": "/workflow quality", "syntax": "workflow quality [spec] [--create-pr]", "desc": "Quality Gatekeeper: audit quality score & OWASP report, generate ADR"},
@@ -1213,20 +1303,35 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # specify
-    p_spec = subparsers.add_parser("specify", help="Socratic debate & interactive interview to co-author spec.md (Spec-Kit style) and generate ADR")
+    p_spec = subparsers.add_parser("specify", help="Draft or update functional specification (spec.md) focusing on what and why")
     p_spec.add_argument("spec_name", help="Name or path of the spec to refine")
-    p_spec.add_argument("--generate-adr", action="store_true", help="Explicitly generate or refresh specification ADR in .workflow/specs/active/<spec>/adrs/")
-    p_spec.add_argument("--decisions", help="Summary of architectural decisions agreed upon during grilling")
-    p_spec.add_argument("--context", help="Context or problem statement for the ADR")
     p_spec.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
+    # clarify
+    p_clarify = subparsers.add_parser("clarify", help="Ambiguity Checkpoint: Socratic Q&A to close specification gaps and record ADR")
+    p_clarify.add_argument("spec_name", help="Name or path of the spec to clarify")
+    p_clarify.add_argument("--generate-adr", action="store_true", help="Explicitly generate or refresh ADR in .workflow/specs/active/<spec>/adrs/")
+    p_clarify.add_argument("--decisions", help="Summary of architectural decisions agreed upon during grilling")
+    p_clarify.add_argument("--context", help="Context or problem statement for the ADR")
+    p_clarify.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
     # plan
-    p_plan = subparsers.add_parser("plan", help="Decompose refined spec.md into atomic TDD tasks under issues/*.md")
+    p_plan = subparsers.add_parser("plan", help="Convert approved spec.md into technical design (plan.md)")
     p_plan.add_argument("spec_name", help="Name or path of the spec to plan")
     p_plan.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
-    # check
-    p_chk = subparsers.add_parser("check", help="Run the Pre-Execution Quality Gate on a spec")
+    # tasks
+    p_tasks = subparsers.add_parser("tasks", help="Decompose technical plan.md into atomic tasks (tasks.md and issues/*.md)")
+    p_tasks.add_argument("spec_name", help="Name or path of the spec")
+    p_tasks.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
+    # analyze
+    p_ana = subparsers.add_parser("analyze", help="Auditoría previa: static consistency audit across Constitution, spec.md, plan.md, and tasks.md")
+    p_ana.add_argument("spec_name", help="Path or shorthand name of the spec")
+    p_ana.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
+    # check (alias to analyze)
+    p_chk = subparsers.add_parser("check", help="Alias for /workflow analyze (Pre-Execution Quality Gate)")
     p_chk.add_argument("spec_dir", help="Path or shorthand name of the spec")
     p_chk.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
@@ -1323,7 +1428,10 @@ def main() -> int:
         "memory": cmd_memory,
         "new": cmd_new,
         "specify": cmd_specify,
+        "clarify": cmd_clarify,
         "plan": cmd_plan,
+        "tasks": cmd_tasks,
+        "analyze": cmd_analyze,
         "check": cmd_check,
         "security": cmd_security,
         "audit-deps": cmd_audit_deps,

@@ -9,7 +9,12 @@
 ## 1. Core Operating Philosophy
 
 The project utilizes the **Deterministic Workflow Suite**, a structured harness combining:
-1. **Spec-Driven Development (SDD)**: High-precision specifications co-authored via Socratic debate before any code is written.
+1. **GitHub Spec-Kit Phased Lifecycle**: 5 deterministic specification stages prior to code execution:
+   - `specify`: Functional specification focusing strictly on WHAT and WHY.
+   - `clarify`: Ambiguity Checkpoint & Socratic Q&A closing gaps with ADR records.
+   - `plan`: Technical design (Architecture, Schemas & API contracts).
+   - `tasks`: Atomic task decomposition (Dependency graphs & issues/).
+   - `analyze`: Auditoría previa (Static consistency audit).
 2. **Test-Driven Development (TDD)**: Deterministic 🔴 RED $\rightarrow$ 🟢 GREEN $\rightarrow$ 🔵 REFACTOR cycles where exit codes govern state transitions.
 3. **Deterministic 7-Stage Multi-Worker Pipeline**: Quality-governed pipeline executing specialized roles sequentially with bounded feedback loops.
 4. **OWASP Top 10 Cybersecurity Baseline**: Integrated SAST, secret leak scanner, and dependency vulnerability verification.
@@ -27,7 +32,9 @@ The project utilizes the **Deterministic Workflow Suite**, a structured harness 
 ├── specs/
 │   ├── active/                         # Active, in-flight specifications
 │   │   └── <spec-name>/                # Feature container
-│   │       ├── spec.md                 # Agnostic functional spec & contracts
+│   │       ├── spec.md                 # Functional specification (What & Why)
+│   │       ├── plan.md                 # Technical design (Architecture & Schemas)
+│   │       ├── tasks.md                # Task breakdown & dependency graph
 │   │       ├── issues/                 # Atomic TDD task issues
 │   │       ├── adrs/                   # Spec-scoped Architectural Decision Records
 │   │       └── security/               # OWASP Top 10 & dependency audit reports

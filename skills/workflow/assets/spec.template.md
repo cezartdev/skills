@@ -1,34 +1,23 @@
 # Spec: {{SPEC_NAME}}
 
-## 1. Overview & Problem Statement
-<!-- Concise summary of what this specification addresses and why it is needed. -->
+## 1. Overview & Business Context
+<!-- Clear summary of WHAT this specification addresses and WHY it is needed from a business/user perspective. Focus on value without technical implementation details. -->
 
 ## 2. User Stories & Goals
 - **As a** [user/developer],
 - **I want to** [action/capability],
 - **So that** [benefit/value].
 
-## 3. Technical Architecture & Interfaces
-### Data Models & Schemas
-```typescript
-// Define key data contracts, models, or types here
-```
+## 3. Functional Requirements & Scenarios
+- **Scenario 1**: Primary successful interaction flow.
+- **Scenario 2**: Alternative workflow and user branch.
 
-### API Contracts / Function Signatures
-- `functionName(param: Type): ReturnType` — Description of behavior.
-
-## 4. Edge Cases & Error Handling
-- [ ] **Edge Case 1**: Invalid inputs / boundary conditions.
-- [ ] **Edge Case 2**: Network or dependency failures.
-- [ ] **Edge Case 3**: Authorization or state mismatch.
+## 4. Edge Cases & Error Scenarios
+- [ ] **Edge Case 1**: Boundary values, empty inputs, or malformed data.
+- [ ] **Edge Case 2**: Network timeouts, missing resources, or unauthenticated states.
+- [ ] **Edge Case 3**: Concurrent access or state conflicts.
 
 ## 5. Acceptance Criteria
-- [ ] **Criterion 1**: Functional verification.
-- [ ] **Criterion 2**: Negative test cases handled cleanly.
-- [ ] **Criterion 3**: 100% unit tests passing with no regressions.
-
-## 6. Implementation Task Breakdown (Issues)
-<!-- List of atomic TDD subtasks (to be generated or populated in issues/) -->
-- [ ] `001_core_schema.md`: Core types and validation.
-- [ ] `002_business_logic.md`: Core business logic & unit tests.
-- [ ] `003_integration.md`: Integration & end-to-end verification.
+- [ ] **Criterion 1**: Core functional outcome is testable and verified.
+- [ ] **Criterion 2**: Negative and boundary scenarios fail gracefully with clear error feedback.
+- [ ] **Criterion 3**: 100% green test passes with zero regressions.

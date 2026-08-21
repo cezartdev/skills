@@ -104,22 +104,25 @@ uv run skills/workflow/scripts/workflow_runner.py chat
 
 ### 5. Spec-Driven Development (SDD) & Subagent Pipeline
 ```bash
-# Scaffold new feature spec directly under .workflow/specs/active/<spec>/
+# 1. Scaffold new feature spec directly under .workflow/specs/active/<spec>/
 uv run skills/workflow/scripts/workflow_runner.py new user-login
 
-# Interactive Grilling Session & Socratic co-authoring (Matt Pocock / Spec-Kit style) + ADR generation:
+# 2. Functional Specification (Focus purely on WHAT and WHY without implementation details):
 uv run skills/workflow/scripts/workflow_runner.py specify user-login
 
-# Or explicitly generate/refresh specification ADR:
-uv run skills/workflow/scripts/workflow_runner.py specify user-login --generate-adr
+# 3. Ambiguity Checkpoint (Socratic Q&A to eliminate gaps + generate ADR):
+uv run skills/workflow/scripts/workflow_runner.py clarify user-login --generate-adr
 
-# Decompose into atomic TDD task issues
+# 4. Technical Design (Convert approved spec into architecture, data schemas & contracts):
 uv run skills/workflow/scripts/workflow_runner.py plan user-login
 
-# Deterministic Pre-Execution Quality Gate audit (100/100 score)
-uv run skills/workflow/scripts/workflow_runner.py check user-login
+# 5. Tasks Breakdown (Decompose technical plan into ordered atomic tasks & issues/):
+uv run skills/workflow/scripts/workflow_runner.py tasks user-login
 
-# Primary Engine: Execute deterministic 7-stage pipeline (Default: Local commit only for security)
+# 6. Auditoría Previa (Static consistency audit across Constitution, spec, plan & tasks):
+uv run skills/workflow/scripts/workflow_runner.py analyze user-login
+
+# 7. Primary Engine: Execute deterministic 7-stage pipeline (Default: Local commit only for security):
 uv run skills/workflow/scripts/workflow_runner.py run user-login
 
 # Run pipeline with automatic remote push to origin:

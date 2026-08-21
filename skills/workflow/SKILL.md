@@ -27,8 +27,12 @@ metadata:
 
 > [!IMPORTANT]
 > **MANDATORY AGENT EXECUTION DIRECTIVES**:
-> 1. **Deterministic Tool Invocation (NEVER Manual Creation)**: AI Agents MUST ALWAYS invoke workflow commands using `uv run` (e.g. `uv run skills/workflow/scripts/workflow_runner.py <subcommand>` or `uv run .agents/skills/workflow/scripts/workflow_runner.py <subcommand>`). NEVER invoke `python3` or `python` directly, and NEVER attempt to manually write or reconstruct the `.workflow/` directory tree or memory files by hand. Running `workflow init` deterministically creates `.workflow/specs/active/`, `.workflow/specs/archive/`, `.workflow/prs/active/`, `.workflow/prs/archive/`, `.workflow/memory/docs/`, `.workflow/memory/workflow_methodology.md`, analyzes the codebase to generate `.workflow/memory/project_context.md` and `.workflow/memory/coding_preferences.md`, configures `.gitignore`, and updates `AGENTS.md` automatically.
-> 2. **Specify Grilling Session & ADR Generation**: When triggering `/workflow specify <name>`, the AI Agent MUST conduct an interactive 1-by-1 Grilling Session using the interactive question tool (e.g., `ask_question`), asking questions sequentially with multiple-choice recommendations, updating `spec.md` in-place after each answer, and generating an Architectural Decision Record (ADR) in `.workflow/specs/active/<name>/adrs/ADR_<timestamp>_specification_design.md` capturing all agreed-upon architectural choices.
+> 1. **Deterministic Tool Invocation (NEVER Manual Creation)**: AI Agents MUST ALWAYS invoke workflow commands using `uv run` (e.g. `uv run skills/workflow/scripts/workflow_runner.py <subcommand>` or `uv run .agents/skills/workflow/scripts/workflow_runner.py <subcommand>`). NEVER invoke `python3` or `python` directly, and NEVER attempt to manually write or reconstruct the `.workflow/` directory tree or memory files by hand. Running `workflow init` deterministically creates `.workflow/specs/active/`, `.workflow/specs/archive/`, `.workflow/prs/active/`, `.workflow/prs/archive/`, `.workflow/memory/docs/`, `.workflow/memory/workflow_methodology.md`, analyzes the codebase to generate `.workflow/memory/project_context.md` and `.workflow/memory/coding_preferences.md`, configures `.gitignore`, and updates `AGENTS.md` automatical> 2. **GitHub Spec-Kit SDD Foundation**: The workflow implements 5 deterministic specification stages prior to code execution:
+>    - **`specify`** (`/workflow specify <name>`): Author functional `spec.md` focusing strictly on **WHAT** and **WHY** (user stories, scenarios, edge cases, acceptance criteria) without technical implementation details.
+>    - **`clarify`** (`/workflow clarify <name>`): Ambiguity Checkpoint detecting omissions and conducting a 1-by-1 Socratic interview using `ask_question`, writing an ADR in `.workflow/specs/active/<name>/adrs/ADR_<timestamp>_clarifications.md`.
+>    - **`plan`** (`/workflow plan <name>`): Convert approved `spec.md` into technical design (`plan.md`) defining data models, DB schemas, interfaces, library selection, and architecture.
+>    - **`tasks`** (`/workflow tasks <name>`): Decompose `plan.md` into ordered atomic tasks in `tasks.md` and individual issue files under `.workflow/specs/active/<name>/issues/`.
+>    - **`analyze`** (`/workflow analyze <name>`, alias `/workflow check <name>`): Static consistency audit comparing Constitution/Memory, `spec.md`, `plan.md`, and `tasks.md`, scoring 0-100 before code execution.
 > 3. **Deterministic 7-Stage Multi-Subagent Pipeline**: When triggering `/workflow run <spec>`, the AI Agent MUST NOT execute all stages in a single monolithic turn. Instead, the AI Agent MUST:
 >    - First run `uv run skills/workflow/scripts/workflow_runner.py run <spec>` to initialize and sync the physical worktree (`.workflow/worktrees/<spec>/worker/`).
 >    - Define the 7 specialized subagent types using `define_subagent` (reading their system prompts from `skills/workflow/references/prompts/`):
@@ -64,7 +68,7 @@ metadata:
 > 11. **Protected Branch Gate & Grilling on `main`/`master`**: When `/workflow run <spec>` is executed while the active branch is `main` or `master` (or protected branches), direct commits or pushes to `main` are **deterministically blocked**. The pipeline automatically creates and isolates the feature branch `feat/<spec>`. The AI Agent MUST conduct a grilling session using `ask_question` asking the developer to confirm their desired feature branch before any remote push or merge.
 > 12. **100% Self-Contained Skill & Zero External Skill Dependency**: The `workflow` skill is completely independent and contains internal tools for Git operations (`git_ops.py`), security scanning (`security_auditor.py`), and PR synthesis. AI Agents MUST NEVER invoke external skills (e.g. `skills/git/`) from within the workflow harness.
 > 13. **Default Security Gate (Local Commits by Default)**: By default, all pipeline runs stop after the local commit inside the worktree. Autonomous subagents and CLI commands MUST NOT push to remote `origin` or open public PRs unless the explicit `--push` flag was provided (e.g. `/workflow run <spec> --push`) or the human developer explicitly authorizes remote push during the interactive grilling session.
-> 14. **Clean Slash Command Suggestions (`/workflow <subcommand>`)**: When displaying suggested next steps or recommending follow-up actions to the developer in chat or CLI output, AI Agents MUST ALWAYS format them as clean slash commands (e.g., `/workflow explore`, `/workflow new <spec-name>`, `/workflow specify <spec-name>`, `/workflow plan <spec-name>`, `/workflow run <spec-name>`). Never present raw internal script paths (e.g. `uv run skills/workflow/scripts/workflow_runner.py ...`) as suggested user steps.
+> 14. **Clean Slash Command Suggestions (`/workflow <subcommand>`)**: When displaying suggested next steps or recommending follow-up actions to the developer in chat or CLI output, AI Agents MUST ALWAYS format them as clean slash commands (e.g., `/workflow explore`, `/workflow new <spec-name>`, `/workflow specify <spec-name>`, `/workflow clarify <spec-name>`, `/workflow plan <spec-name>`, `/workflow tasks <spec-name>`, `/workflow analyze <spec-name>`, `/workflow run <spec-name>`). Never present raw internal script paths as suggested user steps.
 
 ---
 
@@ -85,16 +89,18 @@ skills/workflow/
 │   ├── drift_detector.py             # Manifest checksums & tech drift anomaly detector
 │   ├── memory_manager.py             # Hierarchical memory manager & indexed docs catalog
 │   ├── worktree_manager.py           # Physical Git Worktree lifecycle manager with cross-platform lock clearing
-│   ├── quality_auditor.py            # Deterministic Pre-Execution Quality Gate (100/100)
+│   ├── quality_auditor.py            # Deterministic Pre-Execution Static Consistency Auditor & Quality Gate
 │   └── graph/
-│       ├── state.py                  # LangGraph TypedDict state definitions
-│       ├── nodes.py                  # LangGraph node transitions (RED, GREEN, REFACTOR, GATES)
-│       ├── pipeline_graph.py         # Deterministic LangGraph 7-stage pipeline state machine
-│       └── engine.py                 # LangGraph StateGraph builder, checkpointer & runner
+│       └── pipeline_graph.py         # Deterministic 7-stage pipeline state machine
 ├── references/                       # [OPTIONAL] Reference documentation & system prompts read on-demand
 │   ├── ARCHITECTURE.md               # In-depth technical architecture guide
 │   ├── owasp_top_10.md               # OWASP Top 10 taxonomy & polyglot anti-pattern guide
 │   └── prompts/                      # Dedicated archetype system prompts
+│       ├── specify.prompt.md         # Functional spec scribe prompt (what & why)
+│       ├── clarify.prompt.md         # Ambiguity checkpoint & Socratic griller prompt
+│       ├── plan.prompt.md            # Technical design engineer prompt (plan.md)
+│       ├── tasks.prompt.md           # Task breakdown specialist prompt (tasks.md & issues/)
+│       ├── analyze.prompt.md         # Static consistency auditor prompt
 │       ├── implement.prompt.md       # Feature & SDD/TDD Engineer prompt (implement-worker)
 │       ├── explorer.prompt.md        # Codebase discovery scout prompt
 │       ├── fix.prompt.md             # BugFix & Auto-Heal prompt (fix-worker)
@@ -103,10 +109,11 @@ skills/workflow/
 │       ├── quality.prompt.md         # Quality Assurance Gatekeeper prompt (quality-worker)
 │       ├── doc_sync.prompt.md        # Documentation synchronizer prompt (doc-worker)
 │       ├── git_worker.prompt.md      # Deterministic Git & GitHub release prompt (git-worker)
-│       ├── specify.prompt.md         # Spec Scribe & Socratic Co-Author prompt (Spec-Kit style)
 │       └── chat.prompt.md            # Macro project advisor & brainstorming prompt
 └── assets/                           # [OPTIONAL] Templates, schemas, and static resources
-    ├── spec.template.md              # Matt Pocock-inspired Spec template
+    ├── spec.template.md              # Functional Spec template (what & why)
+    ├── plan.template.md              # Technical Design Plan template (architecture & schemas)
+    ├── tasks.template.md             # Atomic Task Breakdown template
     ├── issue.template.md             # Atomic TDD Issue template (Red -> Green -> Refactor)
     ├── memory_00.template.md         # Initial master context template
     └── workflow_methodology.template.md # Methodology guide template
@@ -120,12 +127,15 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
 
 | Slash Command | CLI Syntax | Description |
 |---|---|---|
-| `/workflow init` | `workflow init [dir]` | Initialize encapsulated `.workflow/` structure & configs |
+| `/workflow init` | `workflow init [dir]` | Initialize encapsulated `.workflow/` structure & memory |
 | `/workflow explore` | `workflow explore [dir]` | Survey polyglot stack & extract style preferences (`coding_preferences.md`) |
 | `/workflow new` | `workflow new <spec>` | Scaffold a new feature spec directly under `.workflow/specs/active/<spec>/` |
-| `/workflow specify` | `workflow specify <spec> [--generate-adr]` | Interactive 1-by-1 Grilling Session to co-author `spec.md` & generate ADR |
-| `/workflow plan` | `workflow plan <spec>` | Decompose refined spec into atomic TDD task issues |
-| `/workflow check` | `workflow check <spec>` | Audit spec against deterministic Quality Gate (100/100) |
+| `/workflow specify` | `workflow specify <spec>` | Draft functional `spec.md` focusing strictly on what and why |
+| `/workflow clarify` | `workflow clarify <spec> [--generate-adr]` | Ambiguity Checkpoint: Socratic Q&A to close specification gaps & generate ADR |
+| `/workflow plan` | `workflow plan <spec>` | Convert approved `spec.md` into technical design (`plan.md`) |
+| `/workflow tasks` | `workflow tasks <spec>` | Decompose technical plan into atomic tasks (`tasks.md` & `issues/`) |
+| `/workflow analyze` | `workflow analyze <spec>` | Auditoría previa: static consistency audit across spec, plan & tasks |
+| `/workflow check` | `workflow check <spec>` | Alias for `/workflow analyze` (Pre-Execution Quality Gate 100/100) |
 | `/workflow security` | `workflow security [spec] [--json]` | Run OWASP Top 10 SAST, secret leak & dependency CVE audit |
 | `/workflow audit-deps` | `workflow audit-deps [dir]` | Audit project package manifests for known CVEs |
 | `/workflow quality` | `workflow quality [spec] [--create-pr]` | Quality Gatekeeper: audit quality score & OWASP report, generate ADR |
@@ -152,9 +162,17 @@ When `/workflow list` is requested by the user, the AI Agent MUST respond with t
    Run '/workflow explore' to detect Python, Rust, Go, Node, Java, or .NET test runners.
 2. Scaffold Spec (SDD):
    Run '/workflow new <name>' directly under '.workflow/specs/active/<name>/'.
-3. Socratic Co-Authoring & ADR Generation (Spec-Kit Style):
-   Run '/workflow specify <name>' to co-author spec and generate ADR under '.workflow/specs/active/<name>/adrs/'.
+3. GitHub Spec-Kit Phased Lifecycle:
+   a. Functional Spec: Run '/workflow specify <name>' to draft spec.md (what & why).
+   b. Ambiguity Checkpoint: Run '/workflow clarify <name>' for Socratic Q&A and ADR authoring.
+   c. Technical Design: Run '/workflow plan <name>' to author plan.md (contracts & schemas).
+   d. Tasks Breakdown: Run '/workflow tasks <name>' to generate tasks.md and issues/*.md.
+   e. Static Consistency Audit: Run '/workflow analyze <name>' to verify 0 contradictions.
 4. Deterministic 7-Stage Quality Pipeline:
+   Run '/workflow run <name>'. Implementer -> Fix -> Refactor -> Security -> Quality Gatekeeper -> Doc -> Git-Worker.
+5. Interactive Grilling Gate for Release:
+   Git-Worker conducts Grilling Session via ask_question with developer before any commit or push.
+```stic 7-Stage Quality Pipeline:
    Run '/workflow run <name>'. Implementer -> Fix -> Refactor -> Security -> Quality Gatekeeper -> Doc -> Git-Worker.
 5. Interactive Grilling Gate for Release:
    Git-Worker conducts Grilling Session via ask_question with developer before any commit or push.

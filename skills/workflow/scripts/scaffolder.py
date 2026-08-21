@@ -460,3 +460,88 @@ def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
         "source_path": found_src,
         "archive_path": archive_dest,
     }
+
+
+def scaffold_spec_plan(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
+    """Scaffolds or ensures technical design plan.md under .workflow/specs/active/<spec_name>/plan.md."""
+    target_dir = os.path.abspath(target_dir)
+    wf_root = get_workflow_root(target_dir)
+    assets_dir = get_skill_assets_dir()
+
+    clean_name = sanitize_identifier(spec_name)
+    spec_dir = os.path.join(wf_root, "specs", "active", clean_name)
+    os.makedirs(spec_dir, exist_ok=True)
+
+    plan_file = os.path.join(spec_dir, "plan.md")
+    template_plan = os.path.join(assets_dir, "plan.template.md")
+    created = False
+
+    if not os.path.exists(plan_file):
+        if os.path.exists(template_plan):
+            with open(template_plan, "r", encoding="utf-8") as f:
+                content = f.read().replace("{{SPEC_NAME}}", clean_name)
+        else:
+            content = f"# Technical Plan: {clean_name}\n\n## 1. Technical Architecture\n\n## 2. Data Models\n\n## 3. Interfaces\n"
+        with open(plan_file, "w", encoding="utf-8") as f:
+            f.write(content)
+        created = True
+
+    return {
+        "status": "SUCCESS",
+        "spec_name": clean_name,
+        "spec_dir": spec_dir,
+        "plan_file": plan_file,
+        "created": created,
+    }
+
+
+def scaffold_spec_tasks(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
+    """Decomposes technical plan into tasks.md and atomic issues/*.md tasks."""
+    target_dir = os.path.abspath(target_dir)
+    wf_root = get_workflow_root(target_dir)
+    assets_dir = get_skill_assets_dir()
+
+    clean_name = sanitize_identifier(spec_name)
+    spec_dir = os.path.join(wf_root, "specs", "active", clean_name)
+    issues_dir = os.path.join(spec_dir, "issues")
+    os.makedirs(issues_dir, exist_ok=True)
+
+    tasks_file = os.path.join(spec_dir, "tasks.md")
+    template_tasks = os.path.join(assets_dir, "tasks.template.md")
+    tasks_created = False
+
+    if not os.path.exists(tasks_file):
+        if os.path.exists(template_tasks):
+            with open(template_tasks, "r", encoding="utf-8") as f:
+                content = f.read().replace("{{SPEC_NAME}}", clean_name)
+        else:
+            content = f"# Tasks Breakdown: {clean_name}\n\n## 1. Dependency Graph\n\n## 2. Atomic Task List\n"
+        with open(tasks_file, "w", encoding="utf-8") as f:
+            f.write(content)
+        tasks_created = True
+
+    existing_issues = sorted([f for f in os.listdir(issues_dir) if f.endswith(".md") and f != ".gitkeep"])
+    if not existing_issues:
+        tasks = [
+            ("001_domain_models.md", "Domain Models & Schema Setup", "Implement required domain types, data models, and validation schemas."),
+            ("002_core_logic.md", "Core Implementation & Unit Tests", "Implement core service logic, function handlers, and verify TDD test suite."),
+            ("003_integration_verification.md", "Integration Verification & Quality Gate", "Run end-to-end integration tests, verify OWASP security clearance, and enforce Zero-Comments policy."),
+        ]
+        for filename, title, desc in tasks:
+            task_path = os.path.join(issues_dir, filename)
+            content = f"# Issue: {title}\n\nTarget Spec: `{clean_name}`\n\n## Description\n{desc}\n\n## Tasks\n- [ ] Implement code changes according to specification and technical plan.\n- [ ] Run test suite and ensure 100% green exit code.\n"
+            with open(task_path, "w", encoding="utf-8") as f:
+                f.write(content)
+        existing_issues = sorted([f for f in os.listdir(issues_dir) if f.endswith(".md") and f != ".gitkeep"])
+        reconcile_gitkeep(issues_dir)
+
+    return {
+        "status": "SUCCESS",
+        "spec_name": clean_name,
+        "spec_dir": spec_dir,
+        "tasks_file": tasks_file,
+        "tasks_created": tasks_created,
+        "issues_dir": issues_dir,
+        "issues_count": len(existing_issues),
+        "issue_files": existing_issues,
+    }
