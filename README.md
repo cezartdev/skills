@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 [![Package Manager](https://img.shields.io/badge/pnpm-11.x-orange.svg?style=for-the-badge&logo=pnpm)](https://pnpm.io)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB.svg?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Astral uv](https://img.shields.io/badge/uv-managed-DE5FE9.svg?style=for-the-badge&logo=astral)](https://astral.sh/uv)
+[![Astral uv](https://img.shields.io/badge/uv-managed-DE5FE9.svg?style=for-the-badge&logo=astral)](https://github.com/astral-sh/uv)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-Compatible-00D084.svg?style=for-the-badge&logo=openai)](https://skills.sh)
 
 <p align="center">

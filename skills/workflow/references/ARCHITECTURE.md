@@ -71,7 +71,7 @@ graph TD
         D2["2. Quality Gate Regex Scoring (Criteria [ ] & Schemas)"]
         D3["3. Subprocess Test Runner (Exit code 0 = PASS, != 0 = FAIL)"]
         D4["4. State Machine Phase Transitions (RED must fail before GREEN)"]
-        D5["5. Anti-Zombie Worktree Purge (SIGKILL + git worktree remove --force + prune)"]
+        D5["5. Ephemeral Worktree Hygiene (git worktree remove and prune)"]
         D6["6. Multi-PR Catalog Table Computation in .workflow/prs/active/"]
     end
 
@@ -97,4 +97,4 @@ graph TD
    - The Git Subagent conducts an interactive Grilling Session confirmation before opening a Pull Request via GitHub CLI (`gh`).
 2. **Archival**:
    - `/workflow archive <spec-name>` moves completed spec directories into `.workflow/specs/archive/<year>/`.
-   - `/workflow clean` performs deep Anti-Zombie cleanup of worktrees and staging indices.
+   - `/workflow clean` performs workspace hygiene cleanup of completed ephemeral worktrees and staging indices.

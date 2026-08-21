@@ -15,6 +15,6 @@ if (Get-Command uv -ErrorAction SilentlyContinue) {
 } elseif (Get-Command py -ErrorAction SilentlyContinue) {
     & py $TargetScript @Arguments
 } else {
-    Write-Error "Error: Python runtime not found. Please install Astral uv (https://astral.sh/uv) or Python >= 3.8."
+    Write-Error "Error: Python runtime not found. Please install uv (e.g. 'pip install uv') or Python >= 3.8."
     exit 1
 }

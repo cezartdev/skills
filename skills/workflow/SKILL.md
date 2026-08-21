@@ -52,10 +52,10 @@ metadata:
 >         * If Quality-Worker returns `NEEDS_FIX` or `NEEDS_REFACTOR`, loop back to that subagent (up to `max_revisions: 3`).
 >      6. **Stage 6 (Doc)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-doc-worker', 'Role': 'Doc Subagent', 'Prompt': 'Sync markdown docs and verify spec acceptance criteria in worktree.'}])`
 >      7. **Stage 7 (Git)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-git-worker', 'Role': 'Git Subagent', 'Prompt': 'Conduct interactive Grilling Session confirmation via ask_question with developer. Default Security: Commit locally and do NOT push to remote unless --push flag is passed or explicitly authorized.'}])`
-> 4. **Immediate Stop & Timer Cancellation**: When triggering `/workflow stop [spec|--all]`, the AI Agent MUST:
->    - Execute `uv run skills/workflow/scripts/workflow_runner.py stop [spec]`.
->    - Cancel background schedule cron timers with `manage_task(Action="kill")`.
->    - Terminate active subagents with `manage_subagents(Action="kill", ConversationIds=[...])`.
+> 4. **Immediate Stop & Task Cancellation**: When triggering `/workflow stop [spec|--all]`, the AI Agent MUST:
+>    - Execute `uv run skills/workflow/scripts/workflow_runner.py stop [spec]` to cancel registered recurring pipeline schedulers.
+>    - Cancel workflow schedule timers with `manage_task(Action="kill")`.
+>    - Stop active subagent conversations with `manage_subagents(Action="kill", ConversationIds=[...])`.
 > 5. **Interactive Test Runner Selection**: When `/workflow init` or `/workflow explore` indicates that no explicit test script is defined in project manifests, the AI Agent MUST prompt the developer using `ask_question` in English to pick from the detected ecosystem candidates (e.g. `pnpm test`, `vitest run`, `jest`).
 > 6. **Cross-Platform Compatibility**: All scripts support Windows (PowerShell / `uv run`), Linux, and macOS (POSIX shell / `uv run`) using standard library path normalization and pure Python file operations.
 > 7. **Cross-Harness Interoperability**: Compatible with all major AI coding agent CLIs and harnesses (Antigravity, Claude Desktop, Cursor, Codex, OpenDevin, Aider, Gemini CLI) complying with the Agent Skills specification (`skills.sh` / `agentskills.io`).
@@ -63,13 +63,16 @@ metadata:
 >    - **Feature / Developer Branch**: Primary implementation takes place directly on `<spec-name>` (e.g. `user-login`) or `feat/<spec-name>`.
 >    - **Staging Branch**: Autonomous subagents operate on dedicated staging branch `<spec-name>-worker` inside `.workflow/worktrees/<spec-name>/worker/`.
 >    - **Auto-Merge Scope**: Automatic merges rebase and target the spec's associated branch (`feat/<spec-name>` or `<spec-name>`), never solely `main`.
-> 9. **Interactive Grilling for Branch Selection**: When creating a spec interactively, the AI Agent MUST initiate a question round using `ask_question` allowing the developer to confirm or select their preferred branch name format (`(Recommended) feat/<name>`, `<name>`, `fix/<name>`, `refactor/<name>`, or custom), ensuring alignment before disk operations occur.
+> 9. **Deterministic Feature Branch Scoping (`feat/<spec-name>`)**: When creating a spec via `/workflow new <spec>`, the target branch is established directly and deterministically as `feat/<spec-name>`. No interactive questioning is required during spec creation; Socratic Q&A is focused on `/workflow clarify` (ambiguity resolution) and release approval.
 > 10. **Strict Zero-Comments Code Policy**: When writing, editing, or refactoring code in this workflow (across all subagent phases: Implementer, Fix-Worker, Refactor-Worker), AI Agents MUST produce 100% clean, self-documenting code with **ZERO comments**. Inline comments (`//`, `#`), block comments (`/* */`), and unrequested docstrings (`""" """`) are **strictly prohibited**, with the sole exception being when the user explicitly requests comments or documentation annotations.
 > 11. **Protected Branch Gate & Grilling on `main`/`master`**: When `/workflow run <spec>` is executed while the active branch is `main` or `master` (or protected branches), direct commits or pushes to `main` are **deterministically blocked**. The pipeline automatically creates and isolates the feature branch `feat/<spec>`. The AI Agent MUST conduct a grilling session using `ask_question` asking the developer to confirm their desired feature branch before any remote push or merge.
 > 12. **100% Self-Contained Skill & Zero External Skill Dependency**: The `workflow` skill is completely independent and contains internal tools for Git operations (`git_ops.py`), security scanning (`security_auditor.py`), and PR synthesis. AI Agents MUST NEVER invoke external skills (e.g. `skills/git/`) from within the workflow harness.
 > 13. **Default Security Gate (Local Commits by Default)**: By default, all pipeline runs stop after the local commit inside the worktree. Autonomous subagents and CLI commands MUST NOT push to remote `origin` or open public PRs unless the explicit `--push` flag was provided (e.g. `/workflow run <spec> --push`) or the human developer explicitly authorizes remote push during the interactive grilling session.
 > 14. **Clean Slash Command Suggestions (`/workflow <subcommand>`)**: When displaying suggested next steps or recommending follow-up actions to the developer in chat or CLI output, AI Agents MUST ALWAYS format them as clean slash commands (e.g., `/workflow explore`, `/workflow new <spec-name>`, `/workflow specify <spec-name>`, `/workflow clarify <spec-name>`, `/workflow plan <spec-name>`, `/workflow tasks <spec-name>`, `/workflow analyze <spec-name>`, `/workflow run <spec-name>`). Never present raw internal script paths as suggested user steps.
 > 15. **Specialist Subagent Dispatch for Single Commands**: When executing atomic lifecycle commands (`/workflow explore`, `/workflow context`, `/workflow specify`, `/workflow clarify`, `/workflow plan`, `/workflow tasks`, `/workflow analyze`), the AI Agent MUST dispatch the corresponding **Specialist Subagent** (`workflow-explorer-specialist`, `workflow-context-specialist`, `workflow-specify-specialist`, `workflow-clarify-specialist`, `workflow-plan-specialist`, `workflow-tasks-specialist`, `workflow-analyze-specialist`) to execute targeted tasks in isolation.
+
+> [!NOTE]
+> **Host System Safety & Non-Destructive Scoping**: The Workflow Suite operates strictly within the workspace repository and the local `.workflow/` directory tree. It never modifies OS services, background system daemons, host process tables, or external configuration files.
 
 ---
 
@@ -138,8 +141,8 @@ skills/workflow/
 | `/workflow tasks` | `workflow tasks <spec>` | Decompose technical plan into atomic tasks (`tasks.md` & `issues/`) |
 | `/workflow analyze` | `workflow analyze <spec>` | Auditoría previa: static consistency audit across spec, plan & tasks |
 | `/workflow run` | `workflow run <spec> [--only <st>] [--from <st>] [--dry-run] [--push] [--schedule <m>]` | **Primary Engine**: Run 7-stage subagent pipeline with auto-formatting & checkpoints |
-| `/workflow stop` | `workflow stop [spec]` | Terminate background pipeline subagents and cancel timers |
-| `/workflow clean` | `workflow clean` | Deep Anti-Zombie cleanup of orphaned worktrees, locks & dead PIDs |
+| `/workflow stop` | `workflow stop [spec]` | Stop background pipeline schedulers and cancel active workflow tasks |
+| `/workflow clean` | `workflow clean` | Clean up completed ephemeral worktrees and prune stale git directory entries |
 | `/workflow archive` | `workflow archive <spec>` | Move completed spec to `.workflow/specs/archive/<year>/` |
 | `/workflow list` | `workflow list` | Display this concise command reference table |
 
@@ -166,3 +169,13 @@ skills/workflow/
 6. Post-Merge Archiving & Cleanup:
    Run '/workflow archive <name>' and '/workflow clean'.
 ```
+
+---
+
+## 5. Security Architecture & Indirect Prompt Injection Defenses
+
+All tenant-controlled and third-party repository markdown files ingested by `explorer.py`, `quality.py`, `memory_manager.py`, and `quality_auditor.py` (`spec.md`, `plan.md`, `tasks.md`, `issues/*.md`, `adrs/*.md`, `docs/*.md`) undergo multi-layer security filtering via `sanitize_untrusted_text`:
+1. **Prompt Injection Payload Neutralization**: Active regex filters detect and neutralize prompt injection patterns (e.g. `ignore all instructions`, `developer mode`, `assistant:` breakouts).
+2. **HTML & Script Sanitization**: Raw HTML script blocks, inline frames, and markdown breakouts (backticks and comments) are escaped.
+3. **Strict Bounded Length Limits**: All untrusted excerpt strings are capped (max 250 characters) before interpolation into system prompts, ADR files, or PR summaries.
+

@@ -13,8 +13,10 @@ from datetime import datetime
 
 try:
     from scaffolder import get_workflow_root, reconcile_gitkeep
+    from quality import sanitize_untrusted_text
 except ImportError:
     from .scaffolder import get_workflow_root, reconcile_gitkeep
+    from .quality import sanitize_untrusted_text
 
 
 def get_memory_dir(target_dir: str = ".") -> str:
@@ -53,21 +55,24 @@ def add_memory_doc(
             indices.append(int(m.group(1)))
     next_idx = max(indices, default=0) + 1
 
-    clean_slug = re.sub(r"[^a-zA-Z0-9_]+", "_", title.lower()).strip("_")
+    sanitized_title = sanitize_untrusted_text(title, max_chars=120)
+    sanitized_content = sanitize_untrusted_text(content, max_chars=5000)
+
+    clean_slug = re.sub(r"[^a-zA-Z0-9_]+", "_", sanitized_title.lower()).strip("_")
     filename = f"{next_idx:02d}_{clean_slug}.md"
     filepath = os.path.join(docs_dir, filename)
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    header_content = f"""# {title}
+    header_content = f"""# {sanitized_title}
 
 - **Recorded At**: `{now_str}`
 - **Index**: `{next_idx:02d}`
-{f"- **Author**: `{author}`" if author else ""}
+{f"- **Author**: `{sanitize_untrusted_text(author, max_chars=80)}`" if author else ""}
 
 ---
 
 ## 📝 Details & Guidelines
-{content.strip()}
+{sanitized_content.strip()}
 """
 
     with open(filepath, "w", encoding="utf-8") as f:

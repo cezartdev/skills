@@ -365,7 +365,7 @@ def force_purge_worktree(
     spec_name: Optional[str] = None,
     repo_dir: str = "."
 ) -> Dict[str, Any]:
-    """Anti-Zombie Deep Purge: forces removal of worktree, lockfiles, and git references."""
+    """Workspace Hygiene Cleanup: removes ephemeral worktree directory under .workflow/worktrees/ and clears git worktree locks."""
     repo_dir = os.path.abspath(repo_dir)
     try:
         worktree_dir = resolve_worktree_path(name, spec_name=spec_name, repo_dir=repo_dir)

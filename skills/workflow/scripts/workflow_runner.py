@@ -846,8 +846,8 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow tasks", "syntax": "workflow tasks <name>", "desc": "Decompose technical plan into atomic tasks (tasks.md & issues/)"},
         {"slash": "/workflow analyze", "syntax": "workflow analyze <name>", "desc": "Auditoría previa: static consistency audit across spec, plan & tasks"},
         {"slash": "/workflow run", "syntax": "workflow run <spec> [--push] [--schedule <m>]", "desc": "Primary Engine: Run 7-stage subagent pipeline (Implement -> Fix -> Refactor -> Security -> Quality -> Doc -> Git)"},
-        {"slash": "/workflow stop", "syntax": "workflow stop [spec]", "desc": "Terminate background pipeline subagents and cancel timers"},
-        {"slash": "/workflow clean", "syntax": "workflow clean", "desc": "Deep Anti-Zombie cleanup of orphaned worktrees, locks & dead PIDs"},
+        {"slash": "/workflow stop", "syntax": "workflow stop [spec]", "desc": "Stop background pipeline schedulers and cancel active workflow tasks"},
+        {"slash": "/workflow clean", "syntax": "workflow clean", "desc": "Clean up completed ephemeral worktrees and prune stale git directory entries"},
         {"slash": "/workflow archive", "syntax": "workflow archive <name>", "desc": "Move completed spec to .workflow/specs/archive/<year>/"},
         {"slash": "/workflow list", "syntax": "workflow list", "desc": "Display this concise command reference table"},
     ]
@@ -947,13 +947,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # stop
-    p_stop = subparsers.add_parser("stop", help="Stop background pipeline schedulers and terminate subagents")
+    p_stop = subparsers.add_parser("stop", help="Stop background pipeline schedulers and cancel active workflow tasks")
     p_stop.add_argument("spec_name", nargs="?", help="Optional specification name to stop (stops all if omitted)")
     p_stop.add_argument("--all", action="store_true", help="Stop all running daemons and timers")
     p_stop.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # clean
-    p_clean = subparsers.add_parser("clean", help="Anti-Zombie cleanup of orphaned worktrees, dangling locks, and dead PIDs")
+    p_clean = subparsers.add_parser("clean", help="Clean up completed ephemeral worktrees and prune stale git directory entries")
     p_clean.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # archive

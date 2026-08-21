@@ -30,7 +30,7 @@ To use the full capabilities of the Workflow Suite, ensure the following core to
 |---|---|---|---|
 | **Python** | `3.10+` | Core state machine runner and deterministic validator engine. | Standard package manager (`brew`, `apt`, `winget`). |
 | **Git** | `2.25+` | Physical worktree isolation, branch management, and atomic commits. | Standard package manager (`git-scm.com`). |
-| **Astral `uv`** | Latest | Ultra-fast Python package and virtual environment runner. | `pip install uv` or `https://docs.astral.sh/uv/` |
+| **Astral `uv`** | Latest | Ultra-fast Python package and virtual environment runner. | `pip install uv` or `brew install uv` |
 | **GitHub CLI (`gh`)** | `2.0+` | Reading remote issues, opening Pull Requests (`/workflow quality --create-pr`), and repository automation. | Standard package manager (`cli.github.com`). |
 
 ### 🔑 GitHub CLI Authentication & Permissions

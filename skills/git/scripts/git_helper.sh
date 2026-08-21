@@ -13,6 +13,6 @@ elif command -v python3 >/dev/null 2>&1; then
 elif command -v python >/dev/null 2>&1; then
     exec python -- "$TARGET_SCRIPT" "$@"
 else
-    echo "Error: Python runtime not found. Please install Astral uv (https://astral.sh/uv) or Python >= 3.8." >&2
+    echo "Error: Python runtime not found. Please install uv (e.g. 'pip install uv') or Python >= 3.8." >&2
     exit 1
 fi

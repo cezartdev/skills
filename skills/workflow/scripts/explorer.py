@@ -17,6 +17,12 @@ PROMPT_INJECTION_PATTERNS = [
     r"(?i)\bassistant\s*:",
     r"(?i)\bdeveloper\s+mode\b",
     r"(?i)\bdo\s+anything\s+now\b",
+    r"(?i)<\|im_start\|>",
+    r"(?i)<\|im_end\|>",
+    r"(?i)\[INST\]",
+    r"(?i)\[\/INST\]",
+    r"(?i)<<SYS>>",
+    r"(?i)<\/SYS>>",
 ]
 
 
@@ -32,14 +38,16 @@ except ImportError:
 
 
 def sanitize_untrusted_text(text: str, max_chars: int = 300) -> str:
-    """Sanitizes untrusted text by neutralizing prompt injections, control chars, and code block breakouts."""
+    """Sanitizes untrusted text by neutralizing prompt injections, HTML tags, control chars, and code breakouts."""
     if not text:
         return ""
     
     # 1. Remove non-printable / control characters (except newline, tab, space)
     sanitized = "".join(ch for ch in str(text) if ch.isprintable() or ch in ("\n", "\t", " "))
     
-    # 2. Escape markdown breakouts (backticks and HTML comment delimiters)
+    # 2. Escape dangerous HTML tags and markdown breakouts
+    sanitized = re.sub(r"(?i)<\s*(?:script|iframe|object|embed|applet)[^>]*>.*?<\s*\/\s*(?:script|iframe|object|embed|applet)\s*>", "[FILTERED_TAG]", sanitized, flags=re.DOTALL)
+    sanitized = re.sub(r"(?i)<\s*(?:script|iframe|object|embed|applet)[^>]*>", "[FILTERED_TAG]", sanitized)
     sanitized = sanitized.replace("```", "'''").replace("<!--", "&lt;!--").replace("-->", "--&gt;")
     
     # 3. Neutralize common prompt injection payloads
