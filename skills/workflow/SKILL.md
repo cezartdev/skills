@@ -141,7 +141,7 @@ skills/workflow/
 | `/workflow plan` | `workflow plan <spec>` | Convert approved `spec.md` into technical design (`plan.md`) |
 | `/workflow tasks` | `workflow tasks <spec>` | Decompose technical plan into atomic tasks (`tasks.md` & `issues/`) |
 | `/workflow analyze` | `workflow analyze <spec>` | Auditoría previa: static consistency audit across spec, plan & tasks |
-| `/workflow run` | `workflow run <spec> [--only <st>] [--from <st>] [--dry-run] [--push] [--schedule <m>]` | **Primary Engine**: Run 7-stage subagent pipeline with auto-formatting & checkpoints |
+| `/workflow run` | `workflow run <spec> [--only <st>] [--from <st>] [--dry-run] [--push]` | **Primary Engine**: Run 7-stage subagent pipeline with auto-formatting & checkpoints |
 | `/workflow stop` | `workflow stop [spec]` | Stop background pipeline schedulers and cancel active workflow tasks |
 | `/workflow clean` | `workflow clean` | Clean up completed ephemeral worktrees and prune stale git directory entries |
 | `/workflow archive` | `workflow archive <spec>` | Move completed spec to `.workflow/specs/archive/<year>/` |

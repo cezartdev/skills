@@ -542,7 +542,6 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("Error: Specification name is required. Example: workflow run user-login", file=sys.stderr)
         return 1
 
-    schedule_minutes = getattr(args, "schedule", None) or getattr(args, "interval", None)
     auto_merge = getattr(args, "auto_merge", False)
     create_pr = getattr(args, "create_pr", False)
     push = getattr(args, "push", False)
@@ -553,7 +552,6 @@ def cmd_run(args: argparse.Namespace) -> int:
     runner = PipelineRunner(target_dir=target_dir)
     res = runner.run_pipeline(
         spec_name=spec_name,
-        schedule_minutes=schedule_minutes,
         auto_merge=auto_merge,
         create_pr=create_pr,
         push=push,
@@ -632,10 +630,6 @@ def cmd_run(args: argparse.Namespace) -> int:
             if raw_base.startswith(pfx):
                 raw_base = raw_base[len(pfx):]
         print(f"   Candidates: (Recommended) feat/{raw_base} | {raw_base} | fix/{raw_base}")
-
-    if res.get("scheduled_interval"):
-        print(f"\n⏰ Opt-In Recurring Daemon Registered: Runs every {res['scheduled_interval']}m (Fixed-Delay)")
-        print(f"   To stop: /workflow stop {res['spec_name']}")
 
     print_next_steps([
         {"cmd": f"/workflow archive {res['spec_name']}", "desc": "Archive completed specification when merged"},
@@ -840,7 +834,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Convert approved spec.md into technical design (plan.md)"},
         {"slash": "/workflow tasks", "syntax": "workflow tasks <name>", "desc": "Decompose technical plan into atomic tasks (tasks.md & issues/)"},
         {"slash": "/workflow analyze", "syntax": "workflow analyze <name>", "desc": "Auditoría previa: static consistency audit across spec, plan & tasks"},
-        {"slash": "/workflow run", "syntax": "workflow run <spec> [--only <s>] [--from <s>] [--dry-run] [--push] [--schedule <m>]", "desc": "Primary Engine: Run deterministic 7-stage subagent pipeline"},
+        {"slash": "/workflow run", "syntax": "workflow run <spec> [--only <s>] [--from <s>] [--dry-run] [--push]", "desc": "Primary Engine: Run deterministic 7-stage subagent pipeline"},
         {"slash": "/workflow stop", "syntax": "workflow stop [spec]", "desc": "Stop background pipeline schedulers and cancel active workflow tasks"},
         {"slash": "/workflow clean", "syntax": "workflow clean", "desc": "Clean up completed ephemeral worktrees and prune stale git directory entries"},
         {"slash": "/workflow archive", "syntax": "workflow archive <name>", "desc": "Move completed spec to .workflow/specs/archive/<year>/"},
@@ -852,7 +846,6 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"option": "--from <stage>", "desc": "Resume execution starting from specified stage to the end (e.g. --from security)"},
         {"option": "--dry-run", "desc": "Simulate pipeline execution blueprint without modifying files or spawning worktrees"},
         {"option": "--push", "desc": "Push worker branch to remote origin upon commit (Default: local commit only)"},
-        {"option": "--schedule <m>", "desc": "Opt-in recurring background execution interval in minutes (e.g. --schedule 30)"},
         {"option": "--auto-merge", "desc": "Automatically merge worker branch into feature branch upon passing all tests"},
         {"option": "--create-pr", "desc": "Create GitHub Pull Request directly via gh CLI"},
     ]
@@ -952,7 +945,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--only", choices=["implement", "fix", "refactor", "security", "quality", "doc", "git_worker"], help="Execute only a single specified pipeline stage")
     p_run.add_argument("--from", "--from-stage", dest="from_stage", choices=["implement", "fix", "refactor", "security", "quality", "doc", "git_worker"], help="Resume pipeline execution starting from specified stage")
     p_run.add_argument("--dry-run", action="store_true", help="Simulate pipeline execution blueprint without modifying files or launching subagents")
-    p_run.add_argument("--schedule", "--interval", dest="schedule", type=int, default=None, help="Opt-in recurring interval in minutes (e.g. 30 or 45)")
     p_run.add_argument("--auto-merge", action="store_true", help="Auto-merge pipeline branch into feature branch if tests pass")
     p_run.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
     p_run.add_argument("--push", action="store_true", default=False, help="Push staging branch to remote origin upon commit (Default: False for security)")

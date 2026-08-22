@@ -141,10 +141,7 @@ uv run skills/workflow/scripts/workflow_runner.py run user-login --push
 # Force code auto-formatting during pipeline execution:
 uv run skills/workflow/scripts/workflow_runner.py run user-login --format
 
-# Opt-In Recurring Background Execution (runs every 30m with Fixed-Delay):
-uv run skills/workflow/scripts/workflow_runner.py run user-login --schedule 30
-
-# Stop active background schedulers & terminate subagents:
+# Stop active pipeline tasks:
 uv run skills/workflow/scripts/workflow_runner.py stop user-login
 
 # Clean up completed worktrees and stale git directory locks:

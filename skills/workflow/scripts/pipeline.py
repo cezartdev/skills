@@ -356,7 +356,6 @@ class PipelineRunner:
     def run_pipeline(
         self,
         spec_name: str,
-        schedule_minutes: Optional[int] = None,
         auto_merge: bool = False,
         create_pr: bool = False,
         push: bool = False,
@@ -421,7 +420,6 @@ class PipelineRunner:
             "current_branch": sync_res.get("current_branch", "main"),
             "on_protected_branch": sync_res.get("on_protected_branch", False),
             "worktree_path": wt_path,
-            "schedule_minutes": schedule_minutes,
             "auto_merge": auto_merge,
             "create_pr": create_pr,
             "push": push,
@@ -601,6 +599,5 @@ class PipelineRunner:
             "suggested_push_command": git_res.get("suggested_push_command"),
             "suggested_gh_command": git_res.get("suggested_gh_command"),
             "suggested_git_merge": git_res.get("suggested_git_merge"),
-            "scheduled_interval": schedule_minutes,
             "subagent_directives": filtered_directives,
         }
