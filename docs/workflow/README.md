@@ -163,8 +163,8 @@ When `/workflow run <spec>` is executed, the AI Agent registers and launches 7 s
 | `workflow-fix-worker` | **Fix Subagent** | `references/prompts/fix_worker.prompt.md` | Diagnoses test failures, writes reproduction tests (Red Phase), and fixes bugs to 100% green tests. |
 | `workflow-refactor-worker` | **Refactor Subagent** | `references/prompts/refactor_worker.prompt.md` | Eliminates code smells, reduces cognitive complexity, strips redundant comments, and preserves 100% green tests. |
 | `workflow-security-worker` | **Security Subagent** | `references/prompts/security_worker.prompt.md` | Scans OWASP Top 10 SAST patterns, secret leaks, and dependency CVEs. |
-| `workflow-quality-worker` | **Quality Subagent** | `references/prompts/quality_worker.prompt.md` | Evaluates holistic quality score (100/100, zero comments, security clearance), writes formal ADRs, and routes feedback loops. |
-| `workflow-doc-worker` | **Doc Subagent** | `references/prompts/doc_worker.prompt.md` | Synchronizes markdown documentation, README files, API schemas, and `spec.md` acceptance criteria checkboxes. |
+| `workflow-quality-worker` | **Quality Subagent** | `references/prompts/quality_worker.prompt.md` | Evaluates holistic quality score (100/100, zero comments, security clearance) and routes feedback loops. |
+| `workflow-doc-worker` | **Doc Subagent** | `references/prompts/doc_worker.prompt.md` | Single documentation authority: authors incremental ADRs (`0000_adr_<slug>.md`), syncs markdown documentation and `spec.md` criteria checkboxes, and compiles canonical PR summaries. |
 | `workflow-git-worker` | **Git Subagent** | `references/prompts/git_worker.prompt.md` | Conducts interactive Grilling Sessions (`ask_question`) with developer before commits/pushes, executing deterministic Conventional Commits and PRs. Local commits only by default unless `--push` is provided. |
 
 ### 7. Strict Hierarchical Worktrees & Subagent Branch Scoping
@@ -172,7 +172,8 @@ Every physical worktree is **strictly dependent on and scoped to a specification
 - **Feature / Developer Branch**: Primary implementation takes place directly on `feat/<spec-name>` (e.g., `feat/user-login`).
 - **Staging Branch**: Autonomous subagents operate on dedicated staging branch `feat/<spec-name>-worker` inside `.workflow/worktrees/<spec-name>/worker/`.
 - **Auto-Merge Scope**: Auto-merge operations target the spec's associated branch (`feat/user-login`), never solely `main`.
-- **ADR Audit Trail**: Versioned ADRs stored in `.workflow/specs/active/<spec>/adrs/ADR_<timestamp>_pipeline_decisions.md`.
+- **ADR Audit Trail**: Versioned incremental ADRs stored in `.workflow/specs/active/<spec>/adrs/0000_adr_<brief-decision-description>.md`.
+- **Canonical PR Summary**: Single cumulative PR summary maintained under `.workflow/prs/active/<spec>/PR_spec_<spec>.md`.
 
 ```bash
 # Execute the full pipeline on-demand (local commit by default):

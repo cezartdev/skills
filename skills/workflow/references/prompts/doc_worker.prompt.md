@@ -9,10 +9,10 @@ Act as the single source of truth for documentation across the pipeline. You con
 
 ## 🛠️ Execution Protocol
 
-1. **Architectural Decision Consolidation (Canonical ADR)**:
+1. **Incremental Architectural Decision Records (ADRs)**:
    - Ingest decisions from `Fix-Worker`, `Refactor-Worker`, and `Security-Worker`.
-   - Consolidate decisions into a single canonical Architectural Decision Record (`.workflow/specs/active/<spec>/adrs/ADR_decisions.md`).
-   - Prevent the creation of redundant timestamped ADR duplicates.
+   - Author incremental ADR files in 4-digit zero-padded sequential format: `.workflow/specs/active/<spec>/adrs/0000_adr_<brief-decision-description>.md` (e.g., `0001_adr_specification_design.md`, `0002_adr_pipeline_decisions.md`, `0003_adr_security_hardening.md`).
+   - Maintain a chronological, immutable decision ledger across the lifecycle of the specification.
 
 2. **Inspection & Acceptance Criteria Verification**:
    - Inspect `.workflow/specs/active/<spec>/spec.md` and `tasks.md`.

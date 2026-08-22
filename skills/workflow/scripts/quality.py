@@ -70,6 +70,30 @@ def sanitize_identifier(name: Optional[str]) -> str:
     return clean or "unnamed"
 
 
+def get_next_adr_filename(adrs_dir: str, slug: str = "decision") -> str:
+    """Determines the next zero-padded 4-digit incremental ADR filename (e.g. 0001_adr_<slug>.md)."""
+    os.makedirs(adrs_dir, exist_ok=True)
+    clean_slug = sanitize_identifier(slug).replace("-", "_")
+    if clean_slug.startswith("adr_"):
+        clean_slug = clean_slug[4:]
+    if not clean_slug:
+        clean_slug = "decision"
+
+    existing_numbers = []
+    for fname in os.listdir(adrs_dir):
+        if fname.endswith(".md") and fname != ".gitkeep":
+            match = re.match(r"^(\d{4})_adr_(.+)\.md$", fname)
+            if match:
+                existing_numbers.append(int(match.group(1)))
+            else:
+                m_legacy = re.match(r"^(\d+)_", fname)
+                if m_legacy:
+                    existing_numbers.append(int(m_legacy.group(1)))
+
+    next_idx = (max(existing_numbers) + 1) if existing_numbers else 1
+    return f"{next_idx:04d}_adr_{clean_slug}.md"
+
+
 def get_workflow_root(target_dir: str = ".") -> str:
     """Returns absolute path to .workflow directory."""
     target_dir = os.path.abspath(target_dir)
@@ -95,16 +119,16 @@ def collect_memory_decisions(target_dir: str = ".") -> Dict[str, List[Dict[str, 
     if not os.path.exists(specs_active_dir):
         return decisions
 
-    for spec_name in os.listdir(specs_active_dir):
+    for spec_name in sorted(os.listdir(specs_active_dir)):
         spec_path = os.path.join(specs_active_dir, spec_name)
         if not os.path.isdir(spec_path):
             continue
 
-        clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", spec_name).strip("-._")
+        clean_spec = sanitize_identifier(spec_name)
 
         adrs_dir = os.path.join(spec_path, "adrs")
         if os.path.exists(adrs_dir):
-            for adr_file in os.listdir(adrs_dir):
+            for adr_file in sorted(os.listdir(adrs_dir)):
                 if adr_file.endswith(".md") and adr_file != ".gitkeep":
                     file_full_path = os.path.join(adrs_dir, adr_file)
                     try:
@@ -281,13 +305,14 @@ def compile_scoped_pr_summary(
 def generate_spec_adr(
     spec_name: str,
     target_dir: str = ".",
+    decision_slug: str = "pipeline_decisions",
     decisions: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     security_results: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Generates formal Architectural Decision Record (ADR) under .workflow/specs/active/<spec>/adrs/."""
+    """Generates incremental formal Architectural Decision Record (ADR) in 0000_adr_<slug>.md format."""
     target_dir = os.path.abspath(target_dir)
     wf_root = get_workflow_root(target_dir)
-    clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
+    clean_spec = sanitize_identifier(spec_name)
 
     # Find spec directory
     spec_dir = os.path.join(wf_root, "specs", "active", clean_spec)
@@ -307,7 +332,7 @@ def generate_spec_adr(
             decisions[arch] = [d for d in items if clean_spec.lower() in d["spec"].lower() or clean_spec.lower() in d["title"].lower()]
 
     today = datetime.now().strftime("%Y-%m-%d")
-    adr_filename = "ADR_decisions.md"
+    adr_filename = get_next_adr_filename(adrs_dir, slug=decision_slug)
     adr_path = os.path.join(adrs_dir, adr_filename)
 
     sec_summary = ""
@@ -366,11 +391,12 @@ def generate_specify_adr(
     target_dir: str = ".",
     decisions_summary: Optional[str] = None,
     context: Optional[str] = None,
+    slug: str = "specification_design",
 ) -> Dict[str, Any]:
-    """Generates an Architectural Decision Record (ADR) capturing specification design choices."""
+    """Generates an Architectural Decision Record (ADR) in 0000_adr_<slug>.md format capturing specification design choices."""
     target_dir = os.path.abspath(target_dir)
     wf_root = get_workflow_root(target_dir)
-    clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
+    clean_spec = sanitize_identifier(spec_name)
 
     spec_dir = os.path.join(wf_root, "specs", "active", clean_spec)
     if not os.path.exists(spec_dir):
@@ -392,8 +418,7 @@ def generate_specify_adr(
             pass
 
     today = datetime.now().strftime("%Y-%m-%d")
-    timestamp_slug = datetime.now().strftime("%Y%m%d_%H%M%S")
-    adr_filename = f"ADR_{timestamp_slug}_specification_design.md"
+    adr_filename = get_next_adr_filename(adrs_dir, slug=slug)
     adr_path = os.path.join(adrs_dir, adr_filename)
 
     overview_match = re.search(r"## (?:1\.\s*)?Overview[^\n]*\n(.*?)(?=\n## |\Z)", spec_content, re.DOTALL)
