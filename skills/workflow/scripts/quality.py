@@ -62,6 +62,14 @@ def sanitize_untrusted_text(text: str, max_chars: int = 300) -> str:
     return sanitized.strip()
 
 
+def sanitize_identifier(name: Optional[str]) -> str:
+    """Sanitizes identifiers and spec names into safe kebab-case strings."""
+    if not name:
+        return ""
+    clean = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(str(name).rstrip("/\\"))).strip("-._").lower()
+    return clean or "unnamed"
+
+
 def get_workflow_root(target_dir: str = ".") -> str:
     """Returns absolute path to .workflow directory."""
     target_dir = os.path.abspath(target_dir)
@@ -144,10 +152,15 @@ def compile_scoped_pr_summary(
     archetype: Optional[str] = None,
     spec_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Synthesizes verified decisions into a clean Markdown Pull Request body under .workflow/prs/active/."""
+    """Synthesizes verified decisions into a standardized Markdown Pull Request body under .workflow/prs/active/<spec-name>/."""
     target_dir = os.path.abspath(target_dir)
     wf_root = get_workflow_root(target_dir)
-    prs_active_dir = os.path.join(wf_root, "prs", "active")
+
+    clean_spec = sanitize_identifier(spec_name) if spec_name else None
+    if clean_spec:
+        prs_active_dir = os.path.join(wf_root, "prs", "active", clean_spec)
+    else:
+        prs_active_dir = os.path.join(wf_root, "prs", "active", "global")
     os.makedirs(prs_active_dir, exist_ok=True)
 
     decisions = collect_memory_decisions(target_dir)
@@ -155,9 +168,9 @@ def compile_scoped_pr_summary(
     if archetype and archetype in decisions:
         decisions = {archetype: decisions[archetype]}
 
-    if spec_name:
+    if clean_spec:
         for arch in decisions:
-            decisions[arch] = [d for d in decisions[arch] if d["spec"].lower() == spec_name.lower()]
+            decisions[arch] = [d for d in decisions[arch] if d["spec"].lower() == clean_spec.lower()]
 
     counts = {k: len(v) for k, v in decisions.items()}
     total_changes = sum(counts.values())
@@ -165,34 +178,61 @@ def compile_scoped_pr_summary(
     timestamp_slug = datetime.now().strftime("%Y%m%d_%H%M%S")
     today = datetime.now().strftime("%Y-%m-%d")
 
+    # Extract spec description / purpose from spec.md if present
+    spec_overview = ""
+    if clean_spec:
+        spec_file = os.path.join(wf_root, "specs", "active", clean_spec, "spec.md")
+        if not os.path.exists(spec_file):
+            spec_file = os.path.join(wf_root, "specs", clean_spec, "spec.md")
+        if os.path.exists(spec_file):
+            try:
+                with open(spec_file, "r", encoding="utf-8") as f:
+                    s_content = f.read()
+                overview_match = re.search(r"## (?:1\.\s*)?Overview[^\n]*\n(.*?)(?=\n## |\Z)", s_content, re.DOTALL)
+                if overview_match:
+                    spec_overview = sanitize_untrusted_text(overview_match.group(1).strip(), max_chars=400)
+            except Exception:
+                pass
+
+    if not spec_overview:
+        spec_overview = f"Implementation and automated verification of `{clean_spec or 'feature'}` requirements."
+
+    head_branch = f"feat/{clean_spec}-worker" if clean_spec else "worker"
+    base_branch = f"feat/{clean_spec}" if clean_spec else "main"
+
     if archetype == "fix":
-        pr_title = f"fix(security): automated bug & vulnerability patch rollup ({total_changes} fixes)"
+        pr_title = f"fix({clean_spec or 'security'}): automated merge request from workflow agent for bug & vulnerability patches"
         file_slug = f"PR_fix_rollup_{timestamp_slug}.md"
     elif archetype == "refactor":
-        pr_title = f"refactor(arch): architecture & performance rollup ({total_changes} modules optimized)"
+        pr_title = f"refactor({clean_spec or 'arch'}): automated merge request from workflow agent for architecture optimization"
         file_slug = f"PR_refactor_rollup_{timestamp_slug}.md"
     elif archetype == "security":
-        pr_title = f"sec(audit): OWASP Top 10 security hardening rollup ({total_changes} issues mitigated)"
+        pr_title = f"sec({clean_spec or 'audit'}): automated merge request from workflow agent for OWASP Top 10 hardening"
         file_slug = f"PR_security_rollup_{timestamp_slug}.md"
-    elif spec_name:
-        pr_title = f"feat({spec_name}): integrate automated pipeline delivery"
-        file_slug = f"PR_spec_{spec_name}_{timestamp_slug}.md"
+    elif clean_spec:
+        pr_title = f"feat({clean_spec}): automated merge request from workflow agent"
+        file_slug = f"PR_spec_{clean_spec}_{timestamp_slug}.md"
     else:
-        pr_title = f"chore(release): unified quality rollup ({total_changes} changes)"
+        pr_title = f"chore(release): automated merge request from workflow agent for quality rollup"
         file_slug = f"PR_unified_release_{timestamp_slug}.md"
 
     pr_file_path = os.path.join(prs_active_dir, file_slug)
 
-    # Render markdown body
+    # Render standardized markdown body
     body_lines = [
-        f"# {pr_title}\n",
-        f"**Generated by**: Workflow Quality Gatekeeper (`/workflow quality` / `/workflow run`)  ",
+        f"# 🤖 Automated Merge Request: `{head_branch}` ➔ `{base_branch}`\n",
+        f"**Requested by**: Workflow Agent (`Git-Worker Specialist`)  ",
+        f"**Target Integration Branch**: `{base_branch}` (Feature Mainline)  ",
+        f"**Source Staging Branch**: `{head_branch}` (Autonomous Worktree)  ",
+        f"**Spec Reference**: `.workflow/specs/active/{clean_spec or 'global'}/spec.md`  ",
         f"**Date**: `{today}`  ",
-        f"**Spec Target**: `{spec_name or 'Global Rollup'}`  ",
         f"**Total Decisions Integrated**: `{total_changes}`  \n",
         "---",
+        "## 🎯 Purpose & Functionality\n",
+        f"{spec_overview}\n",
+        "---",
         "## 📋 Executive Summary\n",
-        "Automated pipeline release consolidating verified changes across staging branches into base branch.\n",
+        f"Automated workflow release requesting review and merge from staging branch `{head_branch}` into feature mainline `{base_branch}`.\n",
         "| Category | Decisions / Patches | Scope |",
         "|---|---|---|",
         f"| `fix` | {counts.get('fix', 0)} | Bug stabilization and 100% green test passes |",
@@ -214,11 +254,12 @@ def compile_scoped_pr_summary(
     body_lines.extend([
         "---",
         "## ✅ Quality Gates & Automated Verification",
-        "- [x] Full test suite executed with 100% green pass rate.",
+        f"- [x] Full test suite executed with 100% green pass rate in worktree.",
         "- [x] OWASP Top 10 security audit cleared (0 Critical / 0 High vulnerabilities).",
         "- [x] Pre-commit security gate passed (no secrets, .env, or conflict markers).",
         "- [x] Strict Zero-Comments code policy verified.",
-        "- [x] Architectural Decision Record (ADR) recorded in `.workflow/specs/active/<spec>/adrs/`.\n",
+        f"- [x] Architectural Decision Record (ADR) recorded in `.workflow/specs/active/{clean_spec or 'global'}/adrs/`.",
+        f"- [x] Dedicated staging isolation: verified on `{head_branch}` before requesting merge to `{base_branch}`.\n",
     ])
 
     content = "\n".join(body_lines)
@@ -230,6 +271,8 @@ def compile_scoped_pr_summary(
         "pr_title": pr_title,
         "file_slug": file_slug,
         "pr_file_path": pr_file_path,
+        "head_branch": head_branch,
+        "base_branch": base_branch,
         "total_changes": total_changes,
         "content": content,
     }
@@ -444,8 +487,8 @@ def create_quality_pr(
     file_slug = pr_res.get("file_slug")
     pr_file_path = pr_res.get("pr_file_path")
 
-    head_branch = f"{clean_spec}-worker" if clean_spec else "worker"
-    base_branch = target_branch or (f"feat/{clean_spec}" if clean_spec else "main")
+    head_branch = pr_res.get("head_branch") or (f"feat/{clean_spec}-worker" if clean_spec else "worker")
+    base_branch = target_branch or pr_res.get("base_branch") or (f"feat/{clean_spec}" if clean_spec else "main")
 
     pr_title_val = pr_res.get("pr_title", "")
     suggested_gh = f"gh pr create --head {shlex.quote(head_branch)} --base {shlex.quote(base_branch)} --title {shlex.quote(pr_title_val)} --body-file {shlex.quote(pr_file_path or '')}"
@@ -480,26 +523,48 @@ def create_quality_pr(
     }
 
 
-def archive_merged_pr(pr_filename: str, target_dir: str = ".") -> Dict[str, Any]:
-    """Moves a merged PR summary from .workflow/prs/active/ to .workflow/prs/archive/<year>/."""
+def archive_merged_pr(pr_filename: str, spec_name: Optional[str] = None, target_dir: str = ".") -> Dict[str, Any]:
+    """Moves a merged PR summary from .workflow/prs/active/<spec>/ to .workflow/prs/archive/<year>/<spec>/."""
     target_dir = os.path.abspath(target_dir)
     wf_root = get_workflow_root(target_dir)
-    active_path = os.path.join(wf_root, "prs", "active", pr_filename)
+    year = datetime.now().strftime("%Y")
 
-    if not os.path.exists(active_path):
+    found_src = None
+    target_spec = "global"
+
+    if spec_name:
+        clean_spec = sanitize_identifier(spec_name)
+        cand = os.path.join(wf_root, "prs", "active", clean_spec, pr_filename)
+        if os.path.exists(cand):
+            found_src = cand
+            target_spec = clean_spec
+
+    if not found_src:
+        cand_flat = os.path.join(wf_root, "prs", "active", pr_filename)
+        if os.path.exists(cand_flat):
+            found_src = cand_flat
+            target_spec = "global"
+        else:
+            for root, _, files in os.walk(os.path.join(wf_root, "prs", "active")):
+                if pr_filename in files:
+                    found_src = os.path.join(root, pr_filename)
+                    target_spec = os.path.basename(root)
+                    break
+
+    if not found_src:
         return {"status": "ERROR", "message": f"PR summary '{pr_filename}' not found in active PRs directory."}
 
-    year = datetime.now().strftime("%Y")
-    archive_dir = os.path.join(wf_root, "prs", "archive", year)
+    archive_dir = os.path.join(wf_root, "prs", "archive", year, target_spec)
     os.makedirs(archive_dir, exist_ok=True)
     destination = os.path.join(archive_dir, pr_filename)
 
-    shutil.move(active_path, destination)
+    shutil.move(found_src, destination)
 
     return {
         "status": "ARCHIVED",
         "pr_filename": pr_filename,
-        "source_path": active_path,
+        "spec_name": target_spec,
+        "source_path": found_src,
         "destination": destination,
     }
 

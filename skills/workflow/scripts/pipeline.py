@@ -122,12 +122,12 @@ class PipelineRunner:
         ensure_gitignore_configured(self.target_dir)
 
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
-        worker_branch = f"{clean_spec}-worker"
+        worker_branch = f"feat/{clean_spec}-worker"
 
         curr_branch = get_current_branch(self.target_dir)
         protected_active = is_protected_branch(curr_branch)
 
-        # Prioritize feat/<spec> then <spec>
+        # Prioritize feat/<spec> as feature mainline
         feat_branch = f"feat/{clean_spec}"
         feat_ref = run_git(["rev-parse", "--verify", f"refs/heads/{feat_branch}"], cwd=self.target_dir)
         spec_ref = run_git(["rev-parse", "--verify", f"refs/heads/{clean_spec}"], cwd=self.target_dir)
@@ -136,11 +136,10 @@ class PipelineRunner:
             target_base = feat_branch
         elif spec_ref.returncode == 0:
             target_base = clean_spec
-        elif protected_active:
+        else:
+            # Create feature branch if missing
             run_git(["branch", feat_branch, curr_branch], cwd=self.target_dir)
             target_base = feat_branch
-        else:
-            target_base = curr_branch if not protected_active else get_default_branch(self.target_dir)
 
         wt_res = create_worktree(
             name="worker",
@@ -262,10 +261,12 @@ class PipelineRunner:
     ) -> Dict[str, Any]:
         """Stage 7: Git commit synthesis, grilling confirmation metadata, and optional PR creation."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
-        worker_branch = f"{clean_spec}-worker"
-        target_base = get_default_branch(self.target_dir)
+        worker_branch = f"feat/{clean_spec}-worker"
+        feat_branch = f"feat/{clean_spec}"
+        feat_ref = run_git(["rev-parse", "--verify", f"refs/heads/{feat_branch}"], cwd=self.target_dir)
+        target_base = feat_branch if feat_ref.returncode == 0 else get_default_branch(self.target_dir)
 
-        pr_summary = compile_scoped_pr_summary(clean_spec, target_dir=self.target_dir)
+        pr_summary = compile_scoped_pr_summary(self.target_dir, spec_name=clean_spec)
 
         gh_readiness = check_gh_readiness(self.target_dir)
         pr_creation_status = "SKIPPED"
@@ -303,7 +304,7 @@ class PipelineRunner:
                     pr_creation_status = pr_res.get("status", "PR_FAILED")
                     pr_creation_message = pr_res.get("message")
 
-        pr_title_val = pr_summary.get("pr_title", f"feat({clean_spec}): integrate automated pipeline improvements")
+        pr_title_val = pr_summary.get("pr_title", f"feat({clean_spec}): automated merge request from workflow agent")
         pr_body_val = pr_summary.get("pr_file_path", "")
         suggested_push = f"git push -u origin {shlex.quote(worker_branch)}"
         suggested_gh = f"gh pr create --head {shlex.quote(worker_branch)} --base {shlex.quote(target_base)} --title {shlex.quote(pr_title_val)} --body-file {shlex.quote(pr_body_val)}"
@@ -369,7 +370,7 @@ class PipelineRunner:
                 "dry_run": True,
                 "spec_name": clean_spec,
                 "spec_file": spec_info.get("spec_file"),
-                "staging_branch": f"{clean_spec}-worker",
+                "staging_branch": f"feat/{clean_spec}-worker",
                 "target_base": target_base,
                 "current_branch": curr_b,
                 "worktree_path": rel_wt,
@@ -388,7 +389,7 @@ class PipelineRunner:
         initial_state = {
             "target_dir": self.target_dir,
             "spec_name": clean_spec,
-            "staging_branch": sync_res.get("staging_branch", f"{clean_spec}-worker"),
+            "staging_branch": sync_res.get("staging_branch", f"feat/{clean_spec}-worker"),
             "target_base": sync_res.get("target_base", "main"),
             "current_branch": sync_res.get("current_branch", "main"),
             "on_protected_branch": sync_res.get("on_protected_branch", False),
@@ -484,8 +485,8 @@ class PipelineRunner:
         return {
             "status": "SUCCESS",
             "spec_name": clean_spec,
-            "staging_branch": sync_res.get("staging_branch", f"{clean_spec}-worker"),
-            "target_base": sync_res.get("target_base", "main"),
+            "staging_branch": sync_res.get("staging_branch", f"feat/{clean_spec}-worker"),
+            "target_base": sync_res.get("target_base", f"feat/{clean_spec}"),
             "current_branch": sync_res.get("current_branch", "main"),
             "on_protected_branch": sync_res.get("on_protected_branch", False),
             "worktree_path": rel_wt_path,

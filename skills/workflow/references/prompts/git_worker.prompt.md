@@ -46,11 +46,11 @@ Once confirmed by the human developer:
    ```bash
    # If remote push was authorized:
    uv run skills/workflow/scripts/git_ops.py pr \
-     --head <spec-name>-worker \
+     --head feat/<spec-name>-worker \
      --base feat/<spec-name> \
-     --title "feat(<spec-name>): integrate automated pipeline delivery" \
+     --title "feat(<spec-name>): automated merge request from workflow agent" \
      --push \
-     --body-file ".workflow/prs/active/PR_spec_<spec-name>_<timestamp>.md" \
+     --body-file ".workflow/prs/active/<spec-name>/PR_spec_<spec-name>_<timestamp>.md" \
      --target-dir ".workflow/worktrees/<spec-name>/worker"
    ```
 
@@ -64,8 +64,8 @@ Before attempting automated PR creation or remote pushing:
    - If `gh` is not installed or not authenticated (`gh auth login`), automated PR creation via `gh pr create` is skipped gracefully.
    - The subagent MUST NOT fail abruptly.
    - Instead, inform the developer during the Grilling Session and provide the exact manual fallback commands:
-     - `git push -u origin <spec-name>-worker`
-     - `git checkout feat/<spec-name> && git merge --no-ff <spec-name>-worker`
+     - `git push -u origin feat/<spec-name>-worker`
+     - `git checkout feat/<spec-name> && git merge --no-ff feat/<spec-name>-worker`
      - Or opening a PR manually on GitHub via the web interface.
 
 ---

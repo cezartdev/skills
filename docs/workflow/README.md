@@ -170,7 +170,7 @@ When `/workflow run <spec>` is executed, the AI Agent registers and launches 7 s
 ### 7. Strict Hierarchical Worktrees & Subagent Branch Scoping
 Every physical worktree is **strictly dependent on and scoped to a specification and its designated subagent**:
 - **Feature / Developer Branch**: Primary implementation takes place directly on `feat/<spec-name>` (e.g., `feat/user-login`).
-- **Staging Branch**: Autonomous subagents operate on dedicated staging branch `<spec-name>-worker` inside `.workflow/worktrees/<spec-name>/worker/`.
+- **Staging Branch**: Autonomous subagents operate on dedicated staging branch `feat/<spec-name>-worker` inside `.workflow/worktrees/<spec-name>/worker/`.
 - **Auto-Merge Scope**: Auto-merge operations target the spec's associated branch (`feat/user-login`), never solely `main`.
 - **ADR Audit Trail**: Versioned ADRs stored in `.workflow/specs/active/<spec>/adrs/ADR_<timestamp>_pipeline_decisions.md`.
 
@@ -180,7 +180,7 @@ uv run skills/workflow/scripts/workflow_runner.py run user-login
 
 # Or execute with automatic remote push:
 uv run skills/workflow/scripts/workflow_runner.py run user-login --push
-# => Worktree: .workflow/worktrees/user-login/worker/ (Branch: user-login-worker)
+# => Worktree: .workflow/worktrees/user-login/worker/ (Branch: feat/user-login-worker)
 # => Spawns Implementer -> Fix-Worker -> Refactor-Worker -> Security-Worker -> Quality-Worker -> Doc-Worker -> Git-Worker
 # => Quality-Worker audits 100% tests, OWASP security clearance & zero comments
 # => Generates ADR in .workflow/specs/active/user-login/adrs/

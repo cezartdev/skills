@@ -364,9 +364,9 @@ def node_pr_delivery(state: Dict[str, Any]) -> Dict[str, Any]:
     spec_name = state["spec_name"]
     worker_branch = state["staging_branch"]
     target_base = state["target_base"]
-    pr_file = state.get("pr_summary", {}).get("pr_file", f".workflow/prs/active/PR_spec_{spec_name}.md")
+    pr_file = state.get("pr_summary", {}).get("pr_file", f".workflow/prs/active/{spec_name}/PR_spec_{spec_name}.md")
 
-    title_str = f"feat({spec_name}): integrate automated pipeline improvements"
+    title_str = f"feat({spec_name}): automated merge request from workflow agent"
     suggested_gh = f"gh pr create --head {shlex.quote(worker_branch)} --base {shlex.quote(target_base)} --title {shlex.quote(title_str)} --body-file {shlex.quote(pr_file)}"
     suggested_git = f"git checkout {shlex.quote(target_base)} && git merge --no-ff {shlex.quote(worker_branch)}"
 
