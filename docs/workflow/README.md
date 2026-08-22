@@ -138,8 +138,8 @@ uv run skills/workflow/scripts/workflow_runner.py run user-login --from quality
 # Automatic remote push to origin upon successful completion (Default is local commit only):
 uv run skills/workflow/scripts/workflow_runner.py run user-login --push
 
-# Force code auto-formatting during pipeline execution:
-uv run skills/workflow/scripts/workflow_runner.py run user-login --format
+# Create or update GitHub Pull Request targeting feat/<spec>:
+uv run skills/workflow/scripts/workflow_runner.py pr user-login
 
 # Stop active pipeline tasks:
 uv run skills/workflow/scripts/workflow_runner.py stop user-login

@@ -28,9 +28,10 @@ from memory_manager import (
     update_project_business_context,
     read_project_business_context,
 )
-from worktree_manager import prune_worktrees, run_git, ensure_git_repository
+from worktree_manager import prune_worktrees, run_git, ensure_git_repository, get_default_branch
 from quality_auditor import audit_spec, audit_plan, audit_tasks, analyze_spec_consistency
-from quality import generate_specify_adr
+from quality import generate_specify_adr, compile_scoped_pr_summary
+from git_ops import create_github_pull_request, check_gh_readiness
 from pipeline import PipelineRunner
 
 
@@ -632,10 +633,93 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"   Candidates: (Recommended) feat/{raw_base} | {raw_base} | fix/{raw_base}")
 
     print_next_steps([
+        {"cmd": f"/workflow pr {res['spec_name']}", "desc": "Open or update GitHub Pull Request targeting feat/" + res['spec_name']},
         {"cmd": f"/workflow archive {res['spec_name']}", "desc": "Archive completed specification when merged"},
         {"cmd": "/workflow clean", "desc": "Clean up ephemeral worktrees and reset staging"},
     ])
     return 0
+
+
+def cmd_pr(args: argparse.Namespace) -> int:
+    """Creates or updates a GitHub Pull Request targeting feat/<spec-name> for an active specification."""
+    target_dir = os.path.abspath(getattr(args, "target_dir", ".") or ".")
+    spec_name = getattr(args, "spec_name", None) or getattr(args, "spec", None)
+    if not spec_name:
+        print("Error: Specification name is required. Example: workflow pr editor-init-and-structure", file=sys.stderr)
+        return 1
+
+    clean_spec = sanitize_identifier(spec_name)
+    push = not getattr(args, "no_push", False)
+    custom_title = getattr(args, "title", None)
+
+    # 1. Compile/verify PR summary markdown
+    pr_summary = compile_scoped_pr_summary(target_dir, spec_name=clean_spec)
+    pr_file_path = pr_summary.get("pr_file_path")
+    pr_title = custom_title or pr_summary.get("pr_title", f"feat({clean_spec}): automated merge request from workflow agent")
+
+    head_branch = f"feat/{clean_spec}-worker"
+    base_branch = f"feat/{clean_spec}"
+
+    # 2. Check if git repo exists
+    ensure_git_repository(target_dir)
+
+    # 3. Ensure base branch exists locally
+    feat_ref = run_git(["rev-parse", "--verify", f"refs/heads/{base_branch}"], cwd=target_dir)
+    if feat_ref.returncode != 0:
+        default_b = get_default_branch(target_dir)
+        run_git(["branch", base_branch, default_b], cwd=target_dir)
+
+    # 4. Check gh readiness
+    gh_info = check_gh_readiness(target_dir)
+    if not gh_info["ready"]:
+        print("=" * 110)
+        print(f" ⚠️  GITHUB CLI NOT READY ({gh_info['status']})")
+        print("=" * 110)
+        print(f" {gh_info['message']}")
+        print("-" * 110)
+        print(" Manual fallback commands:")
+        print(f"   git push -u origin {base_branch}")
+        print(f"   git push -u origin {head_branch}")
+        print(f"   gh pr create --head {head_branch} --base {base_branch} --title \"{pr_title}\" --body-file \"{pr_file_path}\"")
+        print("=" * 110)
+        return 1
+
+    # 5. Create/update GitHub PR
+    res = create_github_pull_request(
+        head_branch=head_branch,
+        base_branch=base_branch,
+        title=pr_title,
+        body_file=pr_file_path,
+        target_dir=target_dir,
+        push_before_pr=push,
+    )
+
+    if getattr(args, "json", False):
+        print(json.dumps(res, indent=2))
+        return 0 if res.get("ready") else 1
+
+    if res.get("status") in ("SUCCESS", "PR_UPDATED"):
+        print("=" * 110)
+        action_verb = "UPDATED" if res.get("status") == "PR_UPDATED" else "CREATED"
+        print(f" 🚀 PULL REQUEST {action_verb}: '{clean_spec}'")
+        print("=" * 110)
+        print(f"{'PR URL':<24} │ {res.get('pr_url')}")
+        print(f"{'Source Branch (Head)':<24} │ {head_branch}")
+        print(f"{'Target Branch (Base)':<24} │ {base_branch}")
+        print(f"{'PR Summary Document':<24} │ {pr_file_path}")
+        print("=" * 110)
+        print_next_steps([
+            {"cmd": f"/workflow archive {clean_spec}", "desc": "Archive specification once PR is reviewed & merged"},
+            {"cmd": "/workflow clean", "desc": "Prune ephemeral staging worktrees"},
+        ])
+        return 0
+    else:
+        print("=" * 110)
+        print(f" ❌ FAILED TO CREATE PULL REQUEST: '{clean_spec}'")
+        print("=" * 110)
+        print(f" Error: {res.get('message')}")
+        print("=" * 110)
+        return 1
 
 
 def resolve_spec_and_target_dir(args: argparse.Namespace) -> Tuple[Optional[str], str]:
@@ -835,6 +919,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow tasks", "syntax": "workflow tasks <name>", "desc": "Decompose technical plan into atomic tasks (tasks.md & issues/)"},
         {"slash": "/workflow analyze", "syntax": "workflow analyze <name>", "desc": "Auditoría previa: static consistency audit across spec, plan & tasks"},
         {"slash": "/workflow run", "syntax": "workflow run <spec> [--only <s>] [--from <s>] [--dry-run] [--push]", "desc": "Primary Engine: Run deterministic 7-stage subagent pipeline"},
+        {"slash": "/workflow pr", "syntax": "workflow pr <spec> [--title <title>] [--no-push]", "desc": "Create or update GitHub Pull Request targeting feat/<spec>"},
         {"slash": "/workflow stop", "syntax": "workflow stop [spec]", "desc": "Stop background pipeline schedulers and cancel active workflow tasks"},
         {"slash": "/workflow clean", "syntax": "workflow clean", "desc": "Clean up completed ephemeral worktrees and prune stale git directory entries"},
         {"slash": "/workflow archive", "syntax": "workflow archive <name>", "desc": "Move completed spec to .workflow/specs/archive/<year>/"},
@@ -950,6 +1035,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--push", action="store_true", default=False, help="Push staging branch to remote origin upon commit (Default: False for security)")
     p_run.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
+    # pr
+    p_pr = subparsers.add_parser("pr", help="Create or update GitHub Pull Request targeting feat/<spec> for an active spec")
+    p_pr.add_argument("spec_name", help="Name of the specification (e.g. editor-init-and-structure)")
+    p_pr.add_argument("--title", help="Custom Pull Request title")
+    p_pr.add_argument("--no-push", action="store_true", help="Do not push branch to origin before creating PR")
+    p_pr.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
+
     # stop
     p_stop = subparsers.add_parser("stop", help="Stop background pipeline schedulers and cancel active workflow tasks")
     p_stop.add_argument("spec_name", nargs="?", help="Optional specification name to stop (stops all if omitted)")
@@ -992,6 +1084,7 @@ def main() -> int:
         "tasks": cmd_tasks,
         "analyze": cmd_analyze,
         "run": cmd_run,
+        "pr": cmd_pr,
         "stop": cmd_stop,
         "clean": cmd_clean,
         "archive": cmd_archive,
