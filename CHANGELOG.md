@@ -1,5 +1,43 @@
 # cezartdev-skills
 
+## 1.14.3
+
+### Patch Changes
+
+- [`69eff39`](https://github.com/cezartdev/skills/commit/69eff39dc50deba8e989a7fbf9c2df6baf6e6294) Thanks [@cezartdev](https://github.com/cezartdev)! - fix(workflow): implement GitHub CLI readiness validation and graceful PR fallbacks for Git-Worker
+  
+  - Add `check_gh_readiness()` in `git_ops.py` to validate `gh` installation, `gh auth status`, and remote `origin` configuration.
+  - Integrate validation gate into `create_github_pull_request()` and Stage 7 (`run_stage_git`) in `pipeline.py`.
+  - Update `git_worker.prompt.md` system prompt with fallback directives when `gh` is unavailable or unauthenticated.
+  - Display `gh` readiness status and helpful remediation messages in `/workflow run` summary.
+
+- [`faa119b`](https://github.com/cezartdev/skills/commit/faa119b77a98f7e13a364f8e863c9f41cfebff83) Thanks [@cezartdev](https://github.com/cezartdev)! - docs(workflow): display granular pipeline execution parameters and stage options in list command
+  
+  - Update `/workflow list` table and reference guide with `--only <stage>`, `--from <stage>`, and `--dry-run` options.
+  - Add structured pipeline options to JSON output and human-readable CLI table.
+
+- [`f3b95b1`](https://github.com/cezartdev/skills/commit/f3b95b12f1ddd7f1ab5da20232473c5f0e34f046) Thanks [@cezartdev](https://github.com/cezartdev)! - refactor(workflow): delegate ADR consolidation and canonical PR summary synthesis exclusively to Doc-Worker
+  
+  - Eliminate duplicate ADR and PR file generation across pipeline stages by establishing single canonical files (`ADR_decisions.md` and `PR_spec_<spec>.md`).
+  - Delegate complete documentation responsibility (canonical ADR consolidation, criteria checkboxes, and PR summary generation) to Doc-Worker (Stage 6).
+  - Streamline Quality-Worker (Stage 5) to pure QA evaluation and Git-Worker (Stage 7) to commit & PR delivery.
+
+- [`84efebd`](https://github.com/cezartdev/skills/commit/84efebd655bc492fa42d70e94b081f1b1a74eebe) Thanks [@cezartdev](https://github.com/cezartdev)! - fix(workflow): support incremental Pull Request updates and automated PR directory archiving
+  
+  - Automatically update existing open GitHub PRs via `gh pr edit` when repeated pipeline runs deliver new commits for the same specification.
+  - Archive `.workflow/prs/active/<spec>/` automatically to `.workflow/prs/archive/<year>/<spec>/` upon `/workflow archive <spec>`.
+
+- [`d2e046c`](https://github.com/cezartdev/skills/commit/d2e046c5bb6e19ca638f0bb88bd482c05d990903) Thanks [@cezartdev](https://github.com/cezartdev)! - feat(workflow): implement incremental 4-digit zero-padded ADR filename format
+  
+  - Format Architectural Decision Records as `0000_adr_<brief-decision-description>.md` sequentially under `.workflow/specs/active/<spec>/adrs/`.
+  - Maintain a single cumulative PR summary under `.workflow/prs/active/<spec>/PR_spec_<spec>.md` updated incrementally by Doc-Worker.
+
+- [`f943c9f`](https://github.com/cezartdev/skills/commit/f943c9f5ad0f052814a084e456447a2d26d056b1) Thanks [@cezartdev](https://github.com/cezartdev)! - feat(workflow): standardize Pull Request format, branch hierarchy, and hierarchical PR storage
+  
+  - Standardize automated PR title and body requested by Workflow Agent (`Git-Worker`) targeting `feat/<spec>` from `feat/<spec>-worker`.
+  - Organize active Pull Request summaries hierarchically under `.workflow/prs/active/<spec-name>/` and archives under `.workflow/prs/archive/<year>/<spec-name>/`.
+  - Extract and include specification purpose and functional overview in the standardized PR body.
+
 ## 1.14.2
 
 ### Patch Changes
