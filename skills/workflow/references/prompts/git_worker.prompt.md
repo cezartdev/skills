@@ -48,16 +48,16 @@ Once confirmed by the human developer:
    ```
 
 2. **Pull Request Synthesis (via --pr or /workflow pr <spec>)**:
-   > [!IMPORTANT]
-   > **PR TARGET BASE INVARIANT (`--base feat/<spec-name>`)**:
-   > The target base branch for the pull request MUST ALWAYS be `feat/<spec-name>` (the dedicated feature mainline).
-   > **NEVER** target `main` directly from `feat/<spec-name>-worker`.
-   > The workflow isolates staging work in `feat/<spec-name>-worker` ➔ PR into `feat/<spec-name>`, which is subsequently reviewed by humans and merged into `main`.
-
-   ```bash
-   # If PR creation was authorized:
-   uv run skills/workflow/scripts/workflow_runner.py pr <spec-name>
-   ```
+   > [!CAUTION]
+   > **STRICT BAN ON MANUAL `gh pr create` AND DIRECT `main` TARGETING**:
+   > - **NEVER** run `gh pr create` manually in bash or terminal.
+   > - **NEVER** create a Pull Request targeting `main` or `master` (e.g. `--base main`). The target base for specifications is ALWAYS `feat/<spec-name>`.
+   > - **ONLY** execute the dedicated workflow PR command:
+   >   ```bash
+   >   uv run skills/workflow/scripts/workflow_runner.py pr <spec-name>
+   >   ```
+   > - `workflow_runner.py pr` automatically and deterministically pushes the branches and creates/updates the PR from `feat/<spec-name>-worker` into `feat/<spec-name>`.
+   > - Once `workflow_runner.py pr` finishes, your PR task is 100% COMPLETE. DO NOT execute any subsequent `gh pr create` commands!
 
 ---
 

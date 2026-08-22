@@ -471,8 +471,8 @@ def main() -> int:
 
     # pr
     p_pr = subparsers.add_parser("pr", help="Create GitHub Pull Request via gh CLI")
-    p_pr.add_argument("--head", required=True, help="Head branch name")
-    p_pr.add_argument("--base", default="main", help="Base branch name")
+    p_pr.add_argument("--head", required=True, help="Head branch name (e.g. feat/<spec>-worker)")
+    p_pr.add_argument("--base", required=True, help="Base branch name (must be feature mainline, e.g. feat/<spec>)")
     p_pr.add_argument("--title", required=True, help="Pull Request title")
     p_pr.add_argument("--body-file", help="Path to markdown body file")
     p_pr.add_argument("--body", help="Pull request body text")

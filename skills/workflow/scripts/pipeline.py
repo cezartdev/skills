@@ -578,7 +578,7 @@ class PipelineRunner:
                 "type": "workflow-git-worker",
                 "role": "Git Subagent",
                 "prompt_file": "skills/workflow/references/prompts/git_worker.prompt.md",
-                "action": f"define_subagent(name='workflow-git-worker', description='Deterministic Conventional Commits and GitHub PR specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-git-worker', 'Role': 'Git Subagent', 'Prompt': 'Conduct Grilling Session confirmation with developer. Commit locally. Default Security: DO NOT open PR on remote origin unless --pr flag is passed or developer explicitly requests PR creation.'}}])",
+                "action": f"define_subagent(name='workflow-git-worker', description='Deterministic Conventional Commits and GitHub PR specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-git-worker', 'Role': 'Git Subagent', 'Prompt': 'Conduct Grilling Session confirmation with developer. Commit locally via git_ops.py commit. If developer authorizes PR, ONLY run `uv run skills/workflow/scripts/workflow_runner.py pr {clean_spec}`. NEVER run manual `gh pr create` and NEVER target `main` directly!'}}])",
             },
         ]
         filtered_directives = [d for d in all_directives if d["stage_key"] in active_stages]
