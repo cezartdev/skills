@@ -1,5 +1,14 @@
 # cezartdev-skills
 
+## 1.14.4
+
+### Patch Changes
+
+- [`fffb475`](https://github.com/cezartdev/skills/commit/fffb475ff322e0fb1e78e66b67f3a0718d1e8381) Thanks [@cezartdev](https://github.com/cezartdev)! - fix(workflow): enforce relative markdown paths in project context and documentation
+  
+  - Compute relative paths from `.workflow/memory/` to root files in `explorer.py` to prevent machine-specific absolute `file:///` URLs.
+  - Replace local absolute links in `README.md` and `skills/git/SKILL.md` with portable repository-relative markdown paths.
+
 ## 1.14.3
 
 ### Patch Changes
