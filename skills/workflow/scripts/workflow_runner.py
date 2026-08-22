@@ -544,8 +544,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 1
 
     auto_merge = getattr(args, "auto_merge", False)
-    create_pr = getattr(args, "create_pr", False)
-    push = getattr(args, "push", False)
+    create_pr = getattr(args, "pr", False) or getattr(args, "create_pr", False) or getattr(args, "push", False)
     only = getattr(args, "only", None)
     from_stage = getattr(args, "from_stage", None) or getattr(args, "from", None)
     dry_run = getattr(args, "dry_run", False)
@@ -555,7 +554,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         spec_name=spec_name,
         auto_merge=auto_merge,
         create_pr=create_pr,
-        push=push,
+        push=create_pr,
         only=only,
         from_stage=from_stage,
         dry_run=dry_run,
@@ -596,10 +595,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"{'Target Base Branch':<24} │ {res['target_base']}")
     print(f"{'Worktree Path':<24} │ {res['worktree_path']}")
     print(f"{'Active Stages to Run':<24} │ {' ➔ '.join(res['active_stages'])}")
-    if res.get("push_flag_active"):
-        print(f"{'Push Mode':<24} │ 🚀 Remote push to origin enabled (--push)")
+    if res.get("pr_flag_active") or res.get("push_flag_active"):
+        print(f"{'PR Mode':<24} │ 🚀 Automatic GitHub PR enabled (--pr)")
     else:
-        print(f"{'Push Mode':<24} │ 🔒 Local Commit Only (Default Security)")
+        print(f"{'PR Mode':<24} │ 🔒 Local Commit Only (Default Security: pass --pr to open GitHub PR)")
     print("=" * 110)
 
     print("\n🚨 MANDATORY SUBAGENT DISPATCH ACTION REQUIRED:")
@@ -918,7 +917,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Convert approved spec.md into technical design (plan.md)"},
         {"slash": "/workflow tasks", "syntax": "workflow tasks <name>", "desc": "Decompose technical plan into atomic tasks (tasks.md & issues/)"},
         {"slash": "/workflow analyze", "syntax": "workflow analyze <name>", "desc": "Auditoría previa: static consistency audit across spec, plan & tasks"},
-        {"slash": "/workflow run", "syntax": "workflow run <spec> [--only <s>] [--from <s>] [--dry-run] [--push]", "desc": "Primary Engine: Run deterministic 7-stage subagent pipeline"},
+        {"slash": "/workflow run", "syntax": "workflow run <spec> [--only <s>] [--from <s>] [--dry-run] [--pr]", "desc": "Primary Engine: Run deterministic 7-stage subagent pipeline"},
         {"slash": "/workflow pr", "syntax": "workflow pr <spec> [--title <title>] [--no-push]", "desc": "Create or update GitHub Pull Request targeting feat/<spec>"},
         {"slash": "/workflow stop", "syntax": "workflow stop [spec]", "desc": "Stop background pipeline schedulers and cancel active workflow tasks"},
         {"slash": "/workflow clean", "syntax": "workflow clean", "desc": "Clean up completed ephemeral worktrees and prune stale git directory entries"},
@@ -930,9 +929,8 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"option": "--only <stage>", "desc": "Run exclusively a single specified stage (implement, fix, refactor, security, quality, doc, git_worker)"},
         {"option": "--from <stage>", "desc": "Resume execution starting from specified stage to the end (e.g. --from security)"},
         {"option": "--dry-run", "desc": "Simulate pipeline execution blueprint without modifying files or spawning worktrees"},
-        {"option": "--push", "desc": "Push worker branch to remote origin upon commit (Default: local commit only)"},
+        {"option": "--pr", "desc": "Push staging branch and open GitHub Pull Request targeting feat/<spec> (Default: local commit only)"},
         {"option": "--auto-merge", "desc": "Automatically merge worker branch into feature branch upon passing all tests"},
-        {"option": "--create-pr", "desc": "Create GitHub Pull Request directly via gh CLI"},
     ]
 
     if args.json:
@@ -1031,8 +1029,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--from", "--from-stage", dest="from_stage", choices=["implement", "fix", "refactor", "security", "quality", "doc", "git_worker"], help="Resume pipeline execution starting from specified stage")
     p_run.add_argument("--dry-run", action="store_true", help="Simulate pipeline execution blueprint without modifying files or launching subagents")
     p_run.add_argument("--auto-merge", action="store_true", help="Auto-merge pipeline branch into feature branch if tests pass")
-    p_run.add_argument("--create-pr", action="store_true", help="Open GitHub PR directly via gh CLI")
-    p_run.add_argument("--push", action="store_true", default=False, help="Push staging branch to remote origin upon commit (Default: False for security)")
+    p_run.add_argument("--pr", "--create-pr", "--push", dest="pr", action="store_true", default=False, help="Push staging branch and open GitHub Pull Request targeting feat/<spec> upon completing pipeline (Default: False for local security)")
     p_run.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # pr

@@ -10,12 +10,12 @@ Execute atomic Conventional Commits and GitHub Pull Requests strictly through in
 ## 🔒 Mandatory Default Security Gate: Local Commit by Default
 
 By default, for safety and security, all commit operations are **strictly local**. The pipeline does NOT push to remote `origin` or open public PRs unless:
-1. The user explicitly invoked the pipeline with the `--push` flag (e.g. `/workflow run <spec> --push`), OR
-2. The developer explicitly authorizes a remote push during the **Interactive Grilling Session**.
+1. The user explicitly invoked the pipeline with the `--pr` flag (e.g. `/workflow run <spec> --pr`), OR
+2. The developer explicitly authorizes opening a GitHub Pull Request during the **Interactive Grilling Session**.
 
 ---
 
-## 🔒 Mandatory Grilling Session Gate (Before Commit & Push)
+## 🔒 Mandatory Grilling Session Gate (Before Commit & PR)
 
 Before committing or pushing to remote, you MUST trigger an interactive grilling session with the developer using `ask_question`:
 
@@ -23,8 +23,8 @@ Before committing or pushing to remote, you MUST trigger an interactive grilling
    - Ask developer to confirm whether to proceed with commit on `feat/<spec>-worker` targeting `feat/<spec>`.
 2. **Question 2 (Conventional Commit Scope & Header)**:
    - Present the proposed commit header: `feat(<spec>): <description>` and ask for confirmation or type adjustment.
-3. **Question 3 (Remote Push Authorization)**:
-   - Ask if remote push to `origin` should occur now (`--push`) or remain local-only (`(Recommended) Local Commit Only`).
+3. **Question 3 (GitHub Pull Request Authorization)**:
+   - Ask if GitHub Pull Request should be created now (`--pr`) or remain local-only (`(Recommended) Local Commit Only`).
 
 ---
 
@@ -42,7 +42,7 @@ Once confirmed by the human developer:
      --target-dir ".workflow/worktrees/<spec-name>/worker"
    ```
 
-2. **Pull Request Synthesis (Local or Remote with --push)**:
+2. **Pull Request Synthesis (via --pr or /workflow pr <spec>)**:
    > [!IMPORTANT]
    > **PR TARGET BASE INVARIANT (`--base feat/<spec-name>`)**:
    > The target base branch for the pull request MUST ALWAYS be `feat/<spec-name>` (the dedicated feature mainline).
@@ -50,14 +50,8 @@ Once confirmed by the human developer:
    > The workflow isolates staging work in `feat/<spec-name>-worker` ➔ PR into `feat/<spec-name>`, which is subsequently reviewed by humans and merged into `main`.
 
    ```bash
-   # If remote push was authorized:
-   uv run skills/workflow/scripts/git_ops.py pr \
-     --head feat/<spec-name>-worker \
-     --base feat/<spec-name> \
-     --title "feat(<spec-name>): automated merge request from workflow agent" \
-     --push \
-     --body-file ".workflow/prs/active/<spec-name>/PR_spec_<spec-name>.md" \
-     --target-dir ".workflow/worktrees/<spec-name>/worker"
+   # If PR creation was authorized:
+   uv run skills/workflow/scripts/workflow_runner.py pr <spec-name>
    ```
 
 ---

@@ -135,8 +135,8 @@ uv run skills/workflow/scripts/workflow_runner.py run user-login --only security
 # Resume pipeline from a specific stage onward (e.g. Quality Gatekeeper):
 uv run skills/workflow/scripts/workflow_runner.py run user-login --from quality
 
-# Automatic remote push to origin upon successful completion (Default is local commit only):
-uv run skills/workflow/scripts/workflow_runner.py run user-login --push
+# Automatic Pull Request creation on GitHub upon completion (Default is local commit only):
+uv run skills/workflow/scripts/workflow_runner.py run user-login --pr
 
 # Create or update GitHub Pull Request targeting feat/<spec>:
 uv run skills/workflow/scripts/workflow_runner.py pr user-login
@@ -162,7 +162,7 @@ When `/workflow run <spec>` is executed, the AI Agent registers and launches 7 s
 | `workflow-security-worker` | **Security Subagent** | `references/prompts/security_worker.prompt.md` | Scans OWASP Top 10 SAST patterns, secret leaks, and dependency CVEs. |
 | `workflow-quality-worker` | **Quality Subagent** | `references/prompts/quality_worker.prompt.md` | Evaluates holistic quality score (100/100, zero comments, security clearance) and routes feedback loops. |
 | `workflow-doc-worker` | **Doc Subagent** | `references/prompts/doc_worker.prompt.md` | Single documentation authority: authors incremental ADRs (`0000_adr_<slug>.md`), syncs markdown documentation and `spec.md` criteria checkboxes, and compiles canonical PR summaries. |
-| `workflow-git-worker` | **Git Subagent** | `references/prompts/git_worker.prompt.md` | Conducts interactive Grilling Sessions (`ask_question`) with developer before commits/pushes, executing deterministic Conventional Commits and PRs. Local commits only by default unless `--push` is provided. |
+| `workflow-git-worker` | **Git Subagent** | `references/prompts/git_worker.prompt.md` | Conducts interactive Grilling Sessions (`ask_question`) with developer before commits/PRs, executing deterministic Conventional Commits and PRs. Local commits only by default unless `--pr` is provided. |
 
 ### 7. Strict Hierarchical Worktrees & Subagent Branch Scoping
 Every physical worktree is **strictly dependent on and scoped to a specification and its designated subagent**:
@@ -176,8 +176,8 @@ Every physical worktree is **strictly dependent on and scoped to a specification
 # Execute the full pipeline on-demand (local commit by default):
 uv run skills/workflow/scripts/workflow_runner.py run user-login
 
-# Or execute with automatic remote push:
-uv run skills/workflow/scripts/workflow_runner.py run user-login --push
+# Or execute with automatic remote push and GitHub Pull Request creation:
+uv run skills/workflow/scripts/workflow_runner.py run user-login --pr
 # => Worktree: .workflow/worktrees/user-login/worker/ (Branch: feat/user-login-worker)
 # => Spawns Implementer -> Fix-Worker -> Refactor-Worker -> Security-Worker -> Quality-Worker -> Doc-Worker -> Git-Worker
 # => Quality-Worker audits 100% tests, OWASP security clearance & zero comments

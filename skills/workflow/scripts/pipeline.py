@@ -463,13 +463,14 @@ class PipelineRunner:
 
         # Step 5: Git Subagent Execution
         git_res = {}
+        pr_mode = create_pr or push
         if "git_worker" in active_stages:
             git_res = self.run_stage_git(
                 clean_spec,
                 wt_path,
                 auto_merge=auto_merge,
-                create_pr=create_pr,
-                push=push,
+                create_pr=pr_mode,
+                push=pr_mode,
                 pr_summary=doc_res.get("pr_summary"),
             )
 
@@ -577,7 +578,7 @@ class PipelineRunner:
                 "type": "workflow-git-worker",
                 "role": "Git Subagent",
                 "prompt_file": "skills/workflow/references/prompts/git_worker.prompt.md",
-                "action": f"define_subagent(name='workflow-git-worker', description='Deterministic Conventional Commits and GitHub PR specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-git-worker', 'Role': 'Git Subagent', 'Prompt': 'Conduct Grilling Session confirmation with developer. Commit locally. Default Security: DO NOT push to origin unless --push flag is passed or developer explicitly requests remote push.'}}])",
+                "action": f"define_subagent(name='workflow-git-worker', description='Deterministic Conventional Commits and GitHub PR specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-git-worker', 'Role': 'Git Subagent', 'Prompt': 'Conduct Grilling Session confirmation with developer. Commit locally. Default Security: DO NOT open PR on remote origin unless --pr flag is passed or developer explicitly requests PR creation.'}}])",
             },
         ]
         filtered_directives = [d for d in all_directives if d["stage_key"] in active_stages]
@@ -593,7 +594,8 @@ class PipelineRunner:
             "elapsed_seconds": elapsed,
             "active_stages": active_stages,
             "stages": [s for s in stages if s["stage"].split("_", 1)[1] in active_stages],
-            "push_flag_active": push,
+            "pr_flag_active": pr_mode,
+            "push_flag_active": pr_mode,
             "push_status": git_res.get("push_status"),
             "adr": doc_res.get("adr"),
             "security_report": sec_res.get("report_file"),
