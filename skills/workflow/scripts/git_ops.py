@@ -301,6 +301,9 @@ def create_github_pull_request(
 
     # 2. Push branch if requested
     if push_before_pr:
+        if base_branch not in ("main", "master"):
+            run_git_cmd(["push", "-u", "origin", base_branch], cwd=target_dir)
+
         code, _, push_err = run_git_cmd(["push", "-u", "origin", head_branch], cwd=target_dir)
         if code != 0:
             return {

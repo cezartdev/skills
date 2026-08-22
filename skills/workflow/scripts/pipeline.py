@@ -283,7 +283,10 @@ class PipelineRunner:
         worker_branch = f"feat/{clean_spec}-worker"
         feat_branch = f"feat/{clean_spec}"
         feat_ref = run_git(["rev-parse", "--verify", f"refs/heads/{feat_branch}"], cwd=self.target_dir)
-        target_base = feat_branch if feat_ref.returncode == 0 else get_default_branch(self.target_dir)
+        if feat_ref.returncode != 0:
+            default_b = get_default_branch(self.target_dir)
+            run_git(["branch", feat_branch, default_b], cwd=self.target_dir)
+        target_base = feat_branch
 
         if not pr_summary:
             pr_summary = compile_scoped_pr_summary(self.target_dir, spec_name=clean_spec)
@@ -293,6 +296,9 @@ class PipelineRunner:
         pr_creation_message = None
 
         if push:
+            # Ensure base feature branch exists on origin before pushing worker branch or opening PR
+            if target_base not in ("main", "master"):
+                run_git(["push", "-u", "origin", target_base], cwd=self.target_dir)
             push_res = run_git(["push", "-u", "origin", worker_branch], cwd=self.target_dir)
             push_status = "PUSHED_TO_ORIGIN" if push_res.returncode == 0 else f"PUSH_FAILED: {push_res.stderr.strip()}"
         else:

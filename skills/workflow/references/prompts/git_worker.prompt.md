@@ -43,6 +43,12 @@ Once confirmed by the human developer:
    ```
 
 2. **Pull Request Synthesis (Local or Remote with --push)**:
+   > [!IMPORTANT]
+   > **PR TARGET BASE INVARIANT (`--base feat/<spec-name>`)**:
+   > The target base branch for the pull request MUST ALWAYS be `feat/<spec-name>` (the dedicated feature mainline).
+   > **NEVER** target `main` directly from `feat/<spec-name>-worker`.
+   > The workflow isolates staging work in `feat/<spec-name>-worker` ➔ PR into `feat/<spec-name>`, which is subsequently reviewed by humans and merged into `main`.
+
    ```bash
    # If remote push was authorized:
    uv run skills/workflow/scripts/git_ops.py pr \
@@ -50,7 +56,7 @@ Once confirmed by the human developer:
      --base feat/<spec-name> \
      --title "feat(<spec-name>): automated merge request from workflow agent" \
      --push \
-     --body-file ".workflow/prs/active/<spec-name>/PR_spec_<spec-name>_<timestamp>.md" \
+     --body-file ".workflow/prs/active/<spec-name>/PR_spec_<spec-name>.md" \
      --target-dir ".workflow/worktrees/<spec-name>/worker"
    ```
 
