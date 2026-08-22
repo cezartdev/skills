@@ -602,6 +602,16 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"{'Push Status':<24} │ 🚀 Pushed to origin ({res.get('push_status')})")
     else:
         print(f"{'Push Status':<24} │ 🔒 Local Commit Only (Default Security: pass --push to push to origin)")
+    gh_info = res.get("gh_readiness") or {}
+    if gh_info:
+        if gh_info.get("ready"):
+            print(f"{'GitHub CLI (gh)':<24} │ 🟢 Ready & Authenticated")
+        else:
+            print(f"{'GitHub CLI (gh)':<24} │ ⚠️  {gh_info.get('status')} ({gh_info.get('message')})")
+    if res.get("pr_creation_status") == "PR_CREATED":
+        print(f"{'GitHub PR Created':<24} │ 🚀 {res.get('pr_url')}")
+    elif res.get("pr_creation_message"):
+        print(f"{'GitHub PR Status':<24} │ ⚠️  {res.get('pr_creation_status')}: {res.get('pr_creation_message')}")
     if res.get("adr") and res["adr"].get("adr_file"):
         print(f"{'ADR Record':<24} │ {res['adr']['adr_file']}")
     if res.get("pr_summary") and res["pr_summary"].get("pr_file"):

@@ -225,6 +225,57 @@ def execute_atomic_commit(
     }
 
 
+def check_gh_readiness(target_dir: str = ".") -> Dict[str, Any]:
+    """Validates if GitHub CLI ('gh') is installed, authenticated, and has a configured remote origin."""
+    target_dir = os.path.abspath(target_dir)
+
+    # 1. Check if gh CLI is installed
+    gh_bin = shutil.which("gh")
+    if not gh_bin:
+        return {
+            "installed": False,
+            "authenticated": False,
+            "has_remote_origin": False,
+            "ready": False,
+            "status": "GH_CLI_MISSING",
+            "message": "GitHub CLI ('gh') is not installed in system PATH. Install 'gh' or create PR via web/git merge.",
+        }
+
+    # 2. Check if git remote origin is configured
+    code, remotes_out, _ = run_git_cmd(["remote"], cwd=target_dir)
+    has_origin = "origin" in remotes_out.split()
+    if not has_origin:
+        return {
+            "installed": True,
+            "authenticated": False,
+            "has_remote_origin": False,
+            "ready": False,
+            "status": "REMOTE_ORIGIN_MISSING",
+            "message": "Git remote 'origin' is not configured. Add a remote origin with 'git remote add origin <url>'.",
+        }
+
+    # 3. Check if gh is authenticated
+    code, auth_out, auth_err = run_gh_cmd(["auth", "status"], cwd=target_dir)
+    if code != 0:
+        return {
+            "installed": True,
+            "authenticated": False,
+            "has_remote_origin": True,
+            "ready": False,
+            "status": "GH_NOT_AUTHENTICATED",
+            "message": "GitHub CLI ('gh') is not authenticated. Run 'gh auth login' before automated PR creation.",
+        }
+
+    return {
+        "installed": True,
+        "authenticated": True,
+        "has_remote_origin": True,
+        "ready": True,
+        "status": "READY",
+        "message": "GitHub CLI ('gh') is installed, authenticated, and ready for automated PR creation.",
+    }
+
+
 def create_github_pull_request(
     head_branch: str,
     base_branch: str,
@@ -234,14 +285,18 @@ def create_github_pull_request(
     target_dir: str = ".",
     push_before_pr: bool = True,
 ) -> Dict[str, Any]:
-    """Creates a Pull Request on GitHub using the gh CLI with structured body."""
+    """Creates a Pull Request on GitHub using the gh CLI with structured body after full validation."""
     target_dir = os.path.abspath(target_dir)
 
-    # 1. Verify gh CLI is available
-    if not shutil.which("gh"):
+    # 1. Full validation of gh CLI, auth status, and remote origin
+    readiness = check_gh_readiness(target_dir)
+    if not readiness["ready"]:
         return {
-            "status": "GH_CLI_MISSING",
-            "message": "GitHub CLI ('gh') is not installed. Please install 'gh' or open PR manually.",
+            "status": readiness["status"],
+            "ready": False,
+            "message": readiness["message"],
+            "head_branch": head_branch,
+            "base_branch": base_branch,
         }
 
     # 2. Push branch if requested
@@ -250,6 +305,7 @@ def create_github_pull_request(
         if code != 0:
             return {
                 "status": "PUSH_FAILED",
+                "ready": False,
                 "message": f"Failed to push branch '{head_branch}' to origin: {push_err}",
             }
 
@@ -266,12 +322,14 @@ def create_github_pull_request(
     if code != 0:
         return {
             "status": "PR_ERROR",
+            "ready": False,
             "message": f"Failed to create PR: {pr_err}",
         }
 
     pr_url = pr_out.strip()
     return {
         "status": "SUCCESS",
+        "ready": True,
         "pr_url": pr_url,
         "head_branch": head_branch,
         "base_branch": base_branch,

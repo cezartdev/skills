@@ -48,6 +48,7 @@ from git_ops import (
     scan_pre_commit_security,
     execute_atomic_commit,
     create_github_pull_request,
+    check_gh_readiness,
 )
 from graph.pipeline_graph import create_pipeline_graph
 
@@ -266,10 +267,9 @@ class PipelineRunner:
 
         pr_summary = compile_scoped_pr_summary(clean_spec, target_dir=self.target_dir)
 
-        push_status = "REMOTE_PUSH_SKIPPED"
-        merge_status = "MERGE_SKIPPED"
-        pr_url = None
-        gh_available = shutil.which("gh") is not None
+        gh_readiness = check_gh_readiness(self.target_dir)
+        pr_creation_status = "SKIPPED"
+        pr_creation_message = None
 
         if push:
             push_res = run_git(["push", "-u", "origin", worker_branch], cwd=self.target_dir)
@@ -283,17 +283,25 @@ class PipelineRunner:
                 merge_cmd = run_git(["merge", "--no-ff", worker_branch, "-m", f"chore({clean_spec}): auto-merge pipeline improvements"], cwd=self.target_dir)
                 merge_status = "AUTO_MERGED" if merge_cmd.returncode == 0 else f"MERGE_FAILED: {merge_cmd.stderr.strip()}"
 
-        if create_pr and gh_available:
-            pr_res = create_github_pull_request(
-                head_branch=worker_branch,
-                base_branch=target_base,
-                title=pr_summary.get("pr_title"),
-                body_file=pr_summary.get("pr_file_path"),
-                target_dir=self.target_dir,
-                push_before_pr=push,
-            )
-            if pr_res.get("success"):
-                pr_url = pr_res.get("url")
+        if create_pr:
+            if not gh_readiness["ready"]:
+                pr_creation_status = gh_readiness["status"]
+                pr_creation_message = gh_readiness["message"]
+            else:
+                pr_res = create_github_pull_request(
+                    head_branch=worker_branch,
+                    base_branch=target_base,
+                    title=pr_summary.get("pr_title"),
+                    body_file=pr_summary.get("pr_file_path"),
+                    target_dir=self.target_dir,
+                    push_before_pr=push,
+                )
+                if pr_res.get("status") == "SUCCESS":
+                    pr_url = pr_res.get("pr_url")
+                    pr_creation_status = "PR_CREATED"
+                else:
+                    pr_creation_status = pr_res.get("status", "PR_FAILED")
+                    pr_creation_message = pr_res.get("message")
 
         pr_title_val = pr_summary.get("pr_title", f"feat({clean_spec}): integrate automated pipeline improvements")
         pr_body_val = pr_summary.get("pr_file_path", "")
@@ -309,6 +317,9 @@ class PipelineRunner:
             "push_status": push_status,
             "auto_merge_status": merge_status,
             "pr_url": pr_url,
+            "gh_readiness": gh_readiness,
+            "pr_creation_status": pr_creation_status,
+            "pr_creation_message": pr_creation_message,
             "suggested_push_command": suggested_push,
             "suggested_gh_command": suggested_gh,
             "suggested_git_merge": suggested_git,
@@ -486,6 +497,9 @@ class PipelineRunner:
             "adr": quality_res.get("adr"),
             "security_report": sec_res.get("report_file"),
             "pr_summary": git_res.get("pr_summary"),
+            "gh_readiness": git_res.get("gh_readiness"),
+            "pr_creation_status": git_res.get("pr_creation_status"),
+            "pr_creation_message": git_res.get("pr_creation_message"),
             "progress_sync": sync_progress,
             "suggested_push_command": git_res.get("suggested_push_command"),
             "suggested_gh_command": git_res.get("suggested_gh_command"),

@@ -56,7 +56,22 @@ Once confirmed by the human developer:
 
 ---
 
+## 🔍 GitHub CLI (`gh`) & Remote Validation Gate
+
+Before attempting automated PR creation or remote pushing:
+1. **Tool Verification**: The Git Subagent checks if GitHub CLI (`gh`) is installed and authenticated (`gh auth status`).
+2. **Missing CLI or Unauthenticated Fallback**:
+   - If `gh` is not installed or not authenticated (`gh auth login`), automated PR creation via `gh pr create` is skipped gracefully.
+   - The subagent MUST NOT fail abruptly.
+   - Instead, inform the developer during the Grilling Session and provide the exact manual fallback commands:
+     - `git push -u origin <spec-name>-worker`
+     - `git checkout feat/<spec-name> && git merge --no-ff <spec-name>-worker`
+     - Or opening a PR manually on GitHub via the web interface.
+
+---
+
 ## 🛡️ Agent Tool Execution Directive
 - ALWAYS invoke internal workflow scripts using `uv run`.
 - NEVER invoke external skills or unvetted git commands directly.
 - Respect the **Secure by Default** local-commit-only gate at all times.
+
