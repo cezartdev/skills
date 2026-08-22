@@ -33,17 +33,18 @@ metadata:
 >    - **`plan`** (`/workflow plan <name>`): Convert approved `spec.md` into technical design (`plan.md`) defining data models, DB schemas, interfaces, library selection, and architecture.
 >    - **`tasks`** (`/workflow tasks <name>`): Decompose `plan.md` into ordered atomic tasks in `tasks.md` and individual issue files under `.workflow/specs/active/<name>/issues/`.
 >    - **`analyze`** (`/workflow analyze <name>`): Static consistency audit comparing Constitution/Memory, `spec.md`, `plan.md`, and `tasks.md`, scoring 0-100 before code execution.
-> 3. **Deterministic 7-Stage Multi-Subagent Pipeline**: When triggering `/workflow run <spec>`, the AI Agent MUST NOT execute all stages in a single monolithic turn. Instead, the AI Agent MUST:
->    - First run `uv run skills/workflow/scripts/workflow_runner.py run <spec>` to initialize and sync the physical worktree (`.workflow/worktrees/<spec>/worker/`).
->    - Define the 7 specialized subagent types using `define_subagent` (reading their system prompts from `skills/workflow/references/prompts/`):
->      * `workflow-implement-worker` (System prompt: `references/prompts/implement_worker.prompt.md`, `enable_write_tools=True`)
->      * `workflow-fix-worker` (System prompt: `references/prompts/fix_worker.prompt.md`, `enable_write_tools=True`)
->      * `workflow-refactor-worker` (System prompt: `references/prompts/refactor_worker.prompt.md`, `enable_write_tools=True`)
->      * `workflow-security-worker` (System prompt: `references/prompts/security_worker.prompt.md`, `enable_write_tools=True`)
->      * `workflow-quality-worker` (System prompt: `references/prompts/quality_worker.prompt.md`, `enable_write_tools=True`)
->      * `workflow-doc-worker` (System prompt: `references/prompts/doc_worker.prompt.md`, `enable_write_tools=True`)
->      * `workflow-git-worker` (System prompt: `references/prompts/git_worker.prompt.md`, `enable_write_tools=True`)
->    - Sequentially invoke each subagent using `invoke_subagent` so each worker appears distinctly in the agent UI:
+> 3. **Deterministic 7-Stage Multi-Subagent Pipeline**: When triggering `/workflow run <spec>` (or with `--from <stage>` / `--only <stage>`), the AI Agent MUST NOT assume stages ran automatically inside the python CLI. Instead, the AI Agent MUST:
+>    - First run `uv run skills/workflow/scripts/workflow_runner.py run <spec> [flags]` to initialize and sync the physical worktree (`.workflow/worktrees/<spec>/worker/`).
+>    - Inspect the `Active Stages to Run` and `subagent_directives` returned by the CLI.
+>    - Define the active subagent types using `define_subagent` (reading system prompts from `skills/workflow/references/prompts/`):
+>      * `workflow-implement-worker` (`references/prompts/implement_worker.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-fix-worker` (`references/prompts/fix_worker.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-refactor-worker` (`references/prompts/refactor_worker.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-security-worker` (`references/prompts/security_worker.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-quality-worker` (`references/prompts/quality_worker.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-doc-worker` (`references/prompts/doc_worker.prompt.md`, `enable_write_tools=True`)
+>      * `workflow-git-worker` (`references/prompts/git_worker.prompt.md`, `enable_write_tools=True`)
+>    - Sequentially invoke each active subagent using `invoke_subagent` so each worker appears distinctly in the agent UI and completes its real task in the worktree:
 >      1. **Stage 1 (Implement)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-implement-worker', 'Role': 'Implement Subagent', 'Prompt': 'Build out spec requirements and task issues for <spec> in .workflow/worktrees/<spec>/worker/. Follow TDD Red-Green cycle and zero-comments policy.'}])`
 >      2. **Stage 2 (Fix)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-fix-worker', 'Role': 'Fix Subagent', 'Prompt': 'Diagnose and stabilize tests in .workflow/worktrees/<spec>/worker/'}])`
 >      3. **Stage 3 (Refactor)**: `invoke_subagent(Subagents=[{'TypeName': 'workflow-refactor-worker', 'Role': 'Refactor Subagent', 'Prompt': 'Refactor modular code and strip redundant comments in worktree while keeping tests green.'}])`

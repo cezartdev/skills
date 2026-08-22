@@ -588,42 +588,27 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 0
 
     print("=" * 110)
-    print(f" 🚀 PIPELINE COMPLETED: '{res['spec_name']}' ({res['elapsed_seconds']}s)")
+    print(f" ⚡ WORKFLOW STAGING INITIALIZED & READY FOR SUBAGENTS: '{res['spec_name']}'")
     print("=" * 110)
-    print(f"{'STAGE':<24} │ {'STATUS':<24} │ SUBAGENT WORKER")
+    print(f"{'PROPERTY':<24} │ VALUE")
     print("-" * 110)
-    for st in res["stages"]:
-        print(f"{st['stage']:<24} │ {st['status']:<24} │ {st['subagent_role']}")
-    print("=" * 110)
+    print(f"{'Target Spec':<24} │ {res['spec_name']}")
     print(f"{'Staging Branch':<24} │ {res['staging_branch']}")
     print(f"{'Target Base Branch':<24} │ {res['target_base']}")
     print(f"{'Worktree Path':<24} │ {res['worktree_path']}")
+    print(f"{'Active Stages to Run':<24} │ {' ➔ '.join(res['active_stages'])}")
     if res.get("push_flag_active"):
-        print(f"{'Push Status':<24} │ 🚀 Pushed to origin ({res.get('push_status')})")
+        print(f"{'Push Mode':<24} │ 🚀 Remote push to origin enabled (--push)")
     else:
-        print(f"{'Push Status':<24} │ 🔒 Local Commit Only (Default Security: pass --push to push to origin)")
-    gh_info = res.get("gh_readiness") or {}
-    if gh_info:
-        if gh_info.get("ready"):
-            print(f"{'GitHub CLI (gh)':<24} │ 🟢 Ready & Authenticated")
-        else:
-            print(f"{'GitHub CLI (gh)':<24} │ ⚠️  {gh_info.get('status')} ({gh_info.get('message')})")
-    if res.get("pr_creation_status") == "PR_CREATED":
-        print(f"{'GitHub PR Created':<24} │ 🚀 {res.get('pr_url')}")
-    elif res.get("pr_creation_message"):
-        print(f"{'GitHub PR Status':<24} │ ⚠️  {res.get('pr_creation_status')}: {res.get('pr_creation_message')}")
-    if res.get("adr") and res["adr"].get("adr_file"):
-        print(f"{'ADR Record':<24} │ {res['adr']['adr_file']}")
-    if res.get("pr_summary") and res["pr_summary"].get("pr_file"):
-        print(f"{'PR Summary':<24} │ {res['pr_summary']['pr_file']}")
-    if res.get("progress_sync") and res["progress_sync"].get("tasks_updated", 0) > 0:
-        print(f"{'Progress Sync':<24} │ ⚡ {res['progress_sync']['tasks_updated']} tasks and {res['progress_sync']['criteria_updated']} criteria checkboxes marked [x]")
+        print(f"{'Push Mode':<24} │ 🔒 Local Commit Only (Default Security)")
     print("=" * 110)
 
-    print("\nℹ️  AI Agent Native Subagent Dispatch Directives:")
-    print("   🚫 STRICT ZERO-COMMENTS RULE: Write 100% clean, self-documenting code with ZERO comments (no //, #, or \"\"\" \"\"\") unless explicitly requested.")
+    print("\n🚨 MANDATORY SUBAGENT DISPATCH ACTION REQUIRED:")
+    print("   The staging worktree is ready. Subagents HAVE NOT run yet.")
+    print("   The AI Orchestrator MUST now sequentially spawn the subagents for the active stages using define_subagent & invoke_subagent:")
+    print("\n   🚫 STRICT ZERO-COMMENTS RULE: Write 100% clean, self-documenting code with ZERO comments (no //, #, or \"\"\" \"\"\") unless explicitly requested.\n")
     for d in res["subagent_directives"]:
-        print(f"   - {d['stage']} ({d['role']}): {d['action']}")
+        print(f"   👉 {d['stage']}: {d['action']}")
 
     print("\n💡 Suggested PR & Integration Commands:")
     if not res.get("push_flag_active"):

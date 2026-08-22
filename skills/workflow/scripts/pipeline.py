@@ -518,6 +518,66 @@ class PipelineRunner:
             },
         ]
 
+        all_directives = [
+            {
+                "stage_key": "implement",
+                "stage": "Stage 1 (Implement)",
+                "type": "workflow-implement-worker",
+                "role": "Implement Subagent",
+                "prompt_file": "skills/workflow/references/prompts/implement_worker.prompt.md",
+                "action": f"define_subagent(name='workflow-implement-worker', description='Feature & SDD/TDD Engineer', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-implement-worker', 'Role': 'Implement Subagent', 'Prompt': 'Build out spec requirements and task issues for {clean_spec} in {wt_path}. Follow TDD Red-Green cycle and zero-comments policy.'}}])",
+            },
+            {
+                "stage_key": "fix",
+                "stage": "Stage 2 (Fix)",
+                "type": "workflow-fix-worker",
+                "role": "Fix Subagent",
+                "prompt_file": "skills/workflow/references/prompts/fix_worker.prompt.md",
+                "action": f"define_subagent(name='workflow-fix-worker', description='Bug stabilization & 100% green test specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-fix-worker', 'Role': 'Fix Subagent', 'Prompt': 'Diagnose and stabilize tests in {wt_path}. Zero-comments policy.'}}])",
+            },
+            {
+                "stage_key": "refactor",
+                "stage": "Stage 3 (Refactor)",
+                "type": "workflow-refactor-worker",
+                "role": "Refactor Subagent",
+                "prompt_file": "skills/workflow/references/prompts/refactor_worker.prompt.md",
+                "action": f"define_subagent(name='workflow-refactor-worker', description='Clean architecture and modularity specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-refactor-worker', 'Role': 'Refactor Subagent', 'Prompt': 'Refactor modular code in {wt_path} while preserving 100% green tests.'}}])",
+            },
+            {
+                "stage_key": "security",
+                "stage": "Stage 4 (Security)",
+                "type": "workflow-security-worker",
+                "role": "Security Subagent",
+                "prompt_file": "skills/workflow/references/prompts/security_worker.prompt.md",
+                "action": f"define_subagent(name='workflow-security-worker', description='OWASP Top 10 SAST, secret leak & dependency CVE auditor', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-security-worker', 'Role': 'Security Subagent', 'Prompt': 'Audit OWASP Top 10 patterns, secrets and dependencies in {wt_path}. Generate security report.'}}])",
+            },
+            {
+                "stage_key": "quality",
+                "stage": "Stage 5 (Quality)",
+                "type": "workflow-quality-worker",
+                "role": "Quality Subagent",
+                "prompt_file": "skills/workflow/references/prompts/quality_worker.prompt.md",
+                "action": f"define_subagent(name='workflow-quality-worker', description='Quality gatekeeper, ADR author & feedback router', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-quality-worker', 'Role': 'Quality Subagent', 'Prompt': 'Audit combined quality gates (100/100, zero-comments, OWASP clearance) in {wt_path}.'}}])",
+            },
+            {
+                "stage_key": "doc",
+                "stage": "Stage 6 (Doc)",
+                "type": "workflow-doc-worker",
+                "role": "Doc Subagent",
+                "prompt_file": "skills/workflow/references/prompts/doc_worker.prompt.md",
+                "action": f"define_subagent(name='workflow-doc-worker', description='Documentation and spec synchronizer', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-doc-worker', 'Role': 'Doc Subagent', 'Prompt': 'Author incremental ADRs (0000_adr_<slug>.md), sync markdown docs, and compile canonical PR summary in {wt_path}.'}}])",
+            },
+            {
+                "stage_key": "git_worker",
+                "stage": "Stage 7 (Git-Worker)",
+                "type": "workflow-git-worker",
+                "role": "Git Subagent",
+                "prompt_file": "skills/workflow/references/prompts/git_worker.prompt.md",
+                "action": f"define_subagent(name='workflow-git-worker', description='Deterministic Conventional Commits and GitHub PR specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-git-worker', 'Role': 'Git Subagent', 'Prompt': 'Conduct Grilling Session confirmation with developer. Commit locally. Default Security: DO NOT push to origin unless --push flag is passed or developer explicitly requests remote push.'}}])",
+            },
+        ]
+        filtered_directives = [d for d in all_directives if d["stage_key"] in active_stages]
+
         return {
             "status": "SUCCESS",
             "spec_name": clean_spec,
@@ -542,55 +602,5 @@ class PipelineRunner:
             "suggested_gh_command": git_res.get("suggested_gh_command"),
             "suggested_git_merge": git_res.get("suggested_git_merge"),
             "scheduled_interval": schedule_minutes,
-            "subagent_directives": [
-                {
-                    "stage": "Stage 1 (Implement)",
-                    "type": "workflow-implement-worker",
-                    "role": "Implement Subagent",
-                    "prompt_file": "skills/workflow/references/prompts/implement_worker.prompt.md",
-                    "action": f"define_subagent(name='workflow-implement-worker', description='Feature & SDD/TDD Engineer', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-implement-worker', 'Role': 'Implement Subagent', 'Prompt': 'Build out spec requirements and task issues for {clean_spec} in {wt_path}. Follow TDD Red-Green cycle and zero-comments policy.'}}])",
-                },
-                {
-                    "stage": "Stage 2 (Fix)",
-                    "type": "workflow-fix-worker",
-                    "role": "Fix Subagent",
-                    "prompt_file": "skills/workflow/references/prompts/fix_worker.prompt.md",
-                    "action": f"define_subagent(name='workflow-fix-worker', description='Bug stabilization & 100% green test specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-fix-worker', 'Role': 'Fix Subagent', 'Prompt': 'Diagnose and stabilize tests in {wt_path}. Zero-comments policy.'}}])",
-                },
-                {
-                    "stage": "Stage 3 (Refactor)",
-                    "type": "workflow-refactor-worker",
-                    "role": "Refactor Subagent",
-                    "prompt_file": "skills/workflow/references/prompts/refactor_worker.prompt.md",
-                    "action": f"define_subagent(name='workflow-refactor-worker', description='Clean architecture and modularity specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-refactor-worker', 'Role': 'Refactor Subagent', 'Prompt': 'Refactor modular code in {wt_path} while preserving 100% green tests.'}}])",
-                },
-                {
-                    "stage": "Stage 4 (Security)",
-                    "type": "workflow-security-worker",
-                    "role": "Security Subagent",
-                    "prompt_file": "skills/workflow/references/prompts/security_worker.prompt.md",
-                    "action": f"define_subagent(name='workflow-security-worker', description='OWASP Top 10 SAST, secret leak & dependency CVE auditor', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-security-worker', 'Role': 'Security Subagent', 'Prompt': 'Audit OWASP Top 10 patterns, secrets and dependencies in {wt_path}. Generate security report.'}}])",
-                },
-                {
-                    "stage": "Stage 5 (Quality)",
-                    "type": "workflow-quality-worker",
-                    "role": "Quality Subagent",
-                    "prompt_file": "skills/workflow/references/prompts/quality_worker.prompt.md",
-                    "action": f"define_subagent(name='workflow-quality-worker', description='Quality gatekeeper, ADR author & feedback router', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-quality-worker', 'Role': 'Quality Subagent', 'Prompt': 'Audit combined quality gates (100/100, zero-comments, OWASP clearance) in {wt_path} and write ADR.'}}])",
-                },
-                {
-                    "stage": "Stage 6 (Doc)",
-                    "type": "workflow-doc-worker",
-                    "role": "Doc Subagent",
-                    "prompt_file": "skills/workflow/references/prompts/doc_worker.prompt.md",
-                    "action": f"define_subagent(name='workflow-doc-worker', description='Documentation and spec synchronizer', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-doc-worker', 'Role': 'Doc Subagent', 'Prompt': 'Sync markdown docs and spec.md for {clean_spec} in {wt_path}.'}}])",
-                },
-                {
-                    "stage": "Stage 7 (Git-Worker)",
-                    "type": "workflow-git-worker",
-                    "role": "Git Subagent",
-                    "prompt_file": "skills/workflow/references/prompts/git_worker.prompt.md",
-                    "action": f"define_subagent(name='workflow-git-worker', description='Deterministic Conventional Commits and GitHub PR specialist', enable_write_tools=True) -> invoke_subagent(Subagents=[{{'TypeName': 'workflow-git-worker', 'Role': 'Git Subagent', 'Prompt': 'Conduct Grilling Session confirmation with developer. Commit locally. Default Security: DO NOT push to origin unless --push flag is passed or developer explicitly requests remote push.'}}])",
-                },
-            ],
+            "subagent_directives": filtered_directives,
         }

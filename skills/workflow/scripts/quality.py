@@ -54,8 +54,12 @@ def sanitize_untrusted_text(text: str, max_chars: int = 300) -> str:
     # 3. Neutralize common prompt injection payloads
     for pattern in PROMPT_INJECTION_PATTERNS:
         sanitized = re.sub(pattern, "[FILTERED_INSTRUCTION]", sanitized)
+
+    # 4. Strip local machine absolute file:// URIs to enforce portability across teams
+    sanitized = re.sub(r"\[([^\]]+)\]\(file:///[^)]+\)", r"\1", sanitized)
+    sanitized = re.sub(r"file:///(?:home|Users|var|tmp|root|[A-Za-z]:)/[^\s\)\'\"]+", "[LOCAL_PATH]", sanitized)
         
-    # 4. Truncate to maximum length safely
+    # 5. Truncate to maximum length safely
     if len(sanitized) > max_chars:
         sanitized = sanitized[:max_chars].rstrip() + "..."
         
