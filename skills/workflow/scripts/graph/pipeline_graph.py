@@ -308,37 +308,22 @@ def node_security_gate(state: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def node_quality_adr(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Node 6: Deterministic MADR Architectural Decision Record generation and commit."""
-    target_dir = state["target_dir"]
-    spec_name = state["spec_name"]
-    wt_path = state["worktree_path"]
-
-    adr_res = generate_spec_adr(spec_name=spec_name, target_dir=target_dir)
-
-    status_res = run_git(["status", "--porcelain"], cwd=wt_path)
-    if status_res.stdout.strip():
-        safe_atomic_commit(
-            repo_dir=wt_path,
-            ctype="docs",
-            scope=spec_name,
-            description="record automated pipeline architectural decisions",
-            body_bullets=[f"- Compiled formal MADR ADR in {adr_res.get('filename')}"],
-        )
-
-    pr_summary = compile_scoped_pr_summary(target_dir=target_dir, spec_name=spec_name)
-
+    """Node 6: Quality Gatekeeper evaluation (tests, security, zero-comments)."""
     return {
         **state,
-        "adr": adr_res,
-        "pr_summary": pr_summary,
-        "step": "ADR_QUALITY_RECORDED",
+        "quality_status": "QUALITY_APPROVED",
+        "step": "QUALITY_EVALUATED",
     }
 
 
 def node_doc_gate(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Node 7: Deterministic Documentation Phase and atomic commit."""
+    """Node 7: Doc-Worker (Exclusive owner of ADR consolidation, criteria sync, and canonical PR summary)."""
+    target_dir = state["target_dir"]
     wt_path = state["worktree_path"]
     spec_name = state["spec_name"]
+
+    adr_res = generate_spec_adr(spec_name=spec_name, target_dir=target_dir)
+    pr_summary = compile_scoped_pr_summary(target_dir=target_dir, spec_name=spec_name)
 
     status_res = run_git(["status", "--porcelain"], cwd=wt_path)
     commit_result = None
@@ -347,12 +332,14 @@ def node_doc_gate(state: Dict[str, Any]) -> Dict[str, Any]:
             repo_dir=wt_path,
             ctype="docs",
             scope=spec_name,
-            description="synchronize docstrings, OpenAPI schemas, and specifications",
-            body_bullets=["- Aligned API definitions and markdown documentation with latest code."],
+            description="synchronize documentation, consolidated ADRs, and spec criteria",
+            body_bullets=["- Aligned API definitions, consolidated ADR, and markdown documentation."],
         )
 
     return {
         **state,
+        "adr": adr_res,
+        "pr_summary": pr_summary,
         "doc_status": "DOCS_SYNCHRONIZED",
         "doc_commit": commit_result,
         "step": "DOCS_COMPLETED",

@@ -202,19 +202,19 @@ def compile_scoped_pr_summary(
 
     if archetype == "fix":
         pr_title = f"fix({clean_spec or 'security'}): automated merge request from workflow agent for bug & vulnerability patches"
-        file_slug = f"PR_fix_rollup_{timestamp_slug}.md"
+        file_slug = "PR_fix_rollup.md"
     elif archetype == "refactor":
         pr_title = f"refactor({clean_spec or 'arch'}): automated merge request from workflow agent for architecture optimization"
-        file_slug = f"PR_refactor_rollup_{timestamp_slug}.md"
+        file_slug = "PR_refactor_rollup.md"
     elif archetype == "security":
         pr_title = f"sec({clean_spec or 'audit'}): automated merge request from workflow agent for OWASP Top 10 hardening"
-        file_slug = f"PR_security_rollup_{timestamp_slug}.md"
+        file_slug = "PR_security_rollup.md"
     elif clean_spec:
         pr_title = f"feat({clean_spec}): automated merge request from workflow agent"
-        file_slug = f"PR_spec_{clean_spec}_{timestamp_slug}.md"
+        file_slug = f"PR_spec_{clean_spec}.md"
     else:
         pr_title = f"chore(release): automated merge request from workflow agent for quality rollup"
-        file_slug = f"PR_unified_release_{timestamp_slug}.md"
+        file_slug = "PR_unified_release.md"
 
     pr_file_path = os.path.join(prs_active_dir, file_slug)
 
@@ -307,8 +307,7 @@ def generate_spec_adr(
             decisions[arch] = [d for d in items if clean_spec.lower() in d["spec"].lower() or clean_spec.lower() in d["title"].lower()]
 
     today = datetime.now().strftime("%Y-%m-%d")
-    timestamp_slug = datetime.now().strftime("%Y%m%d_%H%M%S")
-    adr_filename = f"ADR_{timestamp_slug}_pipeline_decisions.md"
+    adr_filename = "ADR_decisions.md"
     adr_path = os.path.join(adrs_dir, adr_filename)
 
     sec_summary = ""

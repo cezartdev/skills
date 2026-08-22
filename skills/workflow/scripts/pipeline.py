@@ -219,16 +219,11 @@ class PipelineRunner:
         wt_path: str,
         security_results: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Stage 5: Quality Gatekeeper (Audits tests, security, zero-comments compliance, and generates ADR)."""
+        """Stage 5: Quality Gatekeeper (Audits tests, security, and zero-comments compliance)."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
         
         quality_eval = evaluate_quality_gate(target_dir=wt_path, spec_name=clean_spec)
         verdict = quality_eval.get("status", "APPROVED")
-
-        # Generate formal ADR if approved
-        adr_res = None
-        if verdict == "APPROVED":
-            adr_res = generate_spec_adr(spec_name=clean_spec, target_dir=self.target_dir, security_results=security_results)
 
         return {
             "stage": "5_quality",
@@ -237,18 +232,41 @@ class PipelineRunner:
             "verdict": verdict,
             "quality_passed": quality_eval.get("quality_passed", True),
             "security_passed": quality_eval.get("security_passed", True),
-            "adr": adr_res,
+            "summary": quality_eval.get("security_summary", {}),
         }
 
-    def run_stage_doc(self, spec_name: str, wt_path: str) -> Dict[str, Any]:
-        """Stage 6: Doc-Worker (Generates docstrings, API schemas, and synchronizes spec)."""
+    def run_stage_doc(
+        self,
+        spec_name: str,
+        wt_path: str,
+        spec_dir: Optional[str] = None,
+        security_results: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Stage 6: Doc-Worker (Exclusive owner of documentation, ADR consolidation, and PR summary synthesis)."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
+        
+        # 1. Consolidate and author canonical ADR for this spec
+        adr_res = generate_spec_adr(spec_name=clean_spec, target_dir=self.target_dir, security_results=security_results)
+
+        # 2. Synchronize tasks and spec acceptance criteria checkboxes
+        sync_progress = {}
+        if spec_dir and os.path.exists(spec_dir):
+            sync_progress = sync_tasks_and_spec_progress(spec_dir)
+        elif os.path.exists(os.path.join(self.wf_root, "specs", "active", clean_spec)):
+            sync_progress = sync_tasks_and_spec_progress(os.path.join(self.wf_root, "specs", "active", clean_spec))
+
+        # 3. Synthesize the single canonical PR summary body for this spec
+        pr_summary = compile_scoped_pr_summary(self.target_dir, spec_name=clean_spec)
+
         return {
             "stage": "6_doc",
             "status": "DOCS_SYNCHRONIZED",
             "subagent_role": "Doc-Worker Specialist",
             "worktree_path": wt_path,
-            "message": f"Documentation phase complete. Contracts and schemas synchronized for '{clean_spec}'.",
+            "adr": adr_res,
+            "pr_summary": pr_summary,
+            "progress_sync": sync_progress,
+            "message": f"Documentation phase complete. ADRs, criteria checkboxes, and canonical PR summary generated for '{clean_spec}'.",
         }
 
     def run_stage_git(
@@ -258,6 +276,7 @@ class PipelineRunner:
         auto_merge: bool = False,
         create_pr: bool = False,
         push: bool = False,
+        pr_summary: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Stage 7: Git commit synthesis, grilling confirmation metadata, and optional PR creation."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
@@ -266,7 +285,8 @@ class PipelineRunner:
         feat_ref = run_git(["rev-parse", "--verify", f"refs/heads/{feat_branch}"], cwd=self.target_dir)
         target_base = feat_branch if feat_ref.returncode == 0 else get_default_branch(self.target_dir)
 
-        pr_summary = compile_scoped_pr_summary(self.target_dir, spec_name=clean_spec)
+        if not pr_summary:
+            pr_summary = compile_scoped_pr_summary(self.target_dir, spec_name=clean_spec)
 
         gh_readiness = check_gh_readiness(self.target_dir)
         pr_creation_status = "SKIPPED"
@@ -275,6 +295,8 @@ class PipelineRunner:
         if push:
             push_res = run_git(["push", "-u", "origin", worker_branch], cwd=self.target_dir)
             push_status = "PUSHED_TO_ORIGIN" if push_res.returncode == 0 else f"PUSH_FAILED: {push_res.stderr.strip()}"
+        else:
+            push_status = "REMOTE_PUSH_SKIPPED"
 
         if auto_merge:
             status_main = run_git(["status", "--porcelain"], cwd=self.target_dir)
@@ -283,6 +305,8 @@ class PipelineRunner:
             else:
                 merge_cmd = run_git(["merge", "--no-ff", worker_branch, "-m", f"chore({clean_spec}): auto-merge pipeline improvements"], cwd=self.target_dir)
                 merge_status = "AUTO_MERGED" if merge_cmd.returncode == 0 else f"MERGE_FAILED: {merge_cmd.stderr.strip()}"
+        else:
+            merge_status = "MERGE_SKIPPED"
 
         if create_pr:
             if not gh_readiness["ready"]:
@@ -297,12 +321,15 @@ class PipelineRunner:
                     target_dir=self.target_dir,
                     push_before_pr=push,
                 )
-                if pr_res.get("status") == "SUCCESS":
+                if pr_res.get("status") in ("SUCCESS", "PR_UPDATED"):
                     pr_url = pr_res.get("pr_url")
-                    pr_creation_status = "PR_CREATED"
+                    pr_creation_status = pr_res.get("status")
+                    pr_creation_message = pr_res.get("message")
                 else:
                     pr_creation_status = pr_res.get("status", "PR_FAILED")
                     pr_creation_message = pr_res.get("message")
+        else:
+            pr_url = None
 
         pr_title_val = pr_summary.get("pr_title", f"feat({clean_spec}): automated merge request from workflow agent")
         pr_body_val = pr_summary.get("pr_file_path", "")
@@ -424,15 +451,23 @@ class PipelineRunner:
             quality_res = self.run_stage_quality(clean_spec, wt_path, security_results=sec_res)
             create_stage_checkpoint(wt_path, "5_quality")
 
-        # Step 4: Reactive Task & Spec Checkbox Synchronization
-        sync_progress = {}
-        if spec_info.get("spec_dir"):
-            sync_progress = sync_tasks_and_spec_progress(spec_info["spec_dir"])
+        # Step 4: Doc Subagent Execution (ADR consolidation, tasks/spec sync, and PR summary synthesis)
+        doc_res = {}
+        if "doc" in active_stages:
+            doc_res = self.run_stage_doc(clean_spec, wt_path, spec_dir=spec_info.get("spec_dir"), security_results=sec_res)
+            create_stage_checkpoint(wt_path, "6_doc")
 
         # Step 5: Git Subagent Execution
         git_res = {}
         if "git_worker" in active_stages:
-            git_res = self.run_stage_git(clean_spec, wt_path, auto_merge=auto_merge, create_pr=create_pr, push=push)
+            git_res = self.run_stage_git(
+                clean_spec,
+                wt_path,
+                auto_merge=auto_merge,
+                create_pr=create_pr,
+                push=push,
+                pr_summary=doc_res.get("pr_summary"),
+            )
 
         elapsed = round(time.time() - start_time, 2)
 
@@ -466,19 +501,20 @@ class PipelineRunner:
                 "status": ("QUALITY_APPROVED" if quality_res.get("verdict") == "APPROVED" else "NEEDS_REMEDIATION") if "quality" in active_stages else "SKIPPED",
                 "subagent_role": "Quality Subagent",
                 "verdict": quality_res.get("verdict"),
-                "adr": quality_res.get("adr"),
             },
             {
                 "stage": "6_doc",
-                "status": graph_res.get("doc_status", "DOCS_SYNCHRONIZED"),
+                "status": "DOCS_SYNCHRONIZED" if "doc" in active_stages else "SKIPPED",
                 "subagent_role": "Doc Subagent",
+                "adr": doc_res.get("adr"),
+                "pr_summary": doc_res.get("pr_summary"),
             },
             {
                 "stage": "7_git_worker",
                 "status": "READY_FOR_GRILLING_CONFIRMATION" if "git_worker" in active_stages else "SKIPPED",
                 "subagent_role": "Git Subagent",
                 "push_status": git_res.get("push_status"),
-                "pr_summary": git_res.get("pr_summary"),
+                "pr_summary": git_res.get("pr_summary") or doc_res.get("pr_summary"),
             },
         ]
 
@@ -495,13 +531,13 @@ class PipelineRunner:
             "stages": [s for s in stages if s["stage"].split("_", 1)[1] in active_stages],
             "push_flag_active": push,
             "push_status": git_res.get("push_status"),
-            "adr": quality_res.get("adr"),
+            "adr": doc_res.get("adr"),
             "security_report": sec_res.get("report_file"),
-            "pr_summary": git_res.get("pr_summary"),
+            "pr_summary": git_res.get("pr_summary") or doc_res.get("pr_summary"),
             "gh_readiness": git_res.get("gh_readiness"),
             "pr_creation_status": git_res.get("pr_creation_status"),
             "pr_creation_message": git_res.get("pr_creation_message"),
-            "progress_sync": sync_progress,
+            "progress_sync": doc_res.get("progress_sync") or {},
             "suggested_push_command": git_res.get("suggested_push_command"),
             "suggested_gh_command": git_res.get("suggested_gh_command"),
             "suggested_git_merge": git_res.get("suggested_git_merge"),
