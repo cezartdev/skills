@@ -147,7 +147,7 @@ uv run skills/workflow/scripts/workflow_runner.py run user-login --schedule 30
 # Stop active background schedulers & terminate subagents:
 uv run skills/workflow/scripts/workflow_runner.py stop user-login
 
-# Deep Anti-Zombie cleanup (purges orphaned worktrees, dangling locks & dead PIDs):
+# Clean up completed worktrees and stale git directory locks:
 uv run skills/workflow/scripts/workflow_runner.py clean
 
 # Archive completed spec when merged:

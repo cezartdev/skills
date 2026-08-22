@@ -833,7 +833,7 @@ def cmd_context(args: argparse.Namespace) -> int:
 
 
 def cmd_list(args: argparse.Namespace) -> int:
-    """Displays the concise, fixed command reference table."""
+    """Displays the concise, fixed command reference table and pipeline execution options."""
     commands = [
         {"slash": "/workflow init", "syntax": "workflow init [dir]", "desc": "Initialize encapsulated .workflow/ structure & memory"},
         {"slash": "/workflow explore", "syntax": "workflow explore [dir]", "desc": "Survey polyglot stack & extract coding preferences"},
@@ -845,24 +845,41 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Convert approved spec.md into technical design (plan.md)"},
         {"slash": "/workflow tasks", "syntax": "workflow tasks <name>", "desc": "Decompose technical plan into atomic tasks (tasks.md & issues/)"},
         {"slash": "/workflow analyze", "syntax": "workflow analyze <name>", "desc": "Auditoría previa: static consistency audit across spec, plan & tasks"},
-        {"slash": "/workflow run", "syntax": "workflow run <spec> [--push] [--schedule <m>]", "desc": "Primary Engine: Run 7-stage subagent pipeline (Implement -> Fix -> Refactor -> Security -> Quality -> Doc -> Git)"},
+        {"slash": "/workflow run", "syntax": "workflow run <spec> [--only <s>] [--from <s>] [--dry-run] [--push] [--schedule <m>]", "desc": "Primary Engine: Run deterministic 7-stage subagent pipeline"},
         {"slash": "/workflow stop", "syntax": "workflow stop [spec]", "desc": "Stop background pipeline schedulers and cancel active workflow tasks"},
         {"slash": "/workflow clean", "syntax": "workflow clean", "desc": "Clean up completed ephemeral worktrees and prune stale git directory entries"},
         {"slash": "/workflow archive", "syntax": "workflow archive <name>", "desc": "Move completed spec to .workflow/specs/archive/<year>/"},
         {"slash": "/workflow list", "syntax": "workflow list", "desc": "Display this concise command reference table"},
     ]
 
+    pipeline_options = [
+        {"option": "--only <stage>", "desc": "Run exclusively a single specified stage (implement, fix, refactor, security, quality, doc, git_worker)"},
+        {"option": "--from <stage>", "desc": "Resume execution starting from specified stage to the end (e.g. --from security)"},
+        {"option": "--dry-run", "desc": "Simulate pipeline execution blueprint without modifying files or spawning worktrees"},
+        {"option": "--push", "desc": "Push worker branch to remote origin upon commit (Default: local commit only)"},
+        {"option": "--schedule <m>", "desc": "Opt-in recurring background execution interval in minutes (e.g. --schedule 30)"},
+        {"option": "--auto-merge", "desc": "Automatically merge worker branch into feature branch upon passing all tests"},
+        {"option": "--create-pr", "desc": "Create GitHub Pull Request directly via gh CLI"},
+    ]
+
     if args.json:
-        print(json.dumps(commands, indent=2))
+        print(json.dumps({"commands": commands, "pipeline_options": pipeline_options}, indent=2))
         return 0
 
     print("=" * 110)
     print(" ⚡ WORKFLOW COMMANDS REFERENCE (.workflow/)")
     print("=" * 110)
-    print(f"{'SLASH COMMAND':<24} │ {'CLI SYNTAX':<36} │ DESCRIPTION")
+    print(f"{'SLASH COMMAND':<22} │ {'CLI SYNTAX':<48} │ DESCRIPTION")
     print("-" * 110)
     for c in commands:
-        print(f"{c['slash']:<24} │ {c['syntax']:<36} │ {c['desc']}")
+        print(f"{c['slash']:<22} │ {c['syntax']:<48} │ {c['desc']}")
+    print("=" * 110)
+
+    print("\n🎯 PIPELINE GRANULAR EXECUTION & STAGES (/workflow run <spec>)")
+    print("-" * 110)
+    print("  • Stage Options  : implement (1), fix (2), refactor (3), security (4|sec), quality (5|qa), doc (6|docs), git_worker (7|git)")
+    for opt in pipeline_options:
+        print(f"  • {opt['option']:<16} : {opt['desc']}")
     print("=" * 110)
     return 0
 
@@ -962,7 +979,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_arc.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # list
-    subparsers.add_parser("list", help="Display universal command catalog and cheat-sheet")
+    p_list = subparsers.add_parser("list", help="Display universal command catalog and cheat-sheet")
+    p_list.add_argument("--json", action="store_true", help="Output results in JSON format")
 
     return parser
 
