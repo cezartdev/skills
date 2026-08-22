@@ -1,5 +1,15 @@
 # cezartdev-skills
 
+## 1.15.0
+
+### Minor Changes
+
+- [`18bab01`](https://github.com/cezartdev/skills/commit/18bab01b6ebab659ab3ec464f1eb87842bde3164) Thanks [@cezartdev](https://github.com/cezartdev)! - feat(workflow): implement dedicated /workflow pr subcommand
+  
+  - Add `/workflow pr <spec>` CLI command to directly create or update GitHub Pull Requests targeting `feat/<spec>` with canonical summary documents.
+  - Support `--title` and `--no-push` flags, with automated branch verification and `gh` readiness checks.
+  - Register `/workflow pr` in command catalog, help outputs, and documentation.
+
 ## 1.14.5
 
 ### Patch Changes
