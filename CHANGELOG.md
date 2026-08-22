@@ -1,5 +1,15 @@
 # cezartdev-skills
 
+## 1.15.2
+
+### Patch Changes
+
+- [`f10b474`](https://github.com/cezartdev/skills/commit/f10b474ae2325262c1a33eee7e8b13e40e6e54b6) Thanks [@cezartdev](https://github.com/cezartdev)! - fix(workflow): strictly forbid manual `gh pr create` and direct `main` targeting in Git subagent
+  
+  - Enforce `--base` argument requirement in `git_ops.py pr` to prevent accidental defaults to `main`.
+  - Update `git_worker.prompt.md` and `pipeline.py` Stage 7 subagent directives with strict prohibitions against executing raw `gh pr create` or opening PRs towards `main`.
+  - Require the Git Subagent to exclusively execute `workflow_runner.py pr <spec-name>` and treat execution as final.
+
 ## 1.15.1
 
 ### Patch Changes
