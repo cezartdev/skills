@@ -35,9 +35,12 @@ Evaluate the codebase against the four non-negotiable quality pillars:
 
 ---
 
-## 🛠️ Deterministic Tool Execution
+## 🛠️ Deterministic Tool Execution & Skill Immutability
 
 ALWAYS invoke internal workflow scripts using `uv run`:
 ```bash
 uv run skills/workflow/scripts/quality.py evaluate <spec-name> --target-dir <worktree-path>
 ```
+
+- Under NO circumstances should you create, edit, or modify any files in `.agents/`, `skills/`, `.venv/`, or repository tooling directories.
+- The workflow skill and agent skills are read-only execution engines. Focus strictly on application quality gates, `.workflow/specs/active/<spec>/`, and `.workflow/prs/active/<spec>/`.

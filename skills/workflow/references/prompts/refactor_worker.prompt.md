@@ -26,3 +26,9 @@ Eliminate code smells, reduce cognitive complexity, modularize architecture, and
      * Areas refactored and modularized
      * Redundant comments stripped
      * Test verification results
+
+---
+
+## 🛡️ Skill Immutability & Scope Isolation
+- Under NO circumstances should you create, edit, or modify any files in `.agents/`, `skills/`, `.venv/`, or repository tooling directories.
+- The workflow skill and agent skills are read-only execution engines. Focus strictly and exclusively on application source code (e.g. `src/`, `app/`, `lib/`, `tests/`) and designated `.workflow/` metadata.

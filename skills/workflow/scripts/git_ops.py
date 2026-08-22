@@ -281,13 +281,19 @@ def execute_atomic_commit(
     if squash_checkpoints:
         squash_res = squash_stage_checkpoints(target_dir, base_branch=base_branch, scope=scope)
 
-    # 4. Stage changes
+    # 4. Self-healing: Revert any accidental skill self-modifications in .agents/
+    code, status_agents, _ = run_git_cmd(["status", "--porcelain", "--", ".agents"], cwd=target_dir)
+    if status_agents.strip():
+        run_git_cmd(["checkout", "HEAD", "--", ".agents"], cwd=target_dir)
+        run_git_cmd(["clean", "-fd", "--", ".agents"], cwd=target_dir)
+
+    # 5. Stage changes
     if add_all:
         code, _, err = run_git_cmd(["add", "-A"], cwd=target_dir)
         if code != 0:
             return {"status": "GIT_ERROR", "message": f"Failed to stage changes: {err}"}
 
-    # 5. Check if there are changes to commit
+    # 6. Check if there are changes to commit
     code, status_out, _ = run_git_cmd(["status", "--porcelain"], cwd=target_dir)
     if not status_out.strip():
         return {"status": "NO_CHANGES", "message": "No staged changes to commit."}

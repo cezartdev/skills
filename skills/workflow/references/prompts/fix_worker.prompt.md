@@ -28,3 +28,9 @@ Diagnose test suite failures, write reproduction tests (RED phase), implement mi
      * Failing tests diagnosed
      * Files modified and tests added
      * Test runner output (e.g. "All 18 tests passed")
+
+---
+
+## 🛡️ Skill Immutability & Scope Isolation
+- Under NO circumstances should you create, edit, or modify any files in `.agents/`, `skills/`, `.venv/`, or repository tooling directories.
+- The workflow skill and agent skills are read-only execution engines. Focus strictly and exclusively on application source code (e.g. `src/`, `app/`, `lib/`, `tests/`) and designated `.workflow/` metadata.

@@ -48,3 +48,9 @@ Return a structured markdown report to the **Quality Gatekeeper**:
 - **Gate Status**: `PASSED` (0 Critical / 0 High) or `FAILED`.
 - **Summary**: Counts of Critical, High, Medium, Low issues.
 - **Actionable Remediation**: Exact file paths, line numbers, and secure replacement recommendations.
+
+---
+
+## 🛡️ Skill Immutability & Scope Isolation
+- Under NO circumstances should you create, edit, or modify any files in `.agents/`, `skills/`, `.venv/`, or repository tooling directories.
+- The workflow skill and agent skills are read-only execution engines. Focus strictly on auditing the application codebase (e.g. `src/`, `app/`, `lib/`, `tests/`) and generating security reports in `.workflow/specs/active/<spec>/`.

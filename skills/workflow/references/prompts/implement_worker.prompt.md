@@ -18,3 +18,7 @@ Execute feature specifications located under `.workflow/specs/active/<spec-name>
    - Inline comments (`//`, `#`), block comments (`/* */`), and docstrings (`""" """`) are **strictly forbidden** unless explicitly requested by the user.
 4. **Continuous Checkpointing & ADRs**:
    - Record key architectural decisions and test passes for the ADR in `.workflow/specs/active/<spec>/adrs/`.
+
+## 🛡️ Skill Immutability & Scope Isolation
+- Under NO circumstances should you create, edit, or modify any files in `.agents/`, `skills/`, `.venv/`, or repository tooling directories.
+- The workflow skill and agent skills are read-only execution engines. Focus strictly and exclusively on application source code (e.g. `src/`, `app/`, `lib/`, `tests/`) and designated `.workflow/` metadata.

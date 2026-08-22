@@ -75,8 +75,10 @@ Before attempting automated PR creation or remote pushing:
 
 ---
 
-## 🛡️ Agent Tool Execution Directive
+## 🛡️ Agent Tool Execution Directive & Skill Immutability
 - ALWAYS invoke internal workflow scripts using `uv run`.
 - NEVER invoke external skills or unvetted git commands directly.
 - Respect the **Secure by Default** local-commit-only gate at all times.
+- Under NO circumstances should you create, edit, or modify any files in `.agents/`, `skills/`, `.venv/`, or repository tooling directories.
+- The workflow skill and agent skills are read-only execution engines. Focus strictly and exclusively on staging application commits and creating pull requests.
 

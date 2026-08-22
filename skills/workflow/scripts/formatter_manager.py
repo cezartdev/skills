@@ -206,8 +206,56 @@ def get_preferred_formatter(root_dir: str = ".") -> Optional[Dict[str, Any]]:
     return None
 
 
+PROTECTED_DIRECTORIES = {
+    ".agents",
+    "skills",
+    ".workflow",
+    ".git",
+    "node_modules",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    "out",
+    "target",
+    ".cache",
+    ".system_generated",
+}
+
+
+def is_protected_path(path: str) -> bool:
+    """Checks if a path falls inside protected skills, metadata, or build output directories."""
+    normalized = path.replace("\\", "/").strip("/.")
+    parts = normalized.split("/")
+    return any(p in PROTECTED_DIRECTORIES for p in parts)
+
+
+def discover_formattable_files(target_worktree: str, extensions: List[str]) -> List[str]:
+    """Scans target worktree for source code files, strictly ignoring .agents, skills, and .workflow directories."""
+    target_worktree = os.path.abspath(target_worktree)
+    valid_files: List[str] = []
+    ext_set = {e.lower() for e in extensions}
+
+    for root, dirs, filenames in os.walk(target_worktree):
+        # Prune protected directories from traversal
+        dirs[:] = [d for d in dirs if d not in PROTECTED_DIRECTORIES and not d.startswith(".git")]
+
+        rel_root = os.path.relpath(root, target_worktree).replace("\\", "/")
+        if rel_root != "." and is_protected_path(rel_root):
+            continue
+
+        for f in filenames:
+            ext = os.path.splitext(f)[1].lower()
+            if not ext_set or ext in ext_set:
+                rel_file = os.path.relpath(os.path.join(root, f), target_worktree).replace("\\", "/")
+                if not is_protected_path(rel_file):
+                    valid_files.append(rel_file)
+
+    return sorted(valid_files)
+
+
 def format_worktree_code(target_worktree: str, files: Optional[List[str]] = None) -> Dict[str, Any]:
-    """Executes the active or preferred code formatter strictly on files within the specified worktree."""
+    """Executes the active or preferred code formatter strictly on application files, protecting .agents and skills."""
     target_worktree = os.path.abspath(target_worktree)
     if not os.path.exists(target_worktree):
         return {
@@ -224,49 +272,59 @@ def format_worktree_code(target_worktree: str, files: Optional[List[str]] = None
             "message": "No standard code formatter detected or configured for this stack.",
         }
 
-    # Filter files by extensions if provided
     target_extensions = fmt.get("extensions", [])
     valid_files: List[str] = []
     if files:
         for f in files:
             ext = os.path.splitext(f)[1].lower()
             if not target_extensions or ext in target_extensions:
-                rel = os.path.relpath(os.path.join(target_worktree, f) if not os.path.isabs(f) else f, target_worktree)
-                if os.path.exists(os.path.join(target_worktree, rel)):
+                rel = os.path.relpath(os.path.join(target_worktree, f) if not os.path.isabs(f) else f, target_worktree).replace("\\", "/")
+                if not is_protected_path(rel) and os.path.exists(os.path.join(target_worktree, rel)):
                     valid_files.append(rel)
-
-    # Build execution command
-    cmd = list(fmt.get("command", []))
-    if valid_files:
-        cmd.extend(valid_files)
     else:
-        # Format entire directory
-        if fmt.get("name") in ["Ruff", "Black"]:
-            cmd.append(".")
-        elif fmt.get("name") in ["Biome", "Prettier"]:
-            cmd.append(".")
-        elif fmt.get("name") == "gofmt":
-            cmd.append(".")
+        valid_files = discover_formattable_files(target_worktree, target_extensions)
 
-    code, out, err = run_cmd(cmd, cwd=target_worktree)
-    if code != 0 and fmt.get("fallback_command"):
-        # Attempt fallback command
-        fallback_cmd = list(fmt["fallback_command"])
-        if valid_files:
-            fallback_cmd.extend(valid_files)
+    if not valid_files:
+        return {
+            "status": "NO_FILES_TO_FORMAT",
+            "formatted": False,
+            "formatter": fmt.get("name", "Unknown"),
+            "target_worktree": target_worktree,
+            "message": "No application source files found to format (protected .agents and skills excluded).",
+        }
+
+    # Execute formatter in batches
+    batch_size = 50
+    all_success = True
+    combined_out = []
+    combined_err = []
+
+    for i in range(0, len(valid_files), batch_size):
+        chunk = valid_files[i:i + batch_size]
+        cmd = list(fmt.get("command", []))
+        cmd.extend(chunk)
+
+        code, out, err = run_cmd(cmd, cwd=target_worktree)
+        if code != 0 and fmt.get("fallback_command"):
+            fallback_cmd = list(fmt["fallback_command"])
+            fallback_cmd.extend(chunk)
+            code, out, err = run_cmd(fallback_cmd, cwd=target_worktree)
+
+        if code != 0:
+            all_success = False
+            combined_err.append(err)
         else:
-            fallback_cmd.append(".")
-        code, out, err = run_cmd(fallback_cmd, cwd=target_worktree)
+            if out:
+                combined_out.append(out)
 
-    success = (code == 0)
     return {
-        "status": "SUCCESS" if success else "FORMATTER_ERROR",
-        "formatted": success,
+        "status": "SUCCESS" if all_success else "FORMATTER_ERROR",
+        "formatted": all_success,
         "formatter": fmt.get("name", "Unknown"),
-        "command_executed": " ".join(cmd),
+        "files_targeted": valid_files,
+        "files_count": len(valid_files),
         "target_worktree": target_worktree,
-        "files_targeted": valid_files if valid_files else "all",
-        "message": out if success else err,
+        "message": "\n".join(combined_out) if all_success else "\n".join(combined_err),
     }
 
 
