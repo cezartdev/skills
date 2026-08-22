@@ -9,7 +9,7 @@ description: Deterministic Git suite for AI agents and developers. Includes pre-
 
 - **Python**: Version **3.8+** is required to execute `scripts/git_helper.py`.
 - **Dependencies**: Built entirely on Python standard library modules (`argparse`, `json`, `os`, `re`, `subprocess`, `sys`, `typing`). No external pip dependencies are needed.
-- **Dependency Specification**: Declared in [`pyproject.toml`](file:///home/cezartdev/Documents/cezartdev/professional/skills/skills/git/pyproject.toml) (`requires-python = ">=3.8"`).
+- **Dependency Specification**: Declared in [`pyproject.toml`](pyproject.toml) (`requires-python = ">=3.8"`).
 - **Universal CLI Runners**:
   - **Tier 1 (Universal — Recommended across Linux, macOS, Windows)**:
     ```bash

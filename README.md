@@ -56,8 +56,8 @@ As AI agents take on increasingly complex development tasks, deterministic guard
 
 | Skill | Version | Description | Runtime | Documentation |
 |---|---|---|---|---|
-| [`git`](file:///home/cezartdev/Documents/cezartdev/professional/skills/skills/git) | `1.0.0` | **Deterministic Git Operations Suite**: Pre-commit security gate, 10-step Conventional Commits validation, retrospective history auditing (`/git audit`), atomic commits, and safe push workflows. | Python 3.8+ (Zero external deps) | [📖 `docs/git`](file:///home/cezartdev/Documents/cezartdev/professional/skills/docs/git/README.md) |
-| [`workflow`](file:///home/cezartdev/Documents/cezartdev/professional/skills/skills/workflow) | `1.0.0` | **Deterministic Workflow & TDD Suite**: LangGraph DAG runner, Spec-Driven Development, physical Git Worktrees, hierarchical memory (00-10), and stack drift detector. | Python 3.10+ (Astral uv / LangGraph) | [📖 `docs/workflow`](file:///home/cezartdev/Documents/cezartdev/professional/skills/docs/workflow/README.md) |
+| [`git`](skills/git) | `1.0.0` | **Deterministic Git Operations Suite**: Pre-commit security gate, 10-step Conventional Commits validation, retrospective history auditing (`/git audit`), atomic commits, and safe push workflows. | Python 3.8+ (Zero external deps) | [📖 `docs/git`](docs/git/README.md) |
+| [`workflow`](skills/workflow) | `1.0.0` | **Deterministic Workflow & TDD Suite**: LangGraph DAG runner, Spec-Driven Development, physical Git Worktrees, hierarchical memory (00-10), and stack drift detector. | Python 3.10+ (Astral uv / LangGraph) | [📖 `docs/workflow`](docs/workflow/README.md) |
 
 #### 🔍 `git` Skill Highlights
 - **Subcommand Suite**: `/git commit`, `/git sync`, `/git status`, `/git branch`, `/git undo`, and `/git audit`.
@@ -146,7 +146,7 @@ skills/
 
 ## 🛠️ Developer & Contributing Workflow
 
-We maintain rigorous standards for code quality, dependency management, and releases. Please review [AGENTS.md](file:///home/cezartdev/Documents/cezartdev/professional/skills/AGENTS.md) for full operating guidelines.
+We maintain rigorous standards for code quality, dependency management, and releases. Please review [AGENTS.md](AGENTS.md) for full operating guidelines.
 
 ### 1. Creating a New Skill
 

@@ -678,7 +678,9 @@ def generate_master_context(root_dir: str = ".") -> str:
     if docs_list:
         doc_rows = []
         for d in docs_list:
-            doc_rows.append(f"| `{d['name']}` | {d['category']} | [`{d['path']}`]({d['path']}) | {d['summary']} |")
+            doc_abs = os.path.join(root_dir, d["path"])
+            doc_rel = os.path.relpath(doc_abs, memory_dir).replace("\\", "/")
+            doc_rows.append(f"| `{d['name']}` | {d['category']} | [`{d['path']}`]({doc_rel}) | {d['summary']} |")
         docs_table = "| Document | Category | Path | Summary / Description |\n|---|---|---|---|\n" + "\n".join(doc_rows)
     else:
         docs_table = "- *No root agent rule files (e.g. AGENTS.md, CLAUDE.md, CONTEXT.md) detected.*"
