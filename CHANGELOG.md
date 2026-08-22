@@ -1,5 +1,26 @@
 # cezartdev-skills
 
+## 1.14.5
+
+### Patch Changes
+
+- [`a023762`](https://github.com/cezartdev/skills/commit/a023762f554268bbcd13d482f28d178944848b8f) Thanks [@cezartdev](https://github.com/cezartdev)! - fix(workflow): strictly enforce feat/<spec> target base branch for pull requests
+  
+  - Ensure `target_base` in `pipeline.py` and `git_ops.py` always points to `feat/<spec>` and never falls back to `main`.
+  - Automatically create and push `feat/<spec>` to `origin` when pushing staging changes so that GitHub PRs correctly target the feature mainline branch.
+  - Emphasize the PR base target invariant in `git_worker.prompt.md`.
+
+- [`b74cfe6`](https://github.com/cezartdev/skills/commit/b74cfe64e531b652c23d0af9db7b57cd5266d709) Thanks [@cezartdev](https://github.com/cezartdev)! - fix(workflow): enforce sequential subagent dispatch and strip machine-specific file URIs
+  
+  - Neutralize local machine `file:///` URIs across `explorer.py` and `quality.py` markdown sanitizers to prevent non-portable links.
+  - Update `workflow_runner.py run` output to explicitly signal staging readiness and require orchestrator agents to sequentially spawn subagents via `define_subagent` and `invoke_subagent`.
+  - Filter `subagent_directives` strictly by active stages (`--from`, `--only`) so agents dispatch only relevant workers.
+
+- [`8752e61`](https://github.com/cezartdev/skills/commit/8752e61888d8ba2a048f28f453d6bb3624dfbdb7) Thanks [@cezartdev](https://github.com/cezartdev)! - refactor(workflow): remove --schedule parameter from run command
+  
+  - Remove `--schedule` and `--interval` flags and daemon registration from `workflow_runner.py run`.
+  - Update `pipeline.py`, command catalog tables, help reference, and documentation to reflect clean pipeline execution flags.
+
 ## 1.14.4
 
 ### Patch Changes
