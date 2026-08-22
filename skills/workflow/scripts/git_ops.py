@@ -168,6 +168,83 @@ def format_conventional_commit(
     return len(errors) == 0, full_message, errors
 
 
+def squash_stage_checkpoints(
+    target_dir: str,
+    base_branch: Optional[str] = None,
+    scope: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Squashes intermediate workflow checkpoint commits (chore(workflow-checkpoint): ...) into a clean staged index."""
+    target_dir = os.path.abspath(target_dir)
+
+    # 1. Inspect recent git log for checkpoint commits
+    code, log_out, _ = run_git_cmd(["log", "-n", "50", "--format=%H %s"], cwd=target_dir)
+    if code != 0 or not log_out.strip():
+        return {"status": "NO_COMMITS", "squashed": False, "checkpoint_count": 0}
+
+    checkpoint_shas = []
+    for line in log_out.strip().split("\n"):
+        parts = line.split(" ", 1)
+        if len(parts) == 2:
+            sha, msg = parts[0], parts[1]
+            if "chore(workflow-checkpoint)" in msg or "workflow-checkpoint" in msg:
+                checkpoint_shas.append(sha)
+
+    if not checkpoint_shas:
+        return {"status": "NO_CHECKPOINTS", "squashed": False, "checkpoint_count": 0}
+
+    # 2. Determine base branch / merge base
+    candidate_bases = []
+    if base_branch:
+        candidate_bases.append(base_branch)
+    if scope:
+        clean_s = re.sub(r"[^a-zA-Z0-9_.-]+", "-", scope.rstrip("/\\")).strip("-._").lower()
+        candidate_bases.extend([f"feat/{clean_s}", clean_s])
+    candidate_bases.extend(["main", "master"])
+
+    target_merge_base = None
+    for cand in candidate_bases:
+        c_code, _, _ = run_git_cmd(["rev-parse", "--verify", f"refs/heads/{cand}"], cwd=target_dir)
+        if c_code == 0:
+            mb_code, mb_out, _ = run_git_cmd(["merge-base", cand, "HEAD"], cwd=target_dir)
+            if mb_code == 0 and mb_out.strip():
+                target_merge_base = mb_out.strip()
+                break
+
+    # Fallback: if no base branch found, reset to the parent of the oldest checkpoint
+    if not target_merge_base:
+        oldest_ckpt = checkpoint_shas[-1]
+        p_code, p_out, _ = run_git_cmd(["rev-parse", f"{oldest_ckpt}^"], cwd=target_dir)
+        if p_code == 0 and p_out.strip():
+            target_merge_base = p_out.strip()
+
+    if not target_merge_base:
+        return {"status": "BASE_NOT_FOUND", "squashed": False, "checkpoint_count": 0}
+
+    # Check current HEAD
+    _, curr_head, _ = run_git_cmd(["rev-parse", "HEAD"], cwd=target_dir)
+    if curr_head.strip() == target_merge_base:
+        return {"status": "ALREADY_AT_BASE", "squashed": False, "checkpoint_count": 0}
+
+    # Stage any current uncommitted files first
+    run_git_cmd(["add", "-A"], cwd=target_dir)
+
+    # Soft reset to merge base
+    res_code, _, res_err = run_git_cmd(["reset", "--soft", target_merge_base], cwd=target_dir)
+    if res_code != 0:
+        return {"status": "RESET_ERROR", "message": res_err, "squashed": False, "checkpoint_count": 0}
+
+    # Re-stage all changes
+    run_git_cmd(["add", "-A"], cwd=target_dir)
+
+    return {
+        "status": "SQUASHED",
+        "squashed": True,
+        "checkpoint_count": len(checkpoint_shas),
+        "target_merge_base": target_merge_base,
+        "message": f"Successfully squashed {len(checkpoint_shas)} intermediate checkpoint commits to base {target_merge_base[:8]}.",
+    }
+
+
 def execute_atomic_commit(
     commit_type: str,
     scope: Optional[str],
@@ -175,8 +252,10 @@ def execute_atomic_commit(
     body_bullets: Optional[List[str]] = None,
     target_dir: str = ".",
     add_all: bool = True,
+    squash_checkpoints: bool = True,
+    base_branch: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Executes a security scan, stages changes, and creates a Conventional Commit."""
+    """Executes a security scan, squashes intermediate checkpoint commits, stages changes, and creates a Conventional Commit."""
     target_dir = os.path.abspath(target_dir)
 
     # 1. Pre-commit security check
@@ -197,23 +276,28 @@ def execute_atomic_commit(
             "errors": errors,
         }
 
-    # 3. Stage changes
+    # 3. Squash intermediate workflow checkpoint commits into clean staged index
+    squash_res = {"squashed": False, "checkpoint_count": 0}
+    if squash_checkpoints:
+        squash_res = squash_stage_checkpoints(target_dir, base_branch=base_branch, scope=scope)
+
+    # 4. Stage changes
     if add_all:
         code, _, err = run_git_cmd(["add", "-A"], cwd=target_dir)
         if code != 0:
             return {"status": "GIT_ERROR", "message": f"Failed to stage changes: {err}"}
 
-    # 4. Check if there are changes to commit
+    # 5. Check if there are changes to commit
     code, status_out, _ = run_git_cmd(["status", "--porcelain"], cwd=target_dir)
     if not status_out.strip():
         return {"status": "NO_CHANGES", "message": "No staged changes to commit."}
 
-    # 5. Commit
+    # 6. Commit
     code, commit_out, commit_err = run_git_cmd(["commit", "-m", full_msg], cwd=target_dir)
     if code != 0:
         return {"status": "GIT_ERROR", "message": f"Commit failed: {commit_err}"}
 
-    # 6. Retrieve commit SHA
+    # 7. Retrieve commit SHA
     code, sha, _ = run_git_cmd(["rev-parse", "HEAD"], cwd=target_dir)
 
     return {
@@ -221,6 +305,7 @@ def execute_atomic_commit(
         "commit_sha": sha,
         "commit_header": full_msg.split("\n")[0],
         "full_message": full_msg,
+        "squashed_checkpoints": squash_res.get("checkpoint_count", 0),
         "target_dir": target_dir,
     }
 
@@ -369,11 +454,13 @@ def main() -> int:
     subparsers = parser.add_subparsers(dest="subcommand", help="Subcommands")
 
     # commit
-    p_commit = subparsers.add_parser("commit", help="Execute deterministic atomic commit with security gates")
+    p_commit = subparsers.add_parser("commit", help="Execute deterministic atomic commit with security gates and checkpoint squashing")
     p_commit.add_argument("-t", "--type", default="feat", help="Commit type")
     p_commit.add_argument("-s", "--scope", help="Commit scope / spec name")
     p_commit.add_argument("-m", "--message", required=True, help="Imperative commit message")
     p_commit.add_argument("-b", "--bullets", help="Newline-separated bullet summary")
+    p_commit.add_argument("--base-branch", help="Base branch name for calculating merge base during checkpoint squashing")
+    p_commit.add_argument("--no-squash", action="store_true", default=False, help="Do not squash intermediate workflow checkpoints")
     p_commit.add_argument("--target-dir", default=".", help="Target working directory")
 
     # pr
@@ -401,12 +488,15 @@ def main() -> int:
             message=args.message,
             body_bullets=bullets,
             target_dir=args.target_dir,
+            squash_checkpoints=not getattr(args, "no_squash", False),
+            base_branch=getattr(args, "base_branch", None),
         )
         if args.json:
             print(json.dumps(res, indent=2))
         else:
             if res.get("status") == "SUCCESS":
-                print(f"✅ Commit Created: {res.get('commit_sha')} ({res.get('commit_header')})")
+                sq_info = f" (Squashed {res.get('squashed_checkpoints')} intermediate checkpoints)" if res.get('squashed_checkpoints') else ""
+                print(f"✅ Commit Created: {res.get('commit_sha')} ({res.get('commit_header')}){sq_info}")
             else:
                 print(f"❌ Commit Failed: {res.get('message')}")
         return 0 if res.get("status") == "SUCCESS" else 1

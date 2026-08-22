@@ -32,7 +32,12 @@ Before committing or pushing to remote, you MUST trigger an interactive grilling
 
 Once confirmed by the human developer:
 
-1. **Pre-Commit Security Scan & Atomic Commit (Local Only)**:
+1. **Pre-Commit Security Scan, Checkpoint Squashing & Atomic Commit (Local Only)**:
+   > [!TIP]
+   > **AUTOMATIC CHECKPOINT SQUASHING**:
+   > `git_ops.py commit` automatically squashes all intermediate `chore(workflow-checkpoint): [...]` commits on `feat/<spec-name>-worker` into a single, clean Conventional Commit.
+   > The final commit message body contains a comprehensive bullet summary of the completed acceptance criteria, green tests, and security clearance.
+
    ```bash
    uv run skills/workflow/scripts/git_ops.py commit \
      -t feat \
