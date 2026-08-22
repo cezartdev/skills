@@ -1,5 +1,28 @@
 # cezartdev-skills
 
+## 1.15.1
+
+### Patch Changes
+
+- [`b630140`](https://github.com/cezartdev/skills/commit/b6301406d4f09b6325688a07f43197c12765fa46) Thanks [@cezartdev](https://github.com/cezartdev)! - fix(workflow): enforce strict skill immutability and isolate code formatters
+  
+  - Update `formatter_manager.py` to strictly discover and format only application source files, ignoring `.agents/`, `skills/`, and `.workflow/`.
+  - Add self-healing rollback in `git_ops.py` (`execute_atomic_commit`) to revert any accidental modifications in `.agents/` before staging.
+  - Add Skill Immutability & Scope Isolation directives across all subagent prompts.
+  - Establish rule 16 in `SKILL.md` enforcing zero self-modification of skills during pipeline runs.
+
+- [`522bf3e`](https://github.com/cezartdev/skills/commit/522bf3eef40c1d9579f8e9839325104121406066) Thanks [@cezartdev](https://github.com/cezartdev)! - feat(workflow): automatically squash intermediate checkpoint commits into a single atomic commit
+  
+  - Implement `squash_stage_checkpoints` in `git_ops.py` to softly reset intermediate `chore(workflow-checkpoint)` commits to the merge base before committing.
+  - Ensure the final Conventional Commit created by `workflow-git-worker` consolidates all completed stage work with a unified summary body.
+  - Update `git_worker.prompt.md` instructions and CLI commit flags (`--base-branch`, `--no-squash`).
+
+- [`e95d448`](https://github.com/cezartdev/skills/commit/e95d4481d49e6d28bdef976ff9beac438ef5c3a4) Thanks [@cezartdev](https://github.com/cezartdev)! - refactor(workflow): unify pipeline delivery flags into clean `--pr` parameter
+  
+  - Standardize `/workflow run <spec>` delivery flag to `--pr` to open or update GitHub Pull Requests targeting `feat/<spec>`.
+  - Gracefully alias `--push` and `--create-pr` to `--pr`.
+  - Update prompt references, command catalog tables, and documentation.
+
 ## 1.15.0
 
 ### Minor Changes
