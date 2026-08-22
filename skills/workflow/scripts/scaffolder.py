@@ -460,6 +460,16 @@ def archive_spec(spec_name: str, target_dir: str = ".") -> Dict[str, Any]:
         safe_rmtree(archive_dest)
 
     shutil.move(found_src, archive_dest)
+
+    # Also archive PR directory if it exists under prs/active/<clean_name>
+    prs_active_spec = os.path.join(wf_root, "prs", "active", clean_name)
+    if os.path.exists(prs_active_spec):
+        prs_archive_dest = os.path.join(wf_root, "prs", "archive", year, clean_name)
+        os.makedirs(os.path.dirname(prs_archive_dest), exist_ok=True)
+        if os.path.exists(prs_archive_dest):
+            safe_rmtree(prs_archive_dest)
+        shutil.move(prs_active_spec, prs_archive_dest)
+
     ensure_workflow_directories(target_dir)
 
     return {

@@ -320,6 +320,29 @@ def create_github_pull_request(
 
     code, pr_out, pr_err = run_gh_cmd(args, cwd=target_dir)
     if code != 0:
+        # Check if PR already exists on GitHub for this branch pair
+        if "already exists" in pr_err.lower():
+            v_code, v_out, _ = run_gh_cmd(["pr", "view", head_branch, "--json", "url", "-q", ".url"], cwd=target_dir)
+            existing_url = v_out.strip() if v_code == 0 and v_out.strip() else None
+
+            if existing_url:
+                edit_args = ["pr", "edit", head_branch, "--title", title]
+                if body_file and os.path.exists(body_file):
+                    edit_args.extend(["--body-file", os.path.abspath(body_file)])
+                elif body_text:
+                    edit_args.extend(["--body", body_text])
+                run_gh_cmd(edit_args, cwd=target_dir)
+
+                return {
+                    "status": "PR_UPDATED",
+                    "ready": True,
+                    "pr_url": existing_url,
+                    "head_branch": head_branch,
+                    "base_branch": base_branch,
+                    "title": title,
+                    "message": f"Updated existing Pull Request with latest pipeline delivery: {existing_url}",
+                }
+
         return {
             "status": "PR_ERROR",
             "ready": False,
