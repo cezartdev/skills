@@ -1,5 +1,15 @@
 # cezartdev-skills
 
+## 1.16.0
+
+### Minor Changes
+
+- [`853bc9b`](https://github.com/cezartdev/skills/commit/853bc9b7d33cf263690f1c3e80758febec573406) Thanks [@cezartdev](https://github.com/cezartdev)! - feat(workflow): add --no-worktree flag for in-place pipeline execution without isolated worktrees
+  
+  - Implement `--no-worktree` option in `workflow run` and `workflow pr` commands to run all 7 pipeline stages directly in the current working directory on the active branch.
+  - Update `pipeline.py`, `pipeline_graph.py`, and `workflow_runner.py` to support in-place stage sync, branch resolution, and PR targeting when no isolated worktree is created.
+  - Update `git_worker.prompt.md` and `SKILL.md` documentation to describe `--no-worktree` behavior, branch targeting semantics, and composability with `--only`/`--from`.
+
 ## 1.15.2
 
 ### Patch Changes
