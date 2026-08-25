@@ -28,7 +28,7 @@ from memory_manager import (
     update_project_business_context,
     read_project_business_context,
 )
-from worktree_manager import prune_worktrees, run_git, ensure_git_repository, get_default_branch
+from worktree_manager import prune_worktrees, run_git, ensure_git_repository, get_default_branch, get_current_branch
 from quality_auditor import audit_spec, audit_plan, audit_tasks, analyze_spec_consistency
 from quality import generate_specify_adr, compile_scoped_pr_summary
 from git_ops import create_github_pull_request, check_gh_readiness
@@ -548,6 +548,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     only = getattr(args, "only", None)
     from_stage = getattr(args, "from_stage", None) or getattr(args, "from", None)
     dry_run = getattr(args, "dry_run", False)
+    no_worktree = getattr(args, "no_worktree", False)
 
     runner = PipelineRunner(target_dir=target_dir)
     res = runner.run_pipeline(
@@ -558,6 +559,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         only=only,
         from_stage=from_stage,
         dry_run=dry_run,
+        no_worktree=no_worktree,
     )
 
     if getattr(args, "json", False):
@@ -571,17 +573,22 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"{'PROPERTY':<24} │ VALUE")
         print("-" * 110)
         print(f"{'Target Spec':<24} │ {res['spec_file']}")
+        print(f"{'Isolation Mode':<24} │ {'📂 Direct (--no-worktree, no separate branch)' if res.get('no_worktree') else '🧩 Isolated Worktree'}")
         print(f"{'Staging Branch':<24} │ {res['staging_branch']}")
         print(f"{'Target Base':<24} │ {res['target_base']}")
         print(f"{'Target Worktree':<24} │ {res['worktree_path']}")
         print(f"{'Formatter':<24} │ {res['preferred_formatter']} ({res['formatter_command']})")
         print(f"{'Stages Selected':<24} │ {', '.join(res['active_stages'])}")
         print("=" * 110)
-        print("\nℹ️  Dry-run simulation completed. No files were modified, no worktrees created.")
+        if res.get("no_worktree"):
+            print("\nℹ️  Dry-run simulation completed. No files were modified. --no-worktree active: no isolated worktree or worker branch would be created.")
+        else:
+            print("\nℹ️  Dry-run simulation completed. No files were modified, no worktrees created.")
         print_next_steps([
             {"cmd": f"/workflow run {spec_name}", "desc": "Execute the full pipeline across all stages"},
             {"cmd": f"/workflow run {spec_name} --only security", "desc": "Execute only the Security Audit stage"},
             {"cmd": f"/workflow run {spec_name} --from quality", "desc": "Resume execution from Quality Gatekeeper"},
+            {"cmd": f"/workflow run {spec_name} --no-worktree", "desc": "Run all stages directly in the current directory, without a separate worktree or worker branch"},
         ])
         return 0
 
@@ -591,6 +598,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"{'PROPERTY':<24} │ VALUE")
     print("-" * 110)
     print(f"{'Target Spec':<24} │ {res['spec_name']}")
+    print(f"{'Isolation Mode':<24} │ {'📂 Direct (--no-worktree, no separate branch)' if res.get('no_worktree') else '🧩 Isolated Worktree'}")
     print(f"{'Staging Branch':<24} │ {res['staging_branch']}")
     print(f"{'Target Base Branch':<24} │ {res['target_base']}")
     print(f"{'Worktree Path':<24} │ {res['worktree_path']}")
@@ -602,7 +610,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     print("=" * 110)
 
     print("\n🚨 MANDATORY SUBAGENT DISPATCH ACTION REQUIRED:")
-    print("   The staging worktree is ready. Subagents HAVE NOT run yet.")
+    if res.get("no_worktree"):
+        print("   The target directory is ready (--no-worktree: no isolated worktree was created). Subagents HAVE NOT run yet.")
+    else:
+        print("   The staging worktree is ready. Subagents HAVE NOT run yet.")
     print("   The AI Orchestrator MUST now sequentially spawn the subagents for the active stages using define_subagent & invoke_subagent:")
     print("\n   🚫 STRICT ZERO-COMMENTS RULE: Write 100% clean, self-documenting code with ZERO comments (no //, #, or \"\"\" \"\"\") unless explicitly requested.\n")
     for d in res["subagent_directives"]:
@@ -616,16 +627,21 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     if res.get("on_protected_branch"):
         curr_b = res.get("current_branch", "main")
+        no_wt = res.get("no_worktree", False)
+        routed_branch = res.get("staging_branch") if no_wt else res.get("target_base")
         print("\n" + "=" * 110)
         print(f" ⚠️  PROTECTED BRANCH GATE ACTIVE: '{curr_b}'")
         print("=" * 110)
         print(f" 🔒 Direct commits and pushes to '{curr_b}' are deterministically blocked.")
-        print(f" 🌿 Worktree base automatically routed to feature branch '{res['target_base']}'.")
+        if no_wt:
+            print(f" 🌿 Working directory checked out onto feature branch '{routed_branch}' in place (--no-worktree: no isolated worktree created).")
+        else:
+            print(f" 🌿 Worktree base automatically routed to feature branch '{routed_branch}'.")
         print("=" * 110)
         print("\nℹ️  AI Agent Interactive Grilling Directive:")
         print(f"   Current active branch is protected ('{curr_b}'). You MUST prompt developer using ask_question")
         print(f"   to confirm target feature branch before pushing or opening PRs to protect {curr_b}:")
-        raw_base = res['target_base']
+        raw_base = routed_branch
         for pfx in ["feat/", "fix/", "refactor/"]:
             if raw_base.startswith(pfx):
                 raw_base = raw_base[len(pfx):]
@@ -656,17 +672,39 @@ def cmd_pr(args: argparse.Namespace) -> int:
     pr_file_path = pr_summary.get("pr_file_path")
     pr_title = custom_title or pr_summary.get("pr_title", f"feat({clean_spec}): automated merge request from workflow agent")
 
-    head_branch = f"feat/{clean_spec}-worker"
-    base_branch = f"feat/{clean_spec}"
-
     # 2. Check if git repo exists
     ensure_git_repository(target_dir)
 
-    # 3. Ensure base branch exists locally
-    feat_ref = run_git(["rev-parse", "--verify", f"refs/heads/{base_branch}"], cwd=target_dir)
-    if feat_ref.returncode != 0:
-        default_b = get_default_branch(target_dir)
-        run_git(["branch", base_branch, default_b], cwd=target_dir)
+    # 3. Resolve head/base branches. Explicit --no-worktree, or the absence of a locally recorded
+    # feat/<spec>-worker branch (meaning the pipeline was run with --no-worktree), skips the
+    # worker-branch -> feature-branch flow and opens the PR from the active branch straight to
+    # the repository default branch instead.
+    worker_branch = f"feat/{clean_spec}-worker"
+    worker_ref = run_git(["rev-parse", "--verify", f"refs/heads/{worker_branch}"], cwd=target_dir)
+    no_worktree = getattr(args, "no_worktree", False) or worker_ref.returncode != 0
+
+    if no_worktree:
+        feat_branch = f"feat/{clean_spec}"
+        feat_ref = run_git(["rev-parse", "--verify", f"refs/heads/{feat_branch}"], cwd=target_dir)
+        head_branch = feat_branch if feat_ref.returncode == 0 else get_current_branch(target_dir)
+        base_branch = get_default_branch(target_dir)
+    else:
+        head_branch = worker_branch
+        base_branch = f"feat/{clean_spec}"
+
+        # Ensure base branch exists locally
+        feat_ref = run_git(["rev-parse", "--verify", f"refs/heads/{base_branch}"], cwd=target_dir)
+        if feat_ref.returncode != 0:
+            default_b = get_default_branch(target_dir)
+            run_git(["branch", base_branch, default_b], cwd=target_dir)
+
+    if head_branch == base_branch:
+        print("=" * 110)
+        print(f" ⚠️  NO PULL REQUEST NEEDED: '{clean_spec}'")
+        print("=" * 110)
+        print(f" Head branch '{head_branch}' matches base branch '{base_branch}'. Changes are already on the target branch.")
+        print("=" * 110)
+        return 1
 
     # 4. Check gh readiness
     gh_info = check_gh_readiness(target_dir)
@@ -917,7 +955,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"slash": "/workflow plan", "syntax": "workflow plan <name>", "desc": "Convert approved spec.md into technical design (plan.md)"},
         {"slash": "/workflow tasks", "syntax": "workflow tasks <name>", "desc": "Decompose technical plan into atomic tasks (tasks.md & issues/)"},
         {"slash": "/workflow analyze", "syntax": "workflow analyze <name>", "desc": "Auditoría previa: static consistency audit across spec, plan & tasks"},
-        {"slash": "/workflow run", "syntax": "workflow run <spec> [--only <s>] [--from <s>] [--dry-run] [--pr]", "desc": "Primary Engine: Run deterministic 7-stage subagent pipeline"},
+        {"slash": "/workflow run", "syntax": "workflow run <spec> [--only <s>] [--from <s>] [--dry-run] [--pr] [--no-worktree]", "desc": "Primary Engine: Run deterministic 7-stage subagent pipeline"},
         {"slash": "/workflow pr", "syntax": "workflow pr <spec> [--title <title>] [--no-push]", "desc": "Create or update GitHub Pull Request targeting feat/<spec>"},
         {"slash": "/workflow stop", "syntax": "workflow stop [spec]", "desc": "Stop background pipeline schedulers and cancel active workflow tasks"},
         {"slash": "/workflow clean", "syntax": "workflow clean", "desc": "Clean up completed ephemeral worktrees and prune stale git directory entries"},
@@ -931,6 +969,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         {"option": "--dry-run", "desc": "Simulate pipeline execution blueprint without modifying files or spawning worktrees"},
         {"option": "--pr", "desc": "Push staging branch and open GitHub Pull Request targeting feat/<spec> (Default: local commit only)"},
         {"option": "--auto-merge", "desc": "Automatically merge worker branch into feature branch upon passing all tests"},
+        {"option": "--no-worktree", "desc": "Run all active stages directly in the current working directory on the active branch, without an isolated worktree or separate feat/<spec>-worker branch. Composable with --only/--from"},
     ]
 
     if args.json:
@@ -1028,6 +1067,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--only", choices=["implement", "fix", "refactor", "security", "quality", "doc", "git_worker"], help="Execute only a single specified pipeline stage")
     p_run.add_argument("--from", "--from-stage", dest="from_stage", choices=["implement", "fix", "refactor", "security", "quality", "doc", "git_worker"], help="Resume pipeline execution starting from specified stage")
     p_run.add_argument("--dry-run", action="store_true", help="Simulate pipeline execution blueprint without modifying files or launching subagents")
+    p_run.add_argument("--no-worktree", dest="no_worktree", action="store_true", help="Run the pipeline directly in the current working directory on the active branch, without creating an isolated worktree or separate feat/<spec>-worker branch")
     p_run.add_argument("--auto-merge", action="store_true", help="Auto-merge pipeline branch into feature branch if tests pass")
     p_run.add_argument("--pr", "--create-pr", "--push", dest="pr", action="store_true", default=False, help="Push staging branch and open GitHub Pull Request targeting feat/<spec> upon completing pipeline (Default: False for local security)")
     p_run.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
@@ -1037,6 +1077,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_pr.add_argument("spec_name", help="Name of the specification (e.g. editor-init-and-structure)")
     p_pr.add_argument("--title", help="Custom Pull Request title")
     p_pr.add_argument("--no-push", action="store_true", help="Do not push branch to origin before creating PR")
+    p_pr.add_argument("--no-worktree", dest="no_worktree", action="store_true", help="Open the PR from the active branch straight to the repository default branch (matches a pipeline run performed with --no-worktree); auto-detected when feat/<spec>-worker does not exist locally")
     p_pr.add_argument("target_dir", nargs="?", default=".", help="Target workspace directory")
 
     # stop

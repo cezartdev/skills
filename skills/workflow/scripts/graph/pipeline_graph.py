@@ -148,6 +148,22 @@ def node_sync_worktree(state: Dict[str, Any]) -> Dict[str, Any]:
     clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", spec_name).strip("-._").lower()
     worker_branch = f"{clean_spec}-worker"
 
+    if state.get("no_worktree"):
+        # --no-worktree: reuse the branch/path already prepared by PipelineRunner.run_stage_sync,
+        # skip creating a physical worktree or separate worker branch entirely.
+        return {
+            **state,
+            "spec_name": clean_spec,
+            "worktree_path": state.get("worktree_path", target_dir),
+            "staging_branch": state.get("staging_branch", clean_spec),
+            "target_base": state.get("target_base", get_default_branch(target_dir)),
+            "current_branch": state.get("current_branch", get_current_branch(target_dir)),
+            "on_protected_branch": state.get("on_protected_branch", False),
+            "sync_status": "SUCCESS_NO_WORKTREE",
+            "sync_details": {"status": "SKIPPED_NO_WORKTREE"},
+            "step": "WORKTREE_SYNCED",
+        }
+
     curr_branch = get_current_branch(target_dir)
     protected_active = is_protected_branch(curr_branch)
 

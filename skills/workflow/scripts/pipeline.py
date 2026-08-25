@@ -116,16 +116,51 @@ class PipelineRunner:
             "spec_file": active_spec,
         }
 
-    def run_stage_sync(self, spec_name: str) -> Dict[str, Any]:
-        """Stage 0: Prepares isolated worktree, detects protected branches, and rebases staging branch."""
+    def run_stage_sync(self, spec_name: str, no_worktree: bool = False) -> Dict[str, Any]:
+        """Stage 0: Prepares isolated worktree, detects protected branches, and rebases staging branch.
+
+        When `no_worktree` is True, no physical worktree or separate `feat/<spec>-worker` staging
+        branch is created. The pipeline instead operates directly inside `self.target_dir`, on
+        whichever branch is currently checked out there (still routing off `main`/`master` and
+        other protected branches onto `feat/<spec>` in place, preserving the protected-branch gate).
+        """
         # 0. Analyze and configure .gitignore to ignore worktrees/worker artifacts
         ensure_gitignore_configured(self.target_dir)
 
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
-        worker_branch = f"feat/{clean_spec}-worker"
-
         curr_branch = get_current_branch(self.target_dir)
         protected_active = is_protected_branch(curr_branch)
+
+        if no_worktree:
+            feat_branch = f"feat/{clean_spec}"
+            default_b = get_default_branch(self.target_dir)
+
+            if protected_active:
+                feat_ref = run_git(["rev-parse", "--verify", f"refs/heads/{feat_branch}"], cwd=self.target_dir)
+                if feat_ref.returncode == 0:
+                    run_git(["checkout", feat_branch], cwd=self.target_dir)
+                else:
+                    run_git(["checkout", "-b", feat_branch], cwd=self.target_dir)
+                active_branch = feat_branch
+            else:
+                active_branch = curr_branch
+
+            return {
+                "status": "SYNCED_NO_WORKTREE",
+                "spec_name": clean_spec,
+                "staging_branch": active_branch,
+                "target_base": default_b,
+                "current_branch": curr_branch,
+                "on_protected_branch": protected_active,
+                "worktree_path": self.target_dir,
+                "no_worktree": True,
+                "sync_details": {
+                    "status": "SKIPPED_NO_WORKTREE",
+                    "message": f"--no-worktree active: pipeline stages run directly in '{self.target_dir}' on branch '{active_branch}'. No isolated worktree or worker branch was created.",
+                },
+            }
+
+        worker_branch = f"feat/{clean_spec}-worker"
 
         # Prioritize feat/<spec> as feature mainline
         feat_branch = f"feat/{clean_spec}"
@@ -161,6 +196,7 @@ class PipelineRunner:
             "current_branch": curr_branch,
             "on_protected_branch": protected_active,
             "worktree_path": wt_path,
+            "no_worktree": False,
             "sync_details": sync_res,
         }
 
@@ -277,16 +313,26 @@ class PipelineRunner:
         create_pr: bool = False,
         push: bool = False,
         pr_summary: Optional[Dict[str, Any]] = None,
+        no_worktree: bool = False,
+        staging_branch: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Stage 7: Git commit synthesis, grilling confirmation metadata, and optional PR creation."""
         clean_spec = re.sub(r"[^a-zA-Z0-9_.-]+", "-", os.path.basename(spec_name.rstrip("/\\"))).strip("-._").lower()
-        worker_branch = f"feat/{clean_spec}-worker"
-        feat_branch = f"feat/{clean_spec}"
-        feat_ref = run_git(["rev-parse", "--verify", f"refs/heads/{feat_branch}"], cwd=self.target_dir)
-        if feat_ref.returncode != 0:
-            default_b = get_default_branch(self.target_dir)
-            run_git(["branch", feat_branch, default_b], cwd=self.target_dir)
-        target_base = feat_branch
+
+        if no_worktree:
+            # No isolated worker branch: commits already live on the branch used throughout the run.
+            worker_branch = staging_branch or get_current_branch(self.target_dir)
+            target_base = get_default_branch(self.target_dir)
+        else:
+            worker_branch = f"feat/{clean_spec}-worker"
+            feat_branch = f"feat/{clean_spec}"
+            feat_ref = run_git(["rev-parse", "--verify", f"refs/heads/{feat_branch}"], cwd=self.target_dir)
+            if feat_ref.returncode != 0:
+                default_b = get_default_branch(self.target_dir)
+                run_git(["branch", feat_branch, default_b], cwd=self.target_dir)
+            target_base = feat_branch
+
+        pr_url = None
 
         if not pr_summary:
             pr_summary = compile_scoped_pr_summary(self.target_dir, spec_name=clean_spec)
@@ -304,7 +350,10 @@ class PipelineRunner:
         else:
             push_status = "REMOTE_PUSH_SKIPPED"
 
-        if auto_merge:
+        if no_worktree:
+            # There is no separate worker branch to fold back in; work already landed on worker_branch.
+            merge_status = "NOT_APPLICABLE_NO_WORKTREE"
+        elif auto_merge:
             status_main = run_git(["status", "--porcelain"], cwd=self.target_dir)
             if status_main.stdout.strip():
                 merge_status = "DIRTY_TREE_POSTPONED"
@@ -314,7 +363,10 @@ class PipelineRunner:
         else:
             merge_status = "MERGE_SKIPPED"
 
-        if create_pr:
+        if create_pr and no_worktree and worker_branch == target_base:
+            pr_creation_status = "SKIPPED_SAME_BRANCH"
+            pr_creation_message = f"Head branch '{worker_branch}' matches base branch '{target_base}' in --no-worktree mode; no Pull Request is needed."
+        elif create_pr:
             if not gh_readiness["ready"]:
                 pr_creation_status = gh_readiness["status"]
                 pr_creation_message = gh_readiness["message"]
@@ -334,8 +386,6 @@ class PipelineRunner:
                 else:
                     pr_creation_status = pr_res.get("status", "PR_FAILED")
                     pr_creation_message = pr_res.get("message")
-        else:
-            pr_url = None
 
         pr_title_val = pr_summary.get("pr_title", f"feat({clean_spec}): automated merge request from workflow agent")
         pr_body_val = pr_summary.get("pr_file_path", "")
@@ -368,6 +418,7 @@ class PipelineRunner:
         only: Optional[str] = None,
         from_stage: Optional[str] = None,
         dry_run: bool = False,
+        no_worktree: bool = False,
     ) -> Dict[str, Any]:
         """Runs the deterministic 7-stage sequential subagent pipeline with granular control and checkpoints."""
         start_time = time.time()
@@ -393,16 +444,25 @@ class PipelineRunner:
         if dry_run:
             pref_fmt = get_preferred_formatter(self.target_dir)
             curr_b = get_current_branch(self.target_dir)
-            target_base = f"feat/{clean_spec}" if is_protected_branch(curr_b) else curr_b
-            wt_path_sim = os.path.join(self.wf_root, "worktrees", clean_spec, "worker")
+
+            if no_worktree:
+                target_base = get_default_branch(self.target_dir)
+                staging_branch = f"feat/{clean_spec}" if is_protected_branch(curr_b) else curr_b
+                wt_path_sim = self.target_dir
+            else:
+                target_base = f"feat/{clean_spec}" if is_protected_branch(curr_b) else curr_b
+                staging_branch = f"feat/{clean_spec}-worker"
+                wt_path_sim = os.path.join(self.wf_root, "worktrees", clean_spec, "worker")
+
             rel_wt = os.path.relpath(wt_path_sim, self.target_dir).replace("\\", "/")
 
             return {
                 "status": "DRY_RUN_SIMULATION",
                 "dry_run": True,
+                "no_worktree": no_worktree,
                 "spec_name": clean_spec,
                 "spec_file": spec_info.get("spec_file"),
-                "staging_branch": f"feat/{clean_spec}-worker",
+                "staging_branch": staging_branch,
                 "target_base": target_base,
                 "current_branch": curr_b,
                 "worktree_path": rel_wt,
@@ -412,8 +472,9 @@ class PipelineRunner:
             }
 
         # Step 0: Stage 0 Worktree Sync
-        sync_res = self.run_stage_sync(clean_spec)
-        wt_path = sync_res.get("worktree_path") or os.path.join(self.wf_root, "worktrees", clean_spec, "worker")
+        sync_res = self.run_stage_sync(clean_spec, no_worktree=no_worktree)
+        default_wt_path = self.target_dir if no_worktree else os.path.join(self.wf_root, "worktrees", clean_spec, "worker")
+        wt_path = sync_res.get("worktree_path") or default_wt_path
         rel_wt_path = os.path.relpath(wt_path, self.target_dir).replace("\\", "/")
 
         # Step 1: LangGraph DAG Execution for Core SDD/TDD Node Transitions
@@ -430,6 +491,7 @@ class PipelineRunner:
             "create_pr": create_pr,
             "push": push,
             "active_stages": active_stages,
+            "no_worktree": no_worktree,
         }
         graph_res = graph.invoke(initial_state)
 
@@ -472,6 +534,8 @@ class PipelineRunner:
                 create_pr=pr_mode,
                 push=pr_mode,
                 pr_summary=doc_res.get("pr_summary"),
+                no_worktree=no_worktree,
+                staging_branch=sync_res.get("staging_branch"),
             )
 
         elapsed = round(time.time() - start_time, 2)
@@ -586,6 +650,7 @@ class PipelineRunner:
         return {
             "status": "SUCCESS",
             "spec_name": clean_spec,
+            "no_worktree": no_worktree,
             "staging_branch": sync_res.get("staging_branch", f"feat/{clean_spec}-worker"),
             "target_base": sync_res.get("target_base", f"feat/{clean_spec}"),
             "current_branch": sync_res.get("current_branch", "main"),

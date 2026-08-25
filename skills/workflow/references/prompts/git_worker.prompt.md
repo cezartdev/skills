@@ -20,7 +20,7 @@ By default, for safety and security, all commit operations are **strictly local*
 Before committing or pushing to remote, you MUST trigger an interactive grilling session with the developer using `ask_question`:
 
 1. **Question 1 (Review & Delivery Approval)**:
-   - Ask developer to confirm whether to proceed with commit on `feat/<spec>-worker` targeting `feat/<spec>`.
+   - Ask developer to confirm whether to proceed with the commit on the pipeline's `Staging Branch` targeting its `Target Base Branch`, as reported by `workflow run` (normally `feat/<spec>-worker` targeting `feat/<spec>`; when the pipeline was run with `--no-worktree`, the active branch itself targeting the repository default branch instead).
 2. **Question 2 (Conventional Commit Scope & Header)**:
    - Present the proposed commit header: `feat(<spec>): <description>` and ask for confirmation or type adjustment.
 3. **Question 3 (GitHub Pull Request Authorization)**:
@@ -35,8 +35,10 @@ Once confirmed by the human developer:
 1. **Pre-Commit Security Scan, Checkpoint Squashing & Atomic Commit (Local Only)**:
    > [!TIP]
    > **AUTOMATIC CHECKPOINT SQUASHING**:
-   > `git_ops.py commit` automatically squashes all intermediate `chore(workflow-checkpoint): [...]` commits on `feat/<spec-name>-worker` into a single, clean Conventional Commit.
+   > `git_ops.py commit` automatically squashes all intermediate `chore(workflow-checkpoint): [...]` commits on the pipeline's `Staging Branch` into a single, clean Conventional Commit.
    > The final commit message body contains a comprehensive bullet summary of the completed acceptance criteria, green tests, and security clearance.
+   >
+   > **`--target-dir`**: Use the exact `Worktree Path` reported by `workflow run <spec>`. It is `.workflow/worktrees/<spec-name>/worker` for a normal run, or the current working directory (`.`) when the pipeline was run with `--no-worktree`.
 
    ```bash
    uv run skills/workflow/scripts/git_ops.py commit \
@@ -44,19 +46,19 @@ Once confirmed by the human developer:
      -s <spec-name> \
      -m "<imperative description derived from spec.md>" \
      -b "- <bullet summary from ADR and spec.md>" \
-     --target-dir ".workflow/worktrees/<spec-name>/worker"
+     --target-dir "<Worktree Path reported by workflow run>"
    ```
 
 2. **Pull Request Synthesis (via --pr or /workflow pr <spec>)**:
    > [!CAUTION]
    > **STRICT BAN ON MANUAL `gh pr create` AND DIRECT `main` TARGETING**:
    > - **NEVER** run `gh pr create` manually in bash or terminal.
-   > - **NEVER** create a Pull Request targeting `main` or `master` (e.g. `--base main`). The target base for specifications is ALWAYS `feat/<spec-name>`.
+   > - **NEVER** create a Pull Request targeting `main` or `master` directly yourself (e.g. `--base main`) — only the dedicated workflow PR command below may do so, and only in `--no-worktree` mode where that is the correct target.
    > - **ONLY** execute the dedicated workflow PR command:
    >   ```bash
    >   uv run skills/workflow/scripts/workflow_runner.py pr <spec-name>
    >   ```
-   > - `workflow_runner.py pr` automatically and deterministically pushes the branches and creates/updates the PR from `feat/<spec-name>-worker` into `feat/<spec-name>`.
+   > - `workflow_runner.py pr` automatically and deterministically pushes the branches and creates/updates the PR. For a normal run this targets `feat/<spec-name>-worker` into `feat/<spec-name>`; if the pipeline was run with `--no-worktree` (auto-detected when `feat/<spec-name>-worker` does not exist locally), it instead targets the active branch into the repository's default branch.
    > - Once `workflow_runner.py pr` finishes, your PR task is 100% COMPLETE. DO NOT execute any subsequent `gh pr create` commands!
 
 ---
@@ -68,9 +70,9 @@ Before attempting automated PR creation or remote pushing:
 2. **Missing CLI or Unauthenticated Fallback**:
    - If `gh` is not installed or not authenticated (`gh auth login`), automated PR creation via `gh pr create` is skipped gracefully.
    - The subagent MUST NOT fail abruptly.
-   - Instead, inform the developer during the Grilling Session and provide the exact manual fallback commands:
-     - `git push -u origin feat/<spec-name>-worker`
-     - `git checkout feat/<spec-name> && git merge --no-ff feat/<spec-name>-worker`
+   - Instead, inform the developer during the Grilling Session and provide the exact manual fallback commands, using the `Staging Branch` / `Target Base Branch` reported by `workflow run`:
+     - `git push -u origin <staging-branch>` (normally `feat/<spec-name>-worker`; the active branch itself in `--no-worktree` mode)
+     - `git checkout <target-base-branch> && git merge --no-ff <staging-branch>` (normally `feat/<spec-name>`; the repository default branch in `--no-worktree` mode)
      - Or opening a PR manually on GitHub via the web interface.
 
 ---
