@@ -111,7 +111,7 @@ Skills follow the standard `skills/<skill-name>/SKILL.md` specification. In your
    ```
 2. Reference the skill path in your agent settings or invoke directly:
    ```bash
-   python3 skills/git/scripts/git_helper.py check-env
+   bash skills/git/scripts/git_helper.sh check-env
    ```
 
 ---
@@ -133,9 +133,9 @@ skills/
 ├── skills/                   # Core skills directory
 │   └── git/
 │       ├── SKILL.md          # Skill instruction specification & agent contract
-│       ├── pyproject.toml    # Python environment & metadata specification
 │       └── scripts/
-│           └── git_helper.py # Deterministic Git CLI helper & validation engine
+│           ├── git_helper.sh # Linux / macOS / Git Bash native runner
+│           └── git_helper.ps1# Windows native PowerShell runner
 ├── AGENTS.md                 # Agent operating standards, rules & release workflows
 ├── CHANGELOG.md              # Automated semantic release notes
 ├── package.json              # Root workspace manifest & version source of truth
@@ -178,7 +178,7 @@ Add new deterministic workflow runner skill
 Use the built-in `git` helper to validate compliance and commit:
 
 ```bash
-python3 skills/git/scripts/git_helper.py commit \
+bash skills/git/scripts/git_helper.sh commit \
   -t feat \
   -s workflow \
   -m "implement deterministic state machine runner" \

@@ -162,7 +162,7 @@ Format requirement:
 #### Step 3: Pre-Flight Validation & Commit
 Use the `git` helper script to validate and execute the commit:
 ```bash
-uv run skills/git/scripts/git_helper.py commit \
+bash skills/git/scripts/git_helper.sh commit \
   -t feat \
   -s workflow \
   -m "implement deterministic state machine runner" \
@@ -205,8 +205,8 @@ Once the feature PR merges into `main`, GitHub Actions (`.github/workflows/relea
 
 ### Active Implemented Skills
 1. **`git` (Deterministic Git Operations Suite)**:
-   - **Engine**: Python 3.8+ (Astral uv + Standard Library, `git_helper.py`).
-   - **Purpose**: Unified Git suite providing pre-commit security gates, 10-step Conventional Commits validation, commit history compliance auditing (`/git audit`), and safe commit-and-push workflows.
+   - **Engine**: Pure Native POSIX Bash (`git_helper.sh`) & Windows PowerShell (`git_helper.ps1`) — Zero runtime overhead, no Python required.
+   - **Purpose**: Unified Git suite providing pre-commit security gates (.env.example template allowance, secret, sensitive file & conflict marker blocker), 10-step Conventional Commits validation, commit history compliance auditing (`/git audit`), and safe commit-and-push workflows (`/git` and `/git commit`).
 2. **`workflow` (Deterministic Agent Workflow & TDD Suite)**:
    - **Engine**: Python 3.10+ (LangGraph + Astral uv).
    - **Purpose**: Deterministic state-machine workflow runner, Spec-Driven Development (SDD), Test-Driven Development (TDD), OWASP Top 10 cybersecurity auditor, Quality Gatekeeper, hierarchical markdown memory, autonomous codebase exploration with tech drift detection, and physical Git Worktree isolation.
